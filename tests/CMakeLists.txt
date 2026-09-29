@@ -1,9 +1,9 @@
-// The build description for the test suites.
-//
-// Three suites are built: one per source file in the unit folder, one per file in
-// the integration folder, and one per file in the benchmark folder. They are
-// separate executables so that a crash in a benchmark cannot hide a unit test
-// failure, and so that the fast suite can be run on its own during development.
+# The build description for the test suites.
+# 
+# Three suites are built: one per source file in the unit folder, one per file in
+# the integration folder, and one per file in the benchmark folder. They are
+# separate executables so that a crash in a benchmark cannot hide a unit test
+# failure, and so that the fast suite can be run on its own during development.
 find_package(Threads REQUIRED)
 # The Catch2 main object is compiled once and linked into every test binary. It
 # provides the `main` function that Catch2 expects a test program to have.
