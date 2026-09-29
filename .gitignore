@@ -1,0 +1,68 @@
+# Build output. The tool is built into a directory named build by the
+# instructions in the README, but any other out of source directory is ignored
+# too so that a contributor never has to remember which name was used.
+build/
+build-*/
+out/
+cmake-build-*/
+_deps/
+
+# Compiled objects, libraries, and executables that appear outside a build
+# directory, for example when a single file is compiled by hand.
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+
+# CMake leftovers.
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+install_manifest.txt
+compile_commands.json
+
+# SQLite side files produced when the tool opens a database. The tool itself
+# never creates one outside a controlled operation, but a user running an older
+# copy of the tool might, and a commit should never contain a database.
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+
+# Backups written by the prune and compact commands.
+*.agent-db-doctor-backup
+agent-db-doctor-backups/
+
+# Editor and operating system noise.
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Coverage and profiling output produced by the sanitizer and benchmark jobs.
+*.profraw
+*.profdata
+coverage/
+*.gcda
+*.gcno
+*.gcov
+callgrind.out.*
+perf.data*
