@@ -13,6 +13,12 @@
 #include <string>
 // Provides `vector`, a growable array of values.
 #include <vector>
+// The outer namespace is declared before the nested spelling below, because
+// `namespace Outer::Inner` only compiles when `Outer` already exists. Without
+// this line a header that is a translation unit's first include would fail.
+namespace AgentDbDoctor {
+}
+
 using namespace std;
 namespace AgentDbDoctor::Common {
 // The value carried by every agent-db-doctor exception.
@@ -111,6 +117,12 @@ public:
     const string& message() const {
         return baseException.message();
     }
+    // The raw SQLite result code, so that a caller can branch on the specific
+    // failure rather than parsing the sentence. The presentation layer uses the
+    // sentence; the recovery layer uses this number.
+    int openResultCode() const {
+        return sqliteResultCode;
+    }
 private:
     // Builds the full sentence once, during construction, so that `what()` is a
     // trivial read on the error path.
@@ -119,6 +131,7 @@ private:
             + SqliteErrorTranslator::explain(sqliteResultCode) + " " + explanation;
     }
     AgentDbDoctorException baseException;
+    int sqliteResultCode=0;
 };
 // The DatabaseOperationException is raised when a statement fails for a reason
 // other than opening the file.
