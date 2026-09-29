@@ -15,6 +15,12 @@
 #include <string>
 // Provides `variant`, a value that is exactly one of several alternative types.
 #include <variant>
+// The outer namespace is declared before the nested spelling below, because
+// `namespace Outer::Inner` only compiles when `Outer` already exists. Without
+// this line a header that is a translation unit's first include would fail.
+namespace AgentDbDoctor {
+}
+
 using namespace std;
 namespace AgentDbDoctor::Common {
 // The Status class is the result type for operations that produce no value.
