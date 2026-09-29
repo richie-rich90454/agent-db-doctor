@@ -27,8 +27,8 @@ namespace AgentDbDoctor::Common {
 namespace SpdlogLevel {
     constexpr spdlog::level::level_enum DEBUG=spdlog::level::debug;
     constexpr spdlog::level::level_enum INFO=spdlog::level::info;
-    constexpr spdlog::level::level_enum WARN=spdlog::level::warn;
-    constexpr spdlog::level::level_enum ERROR=spdlog::level::err;
+    constexpr spdlog::level::level_enum WARNING=spdlog::level::warn;
+    constexpr spdlog::level::level_enum SEVERE=spdlog::level::err;
 }
 // Converts one of our levels into the matching spdlog level. The mapping is a
 // `switch` rather than an array indexed by an enum value so that a new level
@@ -39,7 +39,7 @@ Logger::Logger()
     : spdlogLogger(buildLogger(string(), "agent-db-doctor-console")),
       lineCount(0) {
     spdlogLogger->set_level(SpdlogLevel::INFO);
-    spdlogLogger->flush_on(SpdlogLevel::WARN);
+    spdlogLogger->flush_on(SpdlogLevel::WARNING);
 }
 Logger::Logger(const string& logFilePath)
     : spdlogLogger(buildLogger(logFilePath, "agent-db-doctor-service")),
@@ -48,8 +48,8 @@ Logger::Logger(const string& logFilePath)
     // and info lines are discarded by the level check before any formatting
     // happens, which is what keeps an idle service under one hundredth of a
     // percent of one processor.
-    spdlogLogger->set_level(SpdlogLevel::WARN);
-    spdlogLogger->flush_on(SpdlogLevel::WARN);
+    spdlogLogger->set_level(SpdlogLevel::WARNING);
+    spdlogLogger->flush_on(SpdlogLevel::WARNING);
 }
 Logger::~Logger() {
     if (spdlogLogger) {
@@ -97,8 +97,8 @@ static spdlog::level::level_enum toSpdlogLevel(VerbosityLevel level) {
     switch (level) {
         case VerbosityLevel::DEBUG: return SpdlogLevel::DEBUG;
         case VerbosityLevel::INFO: return SpdlogLevel::INFO;
-        case VerbosityLevel::WARN: return SpdlogLevel::WARN;
-        case VerbosityLevel::ERROR: return SpdlogLevel::ERROR;
+        case VerbosityLevel::WARNING: return SpdlogLevel::WARNING;
+        case VerbosityLevel::SEVERE: return SpdlogLevel::SEVERE;
     }
     return SpdlogLevel::INFO;
 }
@@ -111,8 +111,8 @@ void Logger::write(VerbosityLevel level, const string& messageText) const {
     switch (level) {
         case VerbosityLevel::DEBUG: spdlogLogger->debug(messageText); break;
         case VerbosityLevel::INFO: spdlogLogger->info(messageText); break;
-        case VerbosityLevel::WARN: spdlogLogger->warn(messageText); break;
-        case VerbosityLevel::ERROR: spdlogLogger->error(messageText); break;
+        case VerbosityLevel::WARNING: spdlogLogger->warn(messageText); break;
+        case VerbosityLevel::SEVERE: spdlogLogger->error(messageText); break;
     }
     lineCount++;
 }
@@ -123,10 +123,10 @@ void Logger::info(const string& messageText) const {
     write(VerbosityLevel::INFO, messageText);
 }
 void Logger::warn(const string& messageText) const {
-    write(VerbosityLevel::WARN, messageText);
+    write(VerbosityLevel::WARNING, messageText);
 }
 void Logger::error(const string& messageText) const {
-    write(VerbosityLevel::ERROR, messageText);
+    write(VerbosityLevel::SEVERE, messageText);
 }
 void Logger::setMinimumLevel(VerbosityLevel minimumLevel) const {
     spdlogLogger->set_level(toSpdlogLevel(minimumLevel));
@@ -135,8 +135,8 @@ VerbosityLevel Logger::minimumLevel() const {
     switch (spdlogLogger->level()) {
         case SpdlogLevel::DEBUG: return VerbosityLevel::DEBUG;
         case SpdlogLevel::INFO: return VerbosityLevel::INFO;
-        case SpdlogLevel::WARN: return VerbosityLevel::WARN;
-        default: return VerbosityLevel::ERROR;
+        case SpdlogLevel::WARNING: return VerbosityLevel::WARNING;
+        default: return VerbosityLevel::SEVERE;
     }
 }
 long long Logger::writtenLineCount() const {
