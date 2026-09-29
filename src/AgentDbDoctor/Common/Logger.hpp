@@ -13,6 +13,12 @@
 #include <string>
 // Provides the spdlog logger that this class wraps.
 #include <spdlog/spdlog.h>
+// The outer namespace is declared before the nested spelling below, because
+// `namespace Outer::Inner` only compiles when `Outer` already exists. Without
+// this line a header that is a translation unit's first include would fail.
+namespace AgentDbDoctor {
+}
+
 using namespace std;
 namespace AgentDbDoctor::Common {
 // The VerbosityLevel enum names the four levels the tool writes.
@@ -26,9 +32,9 @@ enum class VerbosityLevel {
     // Normal progress information.
     INFO,
     // Something unexpected happened but the operation continued.
-    WARN,
+    WARNING,
     // The operation could not continue.
-    ERROR
+    SEVERE
 };
 // The Logger class writes timestamped lines to a file and, optionally, to the
 // console.
