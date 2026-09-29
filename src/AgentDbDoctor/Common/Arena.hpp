@@ -19,6 +19,12 @@
 #include <string>
 // Provides `string_view`, a read only view of characters owned elsewhere.
 #include <string_view>
+// The outer namespace is declared before the nested spelling below, because
+// `namespace Outer::Inner` only compiles when `Outer` already exists. Without
+// this line a header that is a translation unit's first include would fail.
+namespace AgentDbDoctor {
+}
+
 using namespace std;
 namespace AgentDbDoctor::Common {
 // The Arena class hands out slices of one contiguous block of memory.
@@ -98,11 +104,11 @@ public:
     }
     // The number of bytes the arena can still hand out.
     size_t remainingBytes() const {
-        return blockSize-usedByteCount;
+        return blockByteSize-usedByteCount;
     }
     // The total size of the block the arena currently owns.
-    size_t blockSize() const {
-        return blockSize;
+    size_t blockByteSize() const {
+        return blockByteSize;
     }
     // Makes every byte available again without releasing the block. This is the
     // cheap operation the watchdog loop calls on every tick.
@@ -119,7 +125,7 @@ public:
             delete[] heapBlock;
         }
         heapBlock=inlineBlock.data();
-        blockSize=inlineBlock.size();
+        blockByteSize=inlineBlock.size();
         usedByteCount=0;
     }
 private:
@@ -147,10 +153,10 @@ private:
     // Hands out `byteCount` bytes, growing the block when necessary. Returns
     // `nullptr` when the operating system refuses the memory.
     unsigned char* allocateRaw(size_t byteCount) {
-        if (usedByteCount + byteCount > blockSize) {
+        if (usedByteCount + byteCount > blockByteSize) {
             growTo(usedByteCount + byteCount);
         }
-        if (usedByteCount + byteCount > blockSize) {
+        if (usedByteCount + byteCount > blockByteSize) {
             return nullptr;
         }
         // The bump pointer moves forward and never moves back until `reset()`.
@@ -175,7 +181,7 @@ private:
             delete[] heapBlock;
         }
         heapBlock=replacement;
-        blockSize=newSize;
+        blockByteSize=newSize;
     }
     // The block currently in use. It starts out pointing at `inlineBlock`, so a
     // default constructed arena performs no allocation at all. The pointer is
@@ -185,7 +191,7 @@ private:
     // How many bytes of `heapBlock` have been handed out.
     size_t usedByteCount=0;
     // The total size of `heapBlock`. It starts out equal to the inline size.
-    size_t blockSize=INLINE_BLOCK_SIZE;
+    size_t blockByteSize=INLINE_BLOCK_SIZE;
     // The inline block. Because `array` stores its elements inside the object,
     // no allocation is needed to create it.
     array<unsigned char, INLINE_BLOCK_SIZE> inlineBlock;
