@@ -8,7 +8,9 @@ cmake_minimum_required(VERSION 3.24)
 project(agent-db-doctor
     VERSION 1.0.0
     DESCRIPTION "A doctor for AI coding agent databases."
-    LANGUAGES CXX
+    # C is enabled only because the vendored SQLite amalgamation is a C file. No
+    # first party source in this project is C.
+    LANGUAGES CXX C
 )
 # `CXX_STANDARD 23` requires the compiler to implement C++23. We additionally
 # require the extensions to be off so that the code stays portable.
@@ -49,35 +51,30 @@ set(FETCHCONTENT_QUIET OFF)
 set(AGENT_DB_DOCTOR_SQLITE_VERSION "3500400")
 set(AGENT_DB_DOCTOR_SQLITE_URL
     "https://www.sqlite.org/2025/sqlite-amalgamation-${AGENT_DB_DOCTOR_SQLITE_VERSION}.zip")
-FetchContent_Declare(sqlite3_amalgamation URL "${AGENT_DB_DOCTOR_SQLITE_URL}")
-FetchContent_GetProperties(sqlite3_amalgamation)
-if(NOT sqlite3_amalgamation_POPULATED)
-    FetchContent_Populate(sqlite3_amalgamation)
-    # The archive unpacks into a directory whose name is derived from the file
-    # name. We normalise the layout so the rest of the build can rely on it.
-    set(AGENT_DB_DOCTOR_SQLITE_DIR "${sqlite3_amalgamation_SOURCE_DIR}")
-    if(NOT EXISTS "${AGENT_DB_DOCTOR_SQLITE_DIR}/sqlite3.c")
-        file(GLOB AGENT_DB_DOCTOR_UNPACKED "${sqlite3_amalgamation_SOURCE_DIR}/*/sqlite3.c")
-        if(AGENT_DB_DOCTOR_UNPACKED)
-            list(GET AGENT_DB_DOCTOR_UNPACKED 0 AGENT_DB_DOCTOR_UNPACKED_C)
-            get_filename_component(AGENT_DB_DOCTOR_SQLITE_DIR
-                "${AGENT_DB_DOCTOR_UNPACKED_C}" DIRECTORY)
-        endif()
-    endif()
-    if(NOT EXISTS "${AGENT_DB_DOCTOR_SQLITE_DIR}/sqlite3.c")
-        message(FATAL_ERROR
-            "The SQLite amalgamation was downloaded but sqlite3.c was not found in "
-            "${AGENT_DB_DOCTOR_SQLITE_DIR}.")
-    endif()
+# `SOURCE_SUBDIR` names a directory that does not exist. That is deliberate: it
+# tells FetchContent to download and unpack the archive but not to look for a
+# CMakeLists inside it, because the SQLite amalgamation has none. It is the
+# supported way to do this in current CMake, replacing the deprecated
+# `FetchContent_Populate` call.
+FetchContent_Declare(sqlite3_amalgamation
+    URL "${AGENT_DB_DOCTOR_SQLITE_URL}"
+    SOURCE_SUBDIR "agent-db-doctor-does-not-build-sqlite-with-cmake"
+)
+FetchContent_MakeAvailable(sqlite3_amalgamation)
+# The archive unpacks into the directory FetchContent chose, containing
+# sqlite3.c, sqlite3.h, sqlite3ext.h, and shell.c.
+set(AGENT_DB_DOCTOR_SQLITE_DIR "${sqlite3_amalgamation_SOURCE_DIR}")
+if(NOT EXISTS "${AGENT_DB_DOCTOR_SQLITE_DIR}/sqlite3.c")
+    # Some archive layouts add one level of nesting, so the tree is searched one
+    # level down. `file(GLOB)` returns a list, and the first entry is taken.
+    file(GLOB AGENT_DB_DOCTOR_UNPACKED "${sqlite3_amalgamation_SOURCE_DIR}/*/sqlite3.c")
+    list(GET AGENT_DB_DOCTOR_UNPACKED 0 AGENT_DB_DOCTOR_UNPACKED_C)
+    get_filename_component(AGENT_DB_DOCTOR_SQLITE_DIR "${AGENT_DB_DOCTOR_UNPACKED_C}" DIRECTORY)
 endif()
-if(NOT DEFINED AGENT_DB_DOCTOR_SQLITE_DIR)
-    if(EXISTS "${sqlite3_amalgamation_SOURCE_DIR}/sqlite3.c")
-        set(AGENT_DB_DOCTOR_SQLITE_DIR "${sqlite3_amalgamation_SOURCE_DIR}")
-    else()
-        file(GLOB AGENT_DB_DOCTOR_UNPACKED "${sqlite3_amalgamation_SOURCE_DIR}/*/sqlite3.c")
-        list(GET AGENT_DB_DOCTOR_UNPACKED 0 AGENT_DB_DOCTOR_UNPACKED_C)
-        get_filename_component(AGENT_DB_DOCTOR_SQLITE_DIR "${AGENT_DB_DOCTOR_UNPACKED_C}" DIRECTORY)
-    endif()
+if(NOT EXISTS "${AGENT_DB_DOCTOR_SQLITE_DIR}/sqlite3.c")
+    message(FATAL_ERROR
+        "The SQLite amalgamation was downloaded but sqlite3.c was not found in "
+        "${AGENT_DB_DOCTOR_SQLITE_DIR}.")
 endif()
 # `SQLITE_OMIT_DEPRECATED` removes long deprecated APIs we never use.
 # `SQLITE_OMIT_SHARED_CACHE` removes the global shared cache, which is unsafe
@@ -206,14 +203,12 @@ endif()
 # Every source file is listed explicitly. A glob would silently accept a file
 # that was never reviewed.
 set(AGENT_DB_DOCTOR_CORE_SOURCES
-    src/AgentDbDoctor/Common/Arena.cpp
     src/AgentDbDoctor/Common/Exceptions.cpp
     src/AgentDbDoctor/Common/Logger.cpp
     src/AgentDbDoctor/Persistence/Database.cpp
     src/AgentDbDoctor/Persistence/Statement.cpp
     src/AgentDbDoctor/FileSystem/DiskSpaceChecker.cpp
     src/AgentDbDoctor/FileSystem/FileLockDetector.cpp
-    src/AgentDbDoctor/FileSystem/PlatformMetadata.cpp
     src/AgentDbDoctor/Agents/AgentRegistry.cpp
     src/AgentDbDoctor/Agents/OpenCodeAgent.cpp
     src/AgentDbDoctor/Agents/CodexAgent.cpp
@@ -226,6 +221,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Doctor/SafetyChecks.cpp
     src/AgentDbDoctor/Doctor/StatisticsReader.cpp
     src/AgentDbDoctor/Recovery/KnownFailurePatterns.cpp
+    src/AgentDbDoctor/Recovery/RecoveryRecommendation.cpp
     src/AgentDbDoctor/Recovery/RecoveryPlaybook.cpp
     src/AgentDbDoctor/Presentation/ConsoleReport.cpp
     src/AgentDbDoctor/Presentation/HumanReadableFormatting.cpp
