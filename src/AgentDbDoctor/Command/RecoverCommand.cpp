@@ -312,8 +312,15 @@ int RecoverCommand::execute(const CommandOptions& options) {
     if (match.matched) {
         lastRunOutcome.matchedPatternName=match.patternName;
         lastRunOutcome.plainExplanation=match.plainExplanation;
-        lastRunOutcome.isRecoverableByThisTool=match.recoverableByThisTool;
-        lastRunOutcome.dataIsUnrecoverable=match.dataIsUnrecoverable;
+        // A file whose bytes are not a database is unrecoverable whatever else was
+        // found. A pattern such as a lock or a full drive can still contribute what it
+        // noticed, but it must not turn an unrecoverable verdict into a recoverable
+        // one, and it must not promise a repair the integrity check already ruled out.
+        lastRunOutcome.dataIsUnrecoverable=
+            lastRunOutcome.dataIsUnrecoverable || match.dataIsUnrecoverable;
+        if (!lastRunOutcome.dataIsUnrecoverable) {
+            lastRunOutcome.isRecoverableByThisTool=match.recoverableByThisTool;
+        }
     }
     // The plan is chosen by what was found, not by what the user hoped for.
     vector<RecoveryRecommendation> plan;
