@@ -66,7 +66,7 @@ public:
     static string openingSentence(const string& agentName, const string& databaseFilePath);
     // The sentence printed below every plan, which points at the service that
     // would have caught this earlier.
-    static string closingSentence(const string& databaseFilePath);
+    static string closingSentence();
 private:
 };
 }
