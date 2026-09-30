@@ -157,7 +157,6 @@ void ServiceManager::runWatchdogLoop() {
     // close.
     Logger logger(serviceConfiguration.logFilePath);
     logger.info(string(SERVICE_NAME) + " started, watching every tick.");
-    int tickCounter=0;
     while (!stopRequested) {
         const WatchdogRunSummary summary=runOneWatchdogPass();
         // The lines are written after the pass rather than during it, so the pass
@@ -166,7 +165,6 @@ void ServiceManager::runWatchdogLoop() {
         for (const string& lineToLog : summary.messagesToLog) {
             logger.warn(lineToLog);
         }
-        tickCounter++;
         // The loop sleeps in short slices so that a stop request is noticed quickly.
         // The total slept is the configured interval, so the frequency is exactly
         // what the user asked for.
