@@ -112,6 +112,9 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     }
     // Every report is printed in turn, with a blank line between them so they read
     // as separate sections rather than as one run on paragraph.
+    // A folder is counted apart from the two verdicts, because it is neither a
+    // database that passed nor a database that failed.
+    int folderCount=0;
     for (size_t reportIndex=0; reportIndex<databasePaths.size(); ++reportIndex) {
         const DiagnosisReport report=doctor.diagnoseDatabase(
             databasePaths[reportIndex],
@@ -124,7 +127,12 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
         // check, so it is never counted as a problem. Counting it as one would
         // make every install of a text based agent look like a fault.
         const bool isFolderOfTextFiles=report.getIsDirectory();
-        if (report.isHealthy() || isFolderOfTextFiles) {
+        if (isFolderOfTextFiles) {
+            // A folder is counted separately from both healthy and needing attention.
+            // Calling it healthy would claim an inspection that never happened, and
+            // calling it a problem would make every text based agent look broken.
+            folderCount++;
+        } else if (report.isHealthy()) {
             healthyCount++;
         } else {
             problemCount++;
@@ -137,10 +145,16 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     // The closing line is a count rather than a judgement, because a user who ran
     // the command on six databases needs to know how many were fine and how many
     // need attention without scrolling back.
-    const string summary=string("Looked at ") + to_string(databasePaths.size())
-        + (databasePaths.size()==1 ? " database. " : " databases. ")
+    string summary=string("Looked at ") + to_string(databasePaths.size())
+        + (databasePaths.size()==1 ? " path. " : " paths. ")
         + to_string(healthyCount) + " healthy, " + to_string(problemCount) + " need"
-        + (problemCount==1 ? "s" : "") + " attention.";
+        + (problemCount==1 ? "s" : "") + " attention";
+    if (folderCount>0) {
+        summary += ", " + to_string(folderCount) + (folderCount==1
+            ? " was a folder of text files rather than a database"
+            : " were folders of text files rather than databases");
+    }
+    summary += ".";
     reporter.writeHeading("Summary");
     reporter.writeLine(summary);
     // The exit code tells a script whether to stop. Anything that needs a human is a
