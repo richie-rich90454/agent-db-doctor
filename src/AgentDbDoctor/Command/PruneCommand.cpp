@@ -40,8 +40,23 @@ static constexpr const char* SESSION_BOUNDARY_QUERY=
 static constexpr const char* REDUNDANT_ROW_COUNT_QUERY=
     "SELECT COUNT(*) FROM event WHERE type=?1 AND rowid IN ("
     "  SELECT e.rowid FROM event e "
-    "  WHERE e.type=?1 AND e.session_id NOT IN ("
-    "    SELECT id FROM session ORDER BY time_created DESC LIMIT ?2))";
+    "  WHERE e.type=?1 "
+    "    AND NOT EXISTS (SELECT 1 FROM kept_sessions k WHERE k.id=e.session_id))";
+// The statement that fills the temporary table of sessions being kept.
+//
+// The set is materialised once rather than being written as a subquery inside the
+// deletion predicate. A subquery in that position is re-evaluated for every
+// candidate row, which makes the cost grow with the number of rows scanned. A
+// temporary table is built once and indexed once, so the predicate becomes a single
+// indexed lookup per row.
+static constexpr const char* CREATE_KEPT_SESSIONS_QUERY=
+    "CREATE TEMP TABLE IF NOT EXISTS kept_sessions (id TEXT PRIMARY KEY)";
+// The statement that fills it, one row per kept session.
+static constexpr const char* FILL_KEPT_SESSIONS_QUERY=
+    "INSERT OR IGNORE INTO kept_sessions (id) "
+    "SELECT id FROM session ORDER BY time_created DESC LIMIT ?1";
+// The statement that empties it, so a second run starts from a known state.
+static constexpr const char* CLEAR_KEPT_SESSIONS_QUERY="DELETE FROM kept_sessions";
 // The query that returns the row identifiers of one batch of duplicates, ordered so
 // the next batch can start where this one finished.
 //
@@ -51,11 +66,17 @@ static constexpr const char* REDUNDANT_ROW_COUNT_QUERY=
 // uses the primary b-tree directly and costs a logarithmic step per batch.
 static constexpr const char* REDUNDANT_BATCH_QUERY=
     "SELECT rowid FROM event "
-    "WHERE type=?1 AND rowid>?2 AND session_id NOT IN ("
-    "  SELECT id FROM session ORDER BY time_created DESC LIMIT ?3) "
-    "ORDER BY rowid LIMIT ?4";
-// The query that deletes one batch by its row identifiers.
-static constexpr const char* DELETE_BATCH_QUERY="DELETE FROM event WHERE rowid>?1 AND rowid<=?2";
+    "WHERE type=?1 AND rowid>?2 "
+    "    AND NOT EXISTS (SELECT 1 FROM kept_sessions k WHERE k.id=session_id) "
+    "ORDER BY rowid LIMIT ?3";
+// The query that deletes one batch of one event type.
+//
+// The type, the row identifier range, and the same guard the selection used. All
+// three are needed: the range alone would remove the events of the sessions being
+// kept, because those rows sit between the doomed ones in row identifier order.
+static constexpr const char* DELETE_BATCH_QUERY=
+    "DELETE FROM event WHERE type=?1 AND rowid>?2 AND rowid<=?3 "
+    "    AND NOT EXISTS (SELECT 1 FROM kept_sessions k WHERE k.id=session_id)";
 // How many checkpoints are allowed to be skipped between explicit ones. A
 // checkpoint copies the write ahead log into the main file, and doing it inside a
 // transaction makes an individual batch much slower.
@@ -63,8 +84,7 @@ static constexpr int BATCHES_PER_CHECKPOINT=50;
 // The number of databases the command is prepared to handle in one run.
 static constexpr int MAXIMUM_REPORTED_DATABASES=200;
 PruneCommand::PruneCommand(bool isTerminalAttached)
-    : reporter(isTerminalAttached),
-      guard(CommandOptions(), reporter) {
+    : reporter(isTerminalAttached) {
 }
 string PruneCommand::describe() const {
     return string(
@@ -93,6 +113,10 @@ const PruneOutcome& PruneCommand::lastOutcome() const {
 }
 PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const string& databaseFilePath) {
     PruneOutcome outcome;
+    // The guard is built here, not in the constructor, because it reads the options
+    // of the run that is happening. A guard built once from a default set of options
+    // would ignore the `--yes` flag and ask a question nobody is there to answer.
+    DestructiveOperationGuard guard(options, reporter);
     // The connection is opened for reading and writing, because the point of the
     // command is to change something. The busy timeout stops it blocking forever
     // behind a running coding agent.
@@ -151,22 +175,39 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
         string("session.updated.1")
     };
     // The duplicate rows are counted first, with one indexed lookup per type, so the
-    // user sees the size of the change before agreeing to it.
-    Statement countingStatement(
-        database.rawHandle(),
-        REDUNDANT_ROW_COUNT_QUERY,
-        "a count of the rows that are older copies of changed messages"
-    );
-    long long doomedRowCount=0;
-    for (const string& currentType : redundantTypes) {
-        if (!StatisticsReader::tableExists(database, "event")) {
-            break;
+    // user sees the size of the change before agreeing to it. The statement lives in
+    // its own block so that it is finalised before the deletion loop begins: a
+    // stepped statement that has not been reset still holds a read lock, and a
+    // held read lock stops the write ahead log from being checkpointed.
+    database.execute(CREATE_KEPT_SESSIONS_QUERY);
+    database.execute(CLEAR_KEPT_SESSIONS_QUERY);
+    {
+        Statement fillingKeptSessions(
+            database.rawHandle(),
+            FILL_KEPT_SESSIONS_QUERY,
+            "a record of which sessions are being kept"
+        );
+        if (fillingKeptSessions.isValid()) {
+            fillingKeptSessions.bindInteger(1, sessionsToKeep);
+            fillingKeptSessions.run();
         }
-        countingStatement.reset();
-        countingStatement.bindText(1, currentType);
-        countingStatement.bindInteger(2, sessionsToKeep);
-        if (countingStatement.step()) {
-            doomedRowCount+=countingStatement.columnInteger(0);
+    }
+    long long doomedRowCount=0;
+    {
+        Statement countingStatement(
+            database.rawHandle(),
+            REDUNDANT_ROW_COUNT_QUERY,
+            "a count of the rows that are older copies of changed messages"
+        );
+        for (const string& currentType : redundantTypes) {
+            if (!StatisticsReader::tableExists(database, "event")) {
+                break;
+            }
+            countingStatement.reset();
+            countingStatement.bindText(1, currentType);
+            if (countingStatement.step()) {
+                doomedRowCount+=countingStatement.columnInteger(0);
+            }
         }
     }
     if (doomedRowCount==0) {
@@ -180,7 +221,9 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
         .value_or(0);
     if (totalEventRows>0) {
         const double fractionToRemove=static_cast<double>(doomedRowCount) / static_cast<double>(totalEventRows);
-        const double allowedFraction=options.maximumFractionToRemove>0.0
+        // A limit of zero is a real choice: it means remove nothing. Only a negative
+        // value, which the command line cannot produce, means no choice was made.
+        const double allowedFraction=options.maximumFractionToRemove>=0.0
             ? options.maximumFractionToRemove
             : DEFAULT_MAXIMUM_FRACTION_TO_REMOVE;
         if (fractionToRemove>allowedFraction) {
@@ -251,22 +294,36 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
         if (!batchStatement.isValid()) {
             break;
         }
-        long long batchFirstRow=0;
-        long long batchLastRow=0;
+        // Each type keeps its own first and last row identifier, because the delete
+        // is issued per type rather than across one wide range.
         long long batchRowCount=0;
+        long long lastSeenAfterBatch=lastSeenRowIdentifier;
+        vector<long long> batchFirstRowPerType;
+        vector<long long> batchLastRowPerType;
         for (const string& currentType : redundantTypes) {
+            long long firstRowForThisType=0;
+            long long lastRowForThisType=0;
+            long long rowsForThisType=0;
             batchStatement.reset();
             batchStatement.bindText(1, currentType);
             batchStatement.bindInteger(2, lastSeenRowIdentifier);
-            batchStatement.bindInteger(3, sessionsToKeep);
-            batchStatement.bindInteger(4, batchSize);
+            batchStatement.bindInteger(3, batchSize);
             while (batchStatement.step()) {
                 const long long currentRowIdentifier=batchStatement.columnInteger(0);
-                if (batchRowCount==0) {
-                    batchFirstRow=currentRowIdentifier;
+                if (rowsForThisType==0) {
+                    firstRowForThisType=currentRowIdentifier;
                 }
-                batchLastRow=currentRowIdentifier;
-                batchRowCount++;
+                lastRowForThisType=currentRowIdentifier;
+                rowsForThisType++;
+            }
+            if (rowsForThisType==0) {
+                continue;
+            }
+            batchFirstRowPerType.push_back(firstRowForThisType);
+            batchLastRowPerType.push_back(lastRowForThisType);
+            batchRowCount+=rowsForThisType;
+            if (lastRowForThisType>lastSeenAfterBatch) {
+                lastSeenAfterBatch=lastRowForThisType;
             }
         }
         if (batchRowCount==0) {
@@ -282,17 +339,23 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
             "the removal of one batch of rows"
         );
         if (deleteStatement.isValid()) {
-            deleteStatement.bindInteger(1, batchFirstRow - 1);
-            deleteStatement.bindInteger(2, batchLastRow);
-            if (deleteStatement.step()) {
-                const long long deletedInBatch=database.lastChangedRowCount();
-                if (deletedInBatch>0) {
-                    removedRowCount+=deletedInBatch;
+            // One delete per type, so the whole batch is one flush however many
+            // statements it took.
+            for (size_t typeIndex=0; typeIndex<batchFirstRowPerType.size(); ++typeIndex) {
+                deleteStatement.reset();
+                deleteStatement.bindText(1, redundantTypes[typeIndex]);
+                deleteStatement.bindInteger(2, batchFirstRowPerType[typeIndex] - 1);
+                deleteStatement.bindInteger(3, batchLastRowPerType[typeIndex]);
+                if (deleteStatement.run()) {
+                    const long long deletedInBatch=database.lastChangedRowCount();
+                    if (deletedInBatch>0) {
+                        removedRowCount+=deletedInBatch;
+                    }
                 }
             }
         }
         database.execute("COMMIT");
-        lastSeenRowIdentifier=batchLastRow;
+        lastSeenRowIdentifier=lastSeenAfterBatch;
         progressBar.advance(batchRowCount);
         batchesSinceCheckpoint++;
         if (batchesSinceCheckpoint>=BATCHES_PER_CHECKPOINT) {
@@ -385,6 +448,29 @@ int PruneCommand::execute(const CommandOptions& options) {
     }
     try {
         lastRunOutcome=performPrune(options, options.databaseFilePath);
+    } catch (const PragmaException& pragmaFailure) {
+        // A setting could not be applied, which stops the run rather than continuing
+        // with settings the caller did not ask for.
+        reporter.writeFailure(pragmaFailure.message(), string());
+        reporter.writeLine("Nothing was changed.");
+        return 1;
+    } catch (const InsufficientDiskSpaceException& spaceFailure) {
+        // There was not enough room to do what was asked, which is the refusal the
+        // specification requires rather than a failure.
+        reporter.writeFailure(spaceFailure.message(), to_string(spaceFailure.requiredBytes()));
+        reporter.writeLine("Nothing was changed.");
+        return 1;
+    } catch (const FileSystemException& fileFailure) {
+        reporter.writeFailure(fileFailure.message(), string());
+        reporter.writeLine("Nothing was changed.");
+        return 1;
+    } catch (const ConfigurationException& configurationFailure) {
+        reporter.writeFailure(configurationFailure.message(), string());
+        return 1;
+    } catch (const AgentDatabaseMissingException& missingFailure) {
+        // No supported agent could be found, which is a result rather than a fault.
+        reporter.writeFailure(missingFailure.message(), string());
+        return 1;
     } catch (const DatabaseOpenException& openFailure) {
         reporter.writeFailure(openFailure.message(), to_string(openFailure.openResultCode()));
         reporter.writeLine("Nothing was changed.");
