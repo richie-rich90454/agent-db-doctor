@@ -134,4 +134,4 @@ also compiles the macOS sources into an object library that is never linked.
   repository is private and does not use them, because hosted runners cost money.
   The suites run locally with `ctest --test-dir build`.
 
-[1.0.0]: https://github.com/your-org/agent-db-doctor/releases/tag/v1.0.0
+[1.0.0]: https://github.com/richie-rich90454/agent-db-doctor/releases/tag/v1.0.0
