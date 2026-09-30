@@ -51,6 +51,12 @@ head -1 rss.log              # the first sample, for comparison
 **The assertion is that the peak never exceeds 12 MB.** Not that the average does,
 and not that it usually does. A service that runs for months has to be flat.
 
+The in-process `WatchdogBenchmark` asserts the same property in under a second, so
+a regression fails the build rather than being discovered a day later. After nine
+minutes of the real soak the release build's resident set is **4.75 MB and flat**,
+with the first sample and the latest identical. The run has not finished; see
+`results.md` for its current state.
+
 ## Two soaks, because one cannot answer both questions
 
 A sanitized build and a resident memory measurement cannot come from the same run,
