@@ -5,9 +5,13 @@
 // writing that plist into the launch daemon folder and telling launchd to load it;
 // starting, stopping, and querying all go through the `launchctl` program, which is
 // the supported interface.
+#if defined(__APPLE__)
+// Provides `_NSGetExecutablePath`, which reports where the running program is. It is
+// part of the dynamic loader's interface and exists only on Apple platforms. The
+// guard is here so that this file can be compiled, and therefore checked, on a build
+// machine that is not a Mac.
 #include <mach-o/dyld.h>
-// Provides `_NSGetExecutablePath`, which reports where the running program is.
-#include <mach-o/dyld.h>
+#endif
 #include <cstdio>
 // Provides `popen` and `pclose`, which run a command and read its output.
 #include <cstdio>
@@ -36,17 +40,24 @@ static constexpr const char* LAUNCH_DAEMON_DIRECTORY="/Library/LaunchDaemons";
 static constexpr const char* LAUNCH_DAEMON_FILE_NAME="com.agentdbdoctor.plist";
 // The label passed to launchctl, which is the plist name without its suffix.
 static constexpr const char* LAUNCH_LABEL="com.agentdbdoctor";
+// Where the tool is installed, used when the running image cannot be discovered.
+static constexpr const char* DEFAULT_EXECUTABLE_PATH="/usr/local/bin/agent-db-doctor";
 string ServiceManager::currentExecutablePath() {
+#if !defined(__APPLE__)
+    // The dynamic loader's path query has no counterpart on this platform. This file
+    // is never linked into the executable here, so this is a compile and check only.
+    return string(DEFAULT_EXECUTABLE_PATH);
+#else
     // The function asks the dynamic loader where the running image is. The first
     // call reports the size needed, the second fills the buffer.
     uint32_t bufferSize=0;
     _NSGetExecutablePath(nullptr, &bufferSize);
     if (bufferSize==0) {
-        return string("/usr/local/bin/agent-db-doctor");
+        return string(DEFAULT_EXECUTABLE_PATH);
     }
     vector<char> pathBuffer(bufferSize, '\0');
     if (_NSGetExecutablePath(pathBuffer.data(), &bufferSize)!=0) {
-        return string("/usr/local/bin/agent-db-doctor");
+        return string(DEFAULT_EXECUTABLE_PATH);
     }
     // The reported path can be relative, so it is turned into an absolute one.
     // Without this, a daemon launched from a different working directory would
@@ -60,6 +71,7 @@ string ServiceManager::currentExecutablePath() {
         return string(pathBuffer.data());
     }
     return absolutePath.string();
+#endif
 }
 namespace {
 // Runs a command and returns everything it wrote to standard output.
