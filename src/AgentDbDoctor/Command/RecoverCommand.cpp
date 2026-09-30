@@ -266,7 +266,12 @@ RecoverOutcome RecoverCommand::rebuildFromDump(
 int RecoverCommand::execute(const CommandOptions& options) {
     if (!options.quiet) {
         reporter.writeBanner(commandName(), describe());
-        reporter.writeLine("Looking at " + options.databaseFilePath + " without changing it.");
+        // The path is named only when there is one. Printing "Looking at  without
+        // changing it" with nothing between the words read like a mistake in the tool
+        // rather than a missing argument from the person typing.
+        if (!options.databaseFilePath.empty()) {
+            reporter.writeLine("Looking at " + options.databaseFilePath + " without changing it.");
+        }
     }
     if (options.databaseFilePath.empty()) {
         reporter.writeFailure(
