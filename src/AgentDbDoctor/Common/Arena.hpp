@@ -104,11 +104,11 @@ public:
     }
     // The number of bytes the arena can still hand out.
     size_t remainingBytes() const {
-        return blockByteSize-usedByteCount;
+        return ownedBlockByteSize-usedByteCount;
     }
     // The total size of the block the arena currently owns.
     size_t blockByteSize() const {
-        return blockByteSize;
+        return ownedBlockByteSize;
     }
     // Makes every byte available again without releasing the block. This is the
     // cheap operation the watchdog loop calls on every tick.
@@ -125,7 +125,7 @@ public:
             delete[] heapBlock;
         }
         heapBlock=inlineBlock.data();
-        blockByteSize=inlineBlock.size();
+        ownedBlockByteSize=inlineBlock.size();
         usedByteCount=0;
     }
 private:
@@ -153,10 +153,10 @@ private:
     // Hands out `byteCount` bytes, growing the block when necessary. Returns
     // `nullptr` when the operating system refuses the memory.
     unsigned char* allocateRaw(size_t byteCount) {
-        if (usedByteCount + byteCount > blockByteSize) {
+        if (usedByteCount + byteCount > ownedBlockByteSize) {
             growTo(usedByteCount + byteCount);
         }
-        if (usedByteCount + byteCount > blockByteSize) {
+        if (usedByteCount + byteCount > ownedBlockByteSize) {
             return nullptr;
         }
         // The bump pointer moves forward and never moves back until `reset()`.
@@ -181,7 +181,7 @@ private:
             delete[] heapBlock;
         }
         heapBlock=replacement;
-        blockByteSize=newSize;
+        ownedBlockByteSize=newSize;
     }
     // The block currently in use. It starts out pointing at `inlineBlock`, so a
     // default constructed arena performs no allocation at all. The pointer is
@@ -191,7 +191,7 @@ private:
     // How many bytes of `heapBlock` have been handed out.
     size_t usedByteCount=0;
     // The total size of `heapBlock`. It starts out equal to the inline size.
-    size_t blockByteSize=INLINE_BLOCK_SIZE;
+    size_t ownedBlockByteSize=INLINE_BLOCK_SIZE;
     // The inline block. Because `array` stores its elements inside the object,
     // no allocation is needed to create it.
     array<unsigned char, INLINE_BLOCK_SIZE> inlineBlock;
