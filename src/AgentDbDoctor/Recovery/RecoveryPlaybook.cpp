@@ -217,6 +217,32 @@ vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForOversizedDatabase(
     ));
     return plan;
 }
+// The plan for a path that is a folder rather than a database.
+//
+// Several supported agents keep plain text files in a folder. There is no damage to
+// describe, so the plan says so in one step and stops. It exists because the honest
+// answer for a folder used to be missing, and the folder was falling through to the
+// healthy plan, which described it as a sound database whose pages had all checked
+// out. Nothing had been checked at all.
+vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForFolderOfTextFiles() {
+    vector<RecoveryRecommendation> plan;
+    plan.push_back(RecoveryRecommendation(
+        SeverityLevel::INFORMATION,
+        string("Nothing to recover, because this is not a database."),
+        string(
+            "The path you gave is a folder, not a database file. Several supported coding "
+            "agents keep their history as plain text files inside a folder rather than in a "
+            "SQLite database, and there is nothing here for a database repair tool to read, "
+            "check, or rebuild.\n\n"
+            "Nothing has been changed, and nothing is damaged. If the coding agent that owns "
+            "this folder is not working, the cause is not in this folder, and this tool cannot "
+            "tell you what it is."
+        ),
+        string(),
+        false
+    ));
+    return plan;
+}
 vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForHealthyDatabase(
     const DiagnosisReport& report
 ) {
