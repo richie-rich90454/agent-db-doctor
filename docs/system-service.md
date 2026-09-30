@@ -88,7 +88,19 @@ service tells you and you decide.
 The tool refuses a configuration that is internally inconsistent rather than
 quietly accepting it: a critical threshold below the warning one would mean the
 warning never fires, and a check interval under ten seconds would spin rather than
-watch. Both are refused with a sentence explaining which.
+watch. Both are refused with a sentence explaining which, and the same applies to
+`--interval` on the command line:
+
+```bash
+$ agent-db-doctor service run --interval 1
+! The configuration is not usable. The check interval must be at least ten seconds.
+  Anything more often wastes power and fills the log without telling you anything new.
+
+Nothing was changed.
+```
+
+Ten seconds is also the shortest interval the twenty four hour soak uses, which is
+8,640 ticks over that period. See `benchmarks/watchdog-24h.md`.
 
 ## What it logs
 
