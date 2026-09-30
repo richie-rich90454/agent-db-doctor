@@ -100,6 +100,16 @@ bool Statement::step() const {
     stepFailureCode=stepResult;
     return false;
 }
+bool Statement::run() const {
+    if (rawStatementHandle==nullptr) {
+        return false;
+    }
+    // A write finishes with the done code. A pragma that returns a value finishes
+    // the same way, so both are treated as success here.
+    const int runResult=sqlite3_step(rawStatementHandle);
+    stepFailureCode=runResult;
+    return runResult==SQLITE_DONE || runResult==SQLITE_ROW;
+}
 int Statement::lastStepResultCode() const {
     return stepFailureCode;
 }
