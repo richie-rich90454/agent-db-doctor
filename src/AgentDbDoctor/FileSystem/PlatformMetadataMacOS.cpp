@@ -64,10 +64,21 @@ FileMetadata PlatformMetadata::readFileMetadata(const string& filePath) {
 DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
     MetadataCallCounter::record();
     DiskSpace result;
+    // The question is about the file system that holds the path. When the caller
+    // passed a file rather than a folder, its parent folder is used, so the answer
+    // is the same whichever kind of path was given.
+    string volumePath=pathOnVolume;
+    const FileMetadata pathStatus=readFileMetadata(pathOnVolume);
+    if (pathStatus.exists && !pathStatus.isDirectory) {
+        const size_t lastSeparator=pathOnVolume.find_last_of('/');
+        if (lastSeparator!=string::npos) {
+            volumePath=pathOnVolume.substr(0, lastSeparator);
+        }
+    }
     // `struct statfs` describes a mounted file system. `f_bsize` is the fundamental
     // file system block size, which is the unit the block counts below use.
     struct statfs fileSystemStatus;
-    if (statfs(pathOnVolume.c_str(), &fileSystemStatus)!=0) {
+    if (statfs(volumePath.c_str(), &fileSystemStatus)!=0) {
         result.errorCode=errno;
         return result;
     }
