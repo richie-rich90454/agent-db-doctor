@@ -67,7 +67,7 @@ public:
     vector<RecoveryRecommendation> buildPlanFor(const CommandOptions& options) const;
 private:
     // Rebuilds the indexes of a damaged but readable database, working on a copy.
-    RecoverOutcome rebuildIndexes(const CommandOptions& options, const string& databaseFilePath);
+    RecoverOutcome rebuildIndexes(const string& databaseFilePath);
     // Rebuilds a fresh database from the rows SQLite can still read, working on a
     // copy.
     RecoverOutcome rebuildFromDump(const CommandOptions& options, const string& databaseFilePath);
