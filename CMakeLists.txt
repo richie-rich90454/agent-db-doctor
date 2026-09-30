@@ -227,6 +227,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Presentation/HumanReadableFormatting.cpp
     src/AgentDbDoctor/Presentation/ProgressBar.cpp
     src/AgentDbDoctor/Command/DiagnoseCommand.cpp
+    src/AgentDbDoctor/Command/DestructiveOperationGuard.cpp
     src/AgentDbDoctor/Command/PruneCommand.cpp
     src/AgentDbDoctor/Command/CompactCommand.cpp
     src/AgentDbDoctor/Command/RecoverCommand.cpp
