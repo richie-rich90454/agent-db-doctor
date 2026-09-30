@@ -178,8 +178,10 @@ CompactOutcome CompactCommand::performCompaction(const CommandOptions& options, 
         // removed and the original is left exactly as it was.
         reporter.writeFailure(
             string("The rewrite did not produce a usable file, so the original was left exactly as "
-                "it was and the incomplete file was deleted. Nothing was changed.\n\nThis usually "
-                "means the database is damaged. Run the diagnose command to see what it says."),
+                "it was and the incomplete file was deleted. Nothing was changed.\n\nThis file "
+                "began as a SQLite database but the copy of it that was written could not be "
+                "read back, which usually means the database is damaged. Run the diagnose "
+                "command, and then the recover command, to see what it says."),
             string()
         );
         {
@@ -335,6 +337,26 @@ int CompactCommand::execute(const CommandOptions& options) {
     if (!fileStatus.exists) {
         reporter.writeFailure(
             string("There is no file at ") + options.databaseFilePath + ". Nothing was changed.",
+            string()
+        );
+        return 1;
+    }
+    if (fileStatus.isDirectory) {
+        reporter.writeFailure(
+            string("That path is a folder, not a database file, so there is nothing to compact.\n\n")
+            + "Several supported coding agents keep their history as plain text files in a "
+            + "folder rather than in a SQLite database. This tool does not change the files "
+            + "inside a folder.\n\nNothing was changed.",
+            string()
+        );
+        return 1;
+    }
+    if (!StatisticsReader::readHeaderFields(options.databaseFilePath).isValidSqliteFile) {
+        reporter.writeFailure(
+            string("The file at ") + options.databaseFilePath + " is not a SQLite database, so there "
+            + "is nothing to compact.\n\nNothing was changed, and the file was not opened for "
+            + "writing. If you meant a different file, run the diagnose command to see where each "
+            + "supported agent keeps its database.",
             string()
         );
         return 1;
