@@ -21,8 +21,12 @@
 #include <filesystem>
 // Provides the ServiceManager class declaration.
 #include "AgentDbDoctor/Service/ServiceManager.hpp"
+// Provides ServiceOperationException, which is what a failed launchctl call
+// raises.
+#include "AgentDbDoctor/Common/Exceptions.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
+using namespace AgentDbDoctor::Common;
 using namespace AgentDbDoctor::Service;
 namespace AgentDbDoctor::Service {
 // Where launchd looks for system wide launch daemons.
