@@ -150,10 +150,23 @@ void AgentDatabaseDoctor::recordTableRowCounts(Database& database, DiagnosisRepo
             // which is precisely the failure this tool exists to prevent. The
             // report says the number is unknown rather than making the user wait
             // for an answer that would take minutes.
+            // The message says what is true and names nothing that does not exist.
+            //
+            // It used to say "run the analyze command", and there is no analyze
+            // subcommand, so somebody following the tool's own advice got an error
+            // saying the argument was not expected. It was then changed to point at
+            // the --check flag, which turns out not to count rows either: that flag
+            // asks for the page by page integrity check, and this table is deliberately
+            // never counted exactly by any flag.
             report.addWarning(
                 "The number of rows in the event table is not known, because this database has "
-                "never been analysed and counting it exactly would mean reading the whole file. "
-                "Run the analyze command to make that number available instantly in future."
+                "never been analysed. Counting it exactly would mean reading the whole file, "
+                "which this tool does not do on any command, because that is the very thing it "
+                "exists to avoid. Nothing else about the database is affected, nothing is "
+                "wrong, and no flag will make this number appear. If you want it and are "
+                "willing to wait for a full scan, SQLite can give it to you directly with "
+                "ANALYZE, which is a change to your database that this tool will not make for "
+                "you."
             );
             continue;
         }
