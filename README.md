@@ -39,6 +39,35 @@ Everything else is vendored. There is no `boost`, no ORM, and no JSON library.
 
 </details>
 
+<details>
+<summary>What has actually been verified, and where</summary>
+
+The table below is what has been built and run, not what the code is intended to do.
+
+| Platform | Built | Full suite run | Notes |
+|---|---|---|---|
+| Windows 11, GCC 16.2, MinGW | yes | 22 of 22 pass | The reference platform. Every measurement in this file is from here. |
+| Ubuntu 24.04, GCC 13.3 | yes | 22 of 22 pass | A second toolchain, and it caught four real bugs the Windows build never could. |
+| macOS | sources compile-checked | not run | See below. |
+
+**The macOS sources are compiled on every Linux build, and linked into nothing.**
+That is deliberate. The macOS implementation is portable POSIX apart from one branch
+naming the modification time field, so it can be compiled anywhere with Berkeley
+headers. Building it as a check caught four mistakes that had been sitting in those
+files for the life of the project: a missing include, a namespace qualification that
+resolved to `AgentDbDoctor::AgentDbDoctor`, and a function defined below its own call
+site. It is the same class of bug the Linux build found, and both went unnoticed
+because neither file had ever been compiled by anything.
+
+What cannot be done from a Windows machine is run the thing on a Mac, and this file
+does not claim otherwise. Two specific things are therefore unverified on macOS:
+that the `launchctl` calls behave as documented, and that the service installs and
+starts under launchd. Everything the tool does without root, which is the whole of
+`diagnose`, `prune`, `compact`, and `recover`, uses only `stat`, `statfs`, `clock_gettime`,
+`getpid`, and `getenv`, and that code is compiled and unit-tested on Linux.
+
+</details>
+
 ---
 
 ## Quick start
