@@ -303,9 +303,12 @@ produces them. Cursor, Codex CLI, Claude Code, Continue, and Aider are diagnosed
 left alone. Their conversation is a plain text transcript or a rebuildable index,
 which is the only copy, so deciding what to delete from it is not this tool's call.
 
-**It does not compact a folder.** Several agents keep their history as text files in
-a folder. There is no database there to compact, and the tool says so rather than
-producing a report full of zeroes.
+**It does not compact, prune, or rebuild a folder.** Several agents keep their history
+as text files in a folder. There is no database there to work on, and the tool says so
+in one sentence rather than producing a report full of zeroes or copying the folder
+first. A file that is not a SQLite database is refused the same way, before anything is
+copied and before the file is opened for writing. It used to be handled by attempting
+the work and reporting SQLite's own error, which read as damage.
 
 **It does not walk a directory tree.** Finding databases uses a fixed list of
 candidate paths, one metadata call each. The only exception is one bounded level for
