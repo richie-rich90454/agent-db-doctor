@@ -77,15 +77,24 @@ bool KnownFailurePatterns::hasAllocatedSizeMismatch(
     const FileMetadata& fileMetadata,
     long long declaredFileSizeBytes
 ) {
-    if (declaredFileSizeBytes<=0 || fileMetadata.allocatedSizeBytes<=0) {
+    if (fileMetadata.allocatedSizeBytes<=0) {
         return false;
     }
-    const double difference=static_cast<double>(fileMetadata.allocatedSizeBytes)
-        - static_cast<double>(declaredFileSizeBytes);
-    if (difference<0) {
+    // The first comparison is the one that catches the story in the
+    // specification: the file system still holds clusters for a file that no
+    // longer describes itself, so it reports far more space than the file needs.
+    if (fileMetadata.logicalSizeBytes>0
+        && static_cast<double>(fileMetadata.allocatedSizeBytes)
+            > static_cast<double>(fileMetadata.logicalSizeBytes) * (1.0 + SIZE_MISMATCH_TOLERANCE)) {
+        return true;
+    }
+    // The second is the same disagreement measured from SQLite's side: the page
+    // count in the header describes a larger file than the file system sees.
+    if (declaredFileSizeBytes<=0) {
         return false;
     }
-    return difference > SIZE_MISMATCH_TOLERANCE * static_cast<double>(declaredFileSizeBytes);
+    return static_cast<double>(fileMetadata.allocatedSizeBytes)
+        > static_cast<double>(declaredFileSizeBytes) * (1.0 + SIZE_MISMATCH_TOLERANCE);
 }
 FailureMatch KnownFailurePatterns::classify(
     int sqliteResultCode,
