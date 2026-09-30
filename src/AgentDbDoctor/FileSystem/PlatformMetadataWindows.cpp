@@ -111,11 +111,22 @@ FileMetadata PlatformMetadata::readFileMetadata(const string& filePath) {
 DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
     MetadataCallCounter::record();
     DiskSpace result;
+    // The question is about a volume, and a volume is identified by a folder. When
+    // the caller passed a file, its parent folder is used, so the answer is the same
+    // whichever kind of path was given.
+    string volumePath=pathOnVolume;
+    const FileMetadata pathStatus=readFileMetadata(pathOnVolume);
+    if (pathStatus.exists && !pathStatus.isDirectory) {
+        const size_t lastSeparator=pathOnVolume.find_last_of("\\\\/");
+        if (lastSeparator!=string::npos) {
+            volumePath=pathOnVolume.substr(0, lastSeparator);
+        }
+    }
     const int wideCharacterCount=MultiByteToWideChar(
         CP_UTF8,
         0,
-        pathOnVolume.c_str(),
-        static_cast<int>(pathOnVolume.size()),
+        volumePath.c_str(),
+        static_cast<int>(volumePath.size()),
         nullptr,
         0
     );
@@ -127,8 +138,8 @@ DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
     MultiByteToWideChar(
         CP_UTF8,
         0,
-        pathOnVolume.c_str(),
-        static_cast<int>(pathOnVolume.size()),
+        volumePath.c_str(),
+        static_cast<int>(volumePath.size()),
         widePath.data(),
         wideCharacterCount
     );
@@ -165,10 +176,16 @@ long long PlatformMetadata::monotonicNanoseconds() {
     if (frequency.QuadPart==0) {
         return 0;
     }
-    // The division converts counts into nanoseconds. Doing it in long long
-    // arithmetic keeps the result exact for any interval shorter than about two
-    // hundred and ninety years.
-    return static_cast<long long>((counterValue.QuadPart * 1000000000LL) / frequency.QuadPart);
+    // The division converts counts into nanoseconds, but it is done in two steps.
+    // Multiplying the raw counter by a billion would overflow on a machine that
+    // has been up for more than a few hours, and the overflow would produce a
+    // negative duration, which is the worst possible answer to a measurement.
+    // Splitting the counter into whole seconds and a remainder keeps the largest
+    // intermediate value small enough to be exact.
+    const long long wholeSeconds=counterValue.QuadPart / frequency.QuadPart;
+    const long long remainder=counterValue.QuadPart % frequency.QuadPart;
+    return wholeSeconds * 1000000000LL
+        + (remainder * 1000000000LL) / frequency.QuadPart;
 }
 void PlatformMetadata::sleepMilliseconds(int milliseconds) {
     if (milliseconds<=0) {
