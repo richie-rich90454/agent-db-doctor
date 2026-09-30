@@ -127,6 +127,27 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
     // The connection is opened for reading and writing, because the point of the
     // command is to change something. The busy timeout stops it blocking forever
     // behind a running coding agent.
+    const FileMetadata inputStatus=PlatformMetadata::readFileMetadata(databaseFilePath);
+    if (inputStatus.isDirectory) {
+        reporter.writeFailure(
+            string("That path is a folder, not a database file, so there is nothing to prune.\n\n")
+            + "Several supported coding agents keep their history as plain text files in a "
+            + "folder rather than in a SQLite database. This tool does not change the files "
+            + "inside a folder.\n\nNothing was changed.",
+            string()
+        );
+        return outcome;
+    }
+    if (!StatisticsReader::readHeaderFields(databaseFilePath).isValidSqliteFile) {
+        reporter.writeFailure(
+            string("The file at ") + databaseFilePath + " is not a SQLite database, so there is "
+            + "nothing to prune.\n\nNothing was changed, and the file was not opened for "
+            + "writing. If you meant a different file, run the diagnose command to see where "
+            + "each supported agent keeps its database.",
+            string()
+        );
+        return outcome;
+    }
     Database database(databaseFilePath, Database::OPEN_READ_WRITE);
     database.setBusyTimeoutMilliseconds(5000);
     // The three settings below are what make a large deletion fast. Batched
