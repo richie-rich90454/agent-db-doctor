@@ -29,6 +29,11 @@ namespace AgentDbDoctor::Doctor {
 enum class IntegrityStatus {
     // The check has not been run.
     NOT_CHECKED,
+    // The path is a folder rather than a file. Several supported agents keep plain
+    // text inside a folder, so this is a normal answer rather than a fault, and it is
+    // kept separate from `NOT_A_DATABASE` because the two need different words: a
+    // folder is not damaged, and saying so would be alarming about nothing.
+    IS_A_FOLDER,
     // Every page checked out. This is the good answer.
     INTACT,
     // The file is not a SQLite database, or its header is unreadable.
