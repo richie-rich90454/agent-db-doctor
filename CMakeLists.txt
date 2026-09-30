@@ -264,6 +264,40 @@ else()
     )
     set(AGENT_DB_DOCTOR_PLATFORM_TAG "Linux")
 endif()
+
+# The macOS implementation is compiled everywhere, not only on macOS.
+#
+# Its code is portable POSIX, apart from one branch naming the modification time
+# field, so it can be compiled on a machine that is not a Mac. That check is here
+# because the alternative is what happened for a long time: the macOS files were
+# never compiled by anything, and so a missing include and an unreachable
+# qualification sat in them unnoticed until the project was finally built on a second
+# platform. Compiling them costs two translation units and turns that class of
+# mistake from "found on release day" into "found by the build".
+#
+# The objects are never linked. They define the same functions as whichever platform
+# implementation is in use, so linking them would be a duplicate symbol error.
+#
+# The check runs on Linux, which has the same Berkeley derived headers macOS does.
+# It is skipped on Windows, where `sys/mount.h` does not exist and the file could not
+# be compiled for a reason that says nothing about the code.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_library(agent_db_doctor_macos_compile_check OBJECT
+        src/AgentDbDoctor/FileSystem/PlatformMetadataMacOS.cpp
+        src/AgentDbDoctor/Service/ServiceManagerMacOS.cpp
+    )
+    target_include_directories(agent_db_doctor_macos_compile_check
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(agent_db_doctor_macos_compile_check PRIVATE fmt::fmt spdlog::spdlog)
+    target_compile_definitions(agent_db_doctor_macos_compile_check PRIVATE SPDLOG_COMPILED_LIB)
+    target_compile_options(agent_db_doctor_macos_compile_check PRIVATE ${AGENT_DB_DOCTOR_WARNINGS})
+    if(NOT MSVC)
+        target_compile_options(agent_db_doctor_macos_compile_check PRIVATE -fno-rtti)
+    endif()
+    message(STATUS "agent-db-doctor: compiling the macOS sources as a check")
+endif()
+
 add_library(agent_db_doctor_core STATIC ${AGENT_DB_DOCTOR_CORE_SOURCES})
 target_include_directories(agent_db_doctor_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 # The formatting and logging libraries are third party code. Their headers are
