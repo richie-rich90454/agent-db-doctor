@@ -97,7 +97,11 @@ WatchdogRunSummary ServiceManager::runOneWatchdogPass() {
             sample.previousSizeBytes=previousEntry->second;
         }
         sample.metadataCallCount=1;
-        sample.hasGrown=sample.currentSizeBytes>sample.previousSizeBytes;
+        // Growth is only meaningful when there is a previous size to compare
+        // against. On the very first tick the file has not changed; it has simply
+        // been seen for the first time.
+        sample.hasGrown=previousEntry!=previousSizes.end()
+            && sample.currentSizeBytes>sample.previousSizeBytes;
         sample.isAboveWarningThreshold=sample.currentSizeBytes>=serviceConfiguration.warningThresholdBytes;
         sample.isAboveCriticalThreshold=sample.currentSizeBytes>=serviceConfiguration.criticalThresholdBytes;
         // The previous size is written back immediately, so a database that vanishes
