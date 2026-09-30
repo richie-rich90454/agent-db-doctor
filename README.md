@@ -46,8 +46,8 @@ The table below is what has been built and run, not what the code is intended to
 
 | Platform | Built | Full suite run | Notes |
 |---|---|---|---|
-| Windows 11, GCC 16.2, MinGW | yes | 22 of 22 pass | The reference platform. Every measurement in this file is from here. |
-| Ubuntu 24.04, GCC 13.3 | yes | 22 of 22 pass | A second toolchain, and it caught four real bugs the Windows build never could. |
+| Windows 11, GCC 16.2, MinGW | yes | 23 of 23 pass | The reference platform. Every measurement in this file is from here. |
+| Ubuntu 24.04, GCC 13.3 | yes | 23 of 23 pass | A second toolchain, and it caught nine real bugs the Windows build never could. |
 | macOS | sources compile-checked | not run | See below. |
 
 **The macOS sources are compiled on every Linux build, and linked into nothing.**
