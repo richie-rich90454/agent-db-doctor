@@ -33,6 +33,12 @@ void DiagnosisReport::setFileExists(bool exists) {
 bool DiagnosisReport::getFileExists() const {
     return fileExists;
 }
+void DiagnosisReport::setIsDirectory(bool isDirectoryPath) {
+    isDirectory=isDirectoryPath;
+}
+bool DiagnosisReport::getIsDirectory() const {
+    return isDirectory;
+}
 void DiagnosisReport::setLogicalSizeBytes(long long sizeBytes) {
     logicalSizeBytes=sizeBytes;
 }
