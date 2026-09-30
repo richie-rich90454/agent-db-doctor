@@ -57,6 +57,7 @@ public:
     );
     // Builds the plan for a database that is in no trouble at all. The single step
     // says so, because a tool that finds nothing wrong should say nothing wrong.
+    static vector<RecoveryRecommendation> buildPlanForFolderOfTextFiles();
     static vector<RecoveryRecommendation> buildPlanForHealthyDatabase(
         const DiagnosisReport& report
     );
