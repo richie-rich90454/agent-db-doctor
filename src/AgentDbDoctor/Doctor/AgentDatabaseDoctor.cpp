@@ -23,9 +23,12 @@
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
 // Provides the error translators, so no raw code reaches the user.
 #include "AgentDbDoctor/Common/Exceptions.hpp"
+// Provides the number to text conversions used in the report text.
+#include "AgentDbDoctor/Presentation/HumanReadableFormatting.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Common;
+using namespace AgentDbDoctor::Presentation;
 using namespace AgentDbDoctor::Persistence;
 using namespace AgentDbDoctor::FileSystem;
 namespace AgentDbDoctor::Doctor {
@@ -47,6 +50,15 @@ static constexpr const char* QUICK_CHECK_PRAGMA="PRAGMA quick_check";
 // saying `ok`, so anything else is already a problem and the rest of the rows
 // are only used to build the message.
 static constexpr int QUICK_CHECK_RESULT_LIMIT=5;
+// The size above which the full page check is not run automatically.
+//
+// A quick integrity check reads every page, so its cost is proportional to the
+// size of the file. At two gigabytes it takes a few seconds, which is a fair
+// price for a default run. Above that the number of seconds grows with the
+// size, and a hundred gigabyte database would take minutes, which is exactly the
+// behaviour this tool exists to remove. So above the limit the pass skips the
+// check, says plainly that it skipped it, and names the flag that runs it.
+static constexpr long long AUTOMATIC_INTEGRITY_CHECK_SIZE_LIMIT_BYTES=2LL * 1024LL * 1024LL * 1024LL;
 AgentDatabaseDoctor::AgentDatabaseDoctor() = default;
 void AgentDatabaseDoctor::recordStorageMetrics(const string& databaseFilePath, DiagnosisReport& report) {
     // One metadata call answers the logical size, the allocated size, and the
@@ -54,6 +66,7 @@ void AgentDatabaseDoctor::recordStorageMetrics(const string& databaseFilePath, D
     // of the specification.
     const FileMetadata fileMetadata=PlatformMetadata::readFileMetadata(databaseFilePath);
     report.setFileExists(fileMetadata.exists);
+    report.setIsDirectory(fileMetadata.isDirectory);
     report.setLogicalSizeBytes(fileMetadata.logicalSizeBytes);
     report.setAllocatedSizeBytes(fileMetadata.allocatedSizeBytes);
     report.setModificationEpochMilliseconds(fileMetadata.modificationEpochMilliseconds);
@@ -75,6 +88,14 @@ void AgentDatabaseDoctor::recordStorageMetrics(const string& databaseFilePath, D
     }
     // The header read is the only read of the database's own bytes in the whole
     // pass. One hundred bytes, served from the page cache after the first time.
+    if (fileMetadata.isDirectory) {
+        // Several supported agents keep plain text files rather than a database.
+        // There is nothing to check inside a folder, so the report says what the
+        // folder is and stops, rather than reporting a file that is not a database
+        // as though it were a fault.
+        report.setPruningSupported(false);
+        return;
+    }
     const SqliteHeaderFields headerFields=StatisticsReader::readHeaderFields(databaseFilePath);
     if (!headerFields.isValidSqliteFile) {
         report.setIntegrityStatus(IntegrityStatus::NOT_A_DATABASE);
@@ -94,7 +115,7 @@ void AgentDatabaseDoctor::recordStorageMetrics(const string& databaseFilePath, D
         // of how many pages it wrote, and one from the file system. A difference
         // means a write was interrupted, and the user deserves to know.
         report.addWarning(
-            "SQLite believes this database should be " + to_string(headerFields.declaredFileSizeBytes)
+            string("SQLite believes this database should be ") + to_string(headerFields.declaredFileSizeBytes)
             + " bytes but the file is " + to_string(fileMetadata.logicalSizeBytes)
             + " bytes. That difference usually means a write was interrupted. Run the recover "
             + "command to let SQLite finish it."
@@ -187,7 +208,7 @@ void AgentDatabaseDoctor::recordIntegrityStatus(
         if (!quickCheckStatement.isValid()) {
             report.setIntegrityStatus(IntegrityStatus::PROBLEM_REPORTED);
             report.setIntegrityMessage(
-                "The integrity check could not be run. "
+                string("The integrity check could not be run. ")
                 + SqliteErrorTranslator::explain(quickCheckStatement.prepareResultCode())
             );
             return;
@@ -227,7 +248,8 @@ void AgentDatabaseDoctor::recordIntegrityStatus(
 }
 DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
     const string& databaseFilePath,
-    const string& agentName
+    const string& agentName,
+    bool runRequestedIntegrityCheck
 ) {
     // The clock is read once at the start and once at the end. The counter is reset
     // first so the report describes this pass and not the whole process.
@@ -238,12 +260,31 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
         report.setAgentName(agentName);
     }
     recordStorageMetrics(databaseFilePath, report);
-    if (report.getFileExists() && report.getIntegrityStatus()!=IntegrityStatus::NOT_A_DATABASE) {
+    if (report.getFileExists()
+        && !report.getIsDirectory()
+        && report.getIntegrityStatus()!=IntegrityStatus::NOT_A_DATABASE) {
         try {
             Database database(databaseFilePath, Database::OPEN_READ_ONLY);
             database.setBusyTimeoutMilliseconds(2000);
             report.setDatabaseOpenSucceeded(true);
-            recordIntegrityStatus(databaseFilePath, report, true);
+            // The check runs automatically below the size limit and on request
+            // above it, so the common case is checked and the large case still
+            // meets the performance budget.
+            const bool isSmallEnoughToCheckAlways=
+                report.getLogicalSizeBytes() <= AUTOMATIC_INTEGRITY_CHECK_SIZE_LIMIT_BYTES;
+            const bool checkWasRequested=report.getIntegrityStatus()!=IntegrityStatus::UNREADABLE
+                && runRequestedIntegrityCheck;
+            const bool shouldRunCheck=isSmallEnoughToCheckAlways || checkWasRequested;
+            if (!isSmallEnoughToCheckAlways && !runRequestedIntegrityCheck) {
+                report.addWarning(
+                    string("The full page by page integrity check was not run, because this database "
+                        "is larger than ")
+                    + HumanReadableFormatting::formatBytes(AUTOMATIC_INTEGRITY_CHECK_SIZE_LIMIT_BYTES)
+                    + " and the check reads the whole file. Everything else below is complete. Run "
+                    + "the check on purpose with: agent-db-doctor diagnose --check"
+                );
+            }
+            recordIntegrityStatus(databaseFilePath, report, shouldRunCheck);
             recordTableRowCounts(database, report);
             recordRedundantEventCount(database, report);
             // The journal mode and the auto vacuum setting are both single value
@@ -280,6 +321,11 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
         report.addSuggestedNextStep(
             "Nothing to do. The coding agent has not created a database on this machine yet."
         );
+    } else if (report.getIsDirectory()) {
+        report.addSuggestedNextStep(
+            "This is a folder of text files rather than a database, so there is nothing to repair. "
+            "Its size is reported above so you know whether it is worth keeping."
+        );
     } else if (report.getIntegrityStatus()==IntegrityStatus::UNREADABLE) {
         report.addSuggestedNextStep(
             "Run the recover command. The file is there but the operating system cannot read it."
@@ -290,7 +336,7 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
         );
     } else if (report.getRedundantEventRowCount()>0) {
         report.addSuggestedNextStep(
-            "Run the prune command to remove the " + to_string(report.getRedundantEventRowCount())
+            string("Run the prune command to remove the ") + to_string(report.getRedundantEventRowCount())
             + " duplicate rows, then the compact command to shrink the file."
         );
     } else if (report.getReclaimableBytes()>0) {
@@ -326,12 +372,12 @@ optional<DiagnosisReport> AgentDatabaseDoctor::diagnoseIfAboveThreshold(
         && fileMetadata.logicalSizeBytes <= previousSizeBytes) {
         return nullopt;
     }
-    return diagnoseDatabase(databaseFilePath, agentName);
+    return diagnoseDatabase(databaseFilePath, agentName, false);
 }
 vector<DiagnosisReport> AgentDatabaseDoctor::diagnoseAllDiscoveredDatabases() {
     vector<DiagnosisReport> reports;
     for (const DiscoveredDatabase& discovered : agentRegistry.discoverAllDatabases()) {
-        reports.push_back(diagnoseDatabase(discovered.filePath, discovered.agentName));
+        reports.push_back(diagnoseDatabase(discovered.filePath, discovered.agentName, false));
     }
     return reports;
 }
