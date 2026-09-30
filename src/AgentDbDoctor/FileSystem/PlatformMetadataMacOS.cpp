@@ -4,10 +4,19 @@
 // never contains an operating system conditional. macOS has no `statx` call, so
 // the answers come from `stat`, which reports the same fields in one call.
 #include <cerrno>
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+// Provides `struct statfs` on the Berkeley derived systems, macOS among them.
 #include <sys/mount.h>
-#include <sys/param.h>
+#else
+// glibc declares the same structure under a different name.
+#include <sys/vfs.h>
+#endif
+// Provides `kill`, which asks whether a process is still running.
+#include <signal.h>
+// Provides `HOST_NAME_MAX`, the size the C library reserves for a host name. It was
+// previously arriving by way of sys/sysctl.h, which nothing in this file uses.
+#include <limits.h>
 #include <sys/stat.h>
-#include <sys/sysctl.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -53,12 +62,22 @@ FileMetadata PlatformMetadata::readFileMetadata(const string& filePath) {
     // to bytes. On an APFS volume with compression this is often smaller than the
     // logical size, which is exactly the situation the report needs to show.
     result.allocatedSizeBytes=static_cast<long long>(fileStatus.st_blocks) * 512LL;
-    // `st_mtimespec` is the modification time as seconds since the Unix epoch
-    // plus a nanosecond part. Combining them into milliseconds keeps ordering
-    // information that whole seconds would lose.
+    // The modification time is a pair of values: seconds since the Unix epoch, and a
+    // nanosecond part. Combining them into milliseconds keeps ordering information
+    // that whole seconds would lose.
+    //
+    // The field is spelled `st_mtimespec` on the BSD family, which includes macOS,
+    // and `st_mtim` under glibc. Both hold the same `struct timespec`, and the
+    // difference is only the name the header chose.
+    const struct timespec& modifiedTime=
+#if defined(__APPLE__)
+        fileStatus.st_mtimespec;
+#else
+        fileStatus.st_mtim;
+#endif
     result.modificationEpochMilliseconds=
-        static_cast<long long>(fileStatus.st_mtimespec.tv_sec) * 1000LL
-        + static_cast<long long>(fileStatus.st_mtimespec.tv_nsec) / 1000000LL;
+        static_cast<long long>(modifiedTime.tv_sec) * 1000LL
+        + static_cast<long long>(modifiedTime.tv_nsec) / 1000000LL;
     return result;
 }
 DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
@@ -151,16 +170,6 @@ string PlatformMetadata::hostName() {
     const size_t hostLength=strnlen(hostBuffer, sizeof(hostBuffer));
     return string(hostBuffer, hostLength);
 }
-string PlatformMetadata::homeDirectory() {
-    // `HOME` is the only variable a normal macOS session sets. The passwd
-    // database is the fallback for a process started without an environment, such
-    // as a launch daemon.
-    string homeFromEnvironment;
-    if (readEnvironmentVariable("HOME", homeFromEnvironment) && !homeFromEnvironment.empty()) {
-        return homeFromEnvironment;
-    }
-    return readPasswdHomeDirectory();
-}
 namespace {
 // Reads the home directory of the current user out of the passwd database.
 //
@@ -213,6 +222,18 @@ string readPasswdHomeDirectory() {
     return result;
 }
 }
+
+string PlatformMetadata::homeDirectory() {
+    // `HOME` is the only variable a normal macOS session sets. The passwd
+    // database is the fallback for a process started without an environment, such
+    // as a launch daemon.
+    string homeFromEnvironment;
+    if (readEnvironmentVariable("HOME", homeFromEnvironment) && !homeFromEnvironment.empty()) {
+        return homeFromEnvironment;
+    }
+    return readPasswdHomeDirectory();
+}
+
 string PlatformMetadata::programDataDirectory() {
     // On macOS the conventional location for a system wide configuration file is
     // `/Library/Application Support`, which needs no environment variable to
