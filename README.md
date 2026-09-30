@@ -17,7 +17,7 @@ This tool exists so that the next person does not lose theirs.
 
 ```bash
 # Build from source (the only way to get it today)
-git clone https://github.com/your-org/agent-db-doctor
+git clone https://github.com/richie-rich90454/agent-db-doctor
 cd agent-db-doctor
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
@@ -290,6 +290,50 @@ not yours.
 in one place.
 
 ---
+
+## What this tool does not do
+
+The list is here because knowing where a tool stops is more useful than being
+surprised by it later. Everything below is a deliberate decision, not a gap in the
+work.
+
+**It does not prune any agent except OpenCode.** Pruning removes the older copies of
+messages that an agent leaves behind when a message is edited, and only OpenCode
+produces them. Cursor, Codex CLI, Claude Code, Continue, and Aider are diagnosed and
+left alone. Their conversation is a plain text transcript or a rebuildable index,
+which is the only copy, so deciding what to delete from it is not this tool's call.
+
+**It does not compact a folder.** Several agents keep their history as text files in
+a folder. There is no database there to compact, and the tool says so rather than
+producing a report full of zeroes.
+
+**It does not walk a directory tree.** Finding databases uses a fixed list of
+candidate paths, one metadata call each. The only exception is one bounded level for
+the two agents whose folders are named after a hash. Scanning a home directory can
+take minutes and says nothing the fixed list would not.
+
+**It does not check every page of a database over two gigabytes.** The check reads
+the whole file, so its cost grows with the size. Above 2 GB the report skips it, says
+plainly that it skipped it, and names the flag that runs it: `--check`. It never
+skips silently.
+
+**It does not report an exact row count for a database that has never been analysed.**
+The count comes from SQLite's own statistics table, which is one indexed read. When
+that table has never been populated the report says the count is unknown rather than
+spending minutes counting rows.
+
+**It does not turn on filesystem compression, and it does not repair its effects.**
+Compressing a live SQLite database is what caused the third emergency this tool was
+written for. See `docs/recovery-playbook.md`.
+
+**It does not install itself silently.** `service install` prints what it will do and
+asks first, and it needs administrator rights, because only an administrator can write
+where a system service definition lives.
+
+**It has no continuous integration workflows.** The specification's file layout
+includes them. This repository is private and hosted runners cost money, so the suites
+run locally with `ctest --test-dir build`. Both the Windows and Linux builds are run
+by hand and both pass.
 
 ## Commands and flags
 
