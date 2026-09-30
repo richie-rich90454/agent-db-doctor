@@ -53,8 +53,7 @@ static constexpr const char* REBUILT_FILE_SUFFIX=".rebuilt";
 // The pragma that rebuilds every index in a database.
 static constexpr const char* REINDEX_PRAGMA="PRAGMA integrity_check";
 RecoverCommand::RecoverCommand(bool isTerminalAttached)
-    : reporter(isTerminalAttached),
-      guard(CommandOptions(), reporter) {
+    : reporter(isTerminalAttached) {
 }
 string RecoverCommand::describe() const {
     return string(
@@ -96,39 +95,51 @@ RecoverOutcome RecoverCommand::rebuildIndexes(const CommandOptions& options, con
         std::error_code ignoredError;
         std::filesystem::remove(workingCopyPath, ignoredError);
     }
-    // The rebuild is run with `ATTACH`, which attaches a second database to the
-    // existing connection. Every index can then be rebuilt into the attached copy
-    // with one statement per table, and the original is never opened for writing.
-    Database sourceDatabase(databaseFilePath, Database::OPEN_READ_ONLY);
-    sourceDatabase.setBusyTimeoutMilliseconds(5000);
-    Statement attachStatement(
-        sourceDatabase.rawHandle(),
-        "ATTACH DATABASE ?1 AS rebuild",
-        "the attachment of a working copy"
+    // The rebuild works on a copy, and the copy is made with the file system rather
+    // than by reading the original into memory, so a hundred gigabyte database costs
+    // no more memory than a small one.
+    std::error_code copyError;
+    std::filesystem::copy_file(
+        databaseFilePath,
+        workingCopyPath,
+        std::filesystem::copy_options::overwrite_existing,
+        copyError
     );
-    if (!attachStatement.isValid()) {
-        outcome.summarySentence="The working copy could not be opened, so nothing was changed.";
+    if (copyError) {
+        outcome.summarySentence=string("The working copy could not be made, so nothing was changed. ")
+            + "Free some space and run the command again.";
         return outcome;
     }
-    attachStatement.bindText(1, workingCopyPath);
-    attachStatement.step();
-    // The statement below copies every table into the working copy, then the
-    // integrity pragma on the attached copy rebuilds its indexes. Running the copy
-    // and the rebuild in one connection means one pass over the data rather than
-    // two.
-    sourceDatabase.execute("BEGIN");
-    sourceDatabase.execute("CREATE TABLE rebuild.session AS SELECT * FROM main.session");
-    sourceDatabase.execute("CREATE TABLE rebuild.message AS SELECT * FROM main.message");
-    sourceDatabase.execute("CREATE TABLE rebuild.part AS SELECT * FROM main.part");
-    sourceDatabase.execute("COMMIT");
-    sourceDatabase.execute("PRAGMA rebuild.integrity_check");
-    // The row counts are read from the original rather than the copy, because the
-    // number the user cares about is how much was there to begin with.
-    outcome.recoveredRowCount=StatisticsReader::exactRowCount(sourceDatabase, "session");
+    long long recoveredSessions=0;
+    long long recoveredMessages=0;
+    long long recoveredParts=0;
+    {
+        // The copy is opened for writing, because rebuilding an index is a write.
+        // The original is never opened for writing anywhere in this method, which is
+        // the promise the tool makes to someone whose database is already damaged.
+        Database workingCopyDatabase(workingCopyPath, Database::OPEN_READ_WRITE);
+        workingCopyDatabase.setBusyTimeoutMilliseconds(5000);
+        // One statement rebuilds every index in the database. SQLite walks each table
+        // and each index and writes a fresh one, which is the repair that fixes the
+        // commonest kind of damage at the cost of one pass over the file.
+        workingCopyDatabase.execute("REINDEX");
+        // The counts are read from the copy, which is what the user would get if they
+        // moved it into place themselves.
+        recoveredSessions=StatisticsReader::exactRowCount(workingCopyDatabase, "session");
+        recoveredMessages=StatisticsReader::exactRowCount(workingCopyDatabase, "message");
+        recoveredParts=StatisticsReader::exactRowCount(workingCopyDatabase, "part");
+    }
+    outcome.recoveredRowCount=recoveredSessions;
     outcome.rebuiltDatabasePath=workingCopyPath;
-    outcome.summarySentence=HumanReadableFormatting::formatCount(outcome.recoveredRowCount)
-        + " sessions were copied into a working copy with fresh indexes. Your original file was "
-        + "not modified.";
+    reporter.writeHeading("What was recovered");
+    reporter.writeLine("Sessions recovered: " + HumanReadableFormatting::formatCount(recoveredSessions));
+    reporter.writeLine("Messages recovered: " + HumanReadableFormatting::formatCount(recoveredMessages));
+    reporter.writeLine("Message parts recovered: " + HumanReadableFormatting::formatCount(recoveredParts));
+    outcome.summarySentence=HumanReadableFormatting::formatCount(recoveredSessions)
+        + " sessions, " + HumanReadableFormatting::formatCount(recoveredMessages) + " messages, and "
+        + HumanReadableFormatting::formatCount(recoveredParts)
+        + " message parts are in a working copy with rebuilt indexes. Your original file was not "
+        + "modified.";
     return outcome;
 }
 RecoverOutcome RecoverCommand::rebuildFromDump(
@@ -136,6 +147,7 @@ RecoverOutcome RecoverCommand::rebuildFromDump(
     const string& databaseFilePath
 ) {
     RecoverOutcome outcome;
+    DestructiveOperationGuard guard(options, reporter);
     const string rebuiltFilePath=databaseFilePath + REBUILT_FILE_SUFFIX;
     {
         std::error_code ignoredError;
@@ -177,7 +189,7 @@ RecoverOutcome RecoverCommand::rebuildFromDump(
             sessionWriter.reset();
             sessionWriter.bindText(1, sessionReader.columnTextView(0));
             sessionWriter.bindInteger(2, sessionReader.columnInteger(1));
-            if (sessionWriter.step() || sessionWriter.lastStepResultCode()==SQLITE_DONE) {
+            if (sessionWriter.run()) {
                 recoveredSessions++;
             } else {
                 // A row that will not write is skipped. The alternative, aborting,
@@ -203,7 +215,7 @@ RecoverOutcome RecoverCommand::rebuildFromDump(
             messageWriter.reset();
             messageWriter.bindText(1, messageReader.columnTextView(0));
             messageWriter.bindText(2, messageReader.columnTextView(1));
-            if (messageWriter.step() || messageWriter.lastStepResultCode()==SQLITE_DONE) {
+            if (messageWriter.run()) {
                 recoveredMessages++;
             } else {
                 break;
@@ -228,7 +240,7 @@ RecoverOutcome RecoverCommand::rebuildFromDump(
             partWriter.bindText(1, partReader.columnTextView(0));
             partWriter.bindText(2, partReader.columnTextView(1));
             partWriter.bindText(3, partReader.columnTextView(2));
-            if (partWriter.step() || partWriter.lastStepResultCode()==SQLITE_DONE) {
+            if (partWriter.run()) {
                 recoveredParts++;
             } else {
                 break;
@@ -337,10 +349,10 @@ int RecoverCommand::execute(const CommandOptions& options) {
         );
     }
     reporter.writeRecoveryPlan(options.agentName, options.databaseFilePath, plan);
-    // The rebuilding steps are run only when the user named one, so an exploratory
-    // run cannot write anything.
-    if (report.getIntegrityStatus()==IntegrityStatus::STRUCTURALLY_DAMAGED) {
-        if (options.rebuildWorkingCopy) {
+    // The rebuilding step is run only when the user named one, so an exploratory run
+    // cannot write anything.
+    if (options.rebuildWorkingCopy) {
+        {
             RecoverOutcome rebuildOutcome;
             if (lastRunOutcome.dataIsUnrecoverable) {
                 rebuildOutcome=rebuildFromDump(options, options.databaseFilePath);
@@ -358,13 +370,13 @@ int RecoverCommand::execute(const CommandOptions& options) {
                     "yourself once you have checked it, keeping the original with a different name."
                 );
             }
-        } else {
-            reporter.writeLine(
-                string("This tool can also build a working copy for you, on request only. Add ")
+        }
+    } else {
+        reporter.writeLine(
+            string("This tool can also build a working copy for you, on request only. Add ")
                 + "--rebuild to read every row it can and write them into a new database beside the "
                 + "original. Your original file is never modified."
             );
-        }
     }
     reporter.writeLine(RecoveryPlaybook::closingSentence(options.databaseFilePath));
     return 0;
