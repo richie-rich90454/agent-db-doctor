@@ -1,0 +1,46 @@
+name: An agent the tool does not know about
+about: A coding agent whose database agent-db-doctor should understand
+title: ''
+labels: ''
+assignees: ''
+
+---
+
+**Which agent**
+
+<!-- The name of the coding agent. -->
+
+**Where it keeps its database**
+
+<!-- The path, or the paths. If it uses more than one, say which is which. -->
+
+**What the schema looks like**
+
+<!--
+The output of the SQLite `.schema` command against a copy of the database, never
+against the original:
+
+    sqlite3 "the path" ".schema"
+
+Copy the file first. Reading a database does not usually change it, but the point of
+this tool is to be careful, and a copy costs nothing.
+-->
+
+**What accumulates**
+
+<!--
+If you know: which table or tables grow, roughly how far, and how fast.
+
+If you do not know, say so. "I do not know, it just gets big" is a perfectly good
+answer and is the normal one. This tool exists because that question is hard to
+answer from the outside, and a report saying so is more useful than a guess.
+-->
+
+**What would be safe to remove**
+
+<!--
+Only if you know. Please do not experiment on a database you care about.
+
+If nothing is known yet, the most useful thing you can bring is a copy of a database
+that is too big, with anything private removed.
+-->
