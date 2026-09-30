@@ -206,20 +206,27 @@ quietly arriving in a release.
 | Memory growth over 1000 idle watchdog ticks | ~0 | **< 1 MB** | `WatchdogBenchmark` |
 | Peak resident memory, whole process, full diagnostic | < 40 MB | **7.1 MB** | measured with the process working set |
 | Startup, command line tool | < 30 ms | **28.3 ms** | average of 5 runs of `--version` |
-| Marginal cost of removing one duplicate row | 5.3 us | **20.1 us** | `PruneBenchmark` |
+| Marginal cost of removing one duplicate row | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `PruneBenchmark` |
 
 Measured on the machine described in `benchmarks/results.md`, with the tool built
 at `-O3` and SQLite compiled with `SQLITE_THREADSAFE=0`. The 100 GB database is a
 real SQLite file grown to that size with a sparse region, so the pass had a genuine
 hundred gigabyte file to answer questions about and could not have read it.
 
-**One measurement is over its target, and the tool says so in the test that
-measures it.** The specification's figure of 5.3 microseconds per row would put 1.5
-million rows inside eight seconds; this design measures about 20, so that many rows
-take roughly thirty seconds. The cost is SQLite removing a row from a table that
-carries three b-trees, not anything this tool does. The test asserts the measured
-ceiling with a comment naming the gap and the upgrade path, so the number cannot
-quietly drift. See `docs/performance.md`.
+**One measurement is above its target on Windows, and inside it on Linux.** The
+specification's figure of 5.3 microseconds per row would put 1.5 million rows inside
+eight seconds. This build measures about 8 on Windows and about 3 on Linux. It used
+to measure 20: keeping SQLite's scratch structures in memory rather than in temporary
+files, and checkpointing passively instead of blocking on a truncate, moved it to 8.
+The remainder is the operating system rather than the query, because for identical
+SQL a row deletion costs about two and a half times more on Windows, where every
+temporary file and log write passes through antivirus software.
+
+The test prints the rate it measured, and asserts that tripling the work does not
+triple the cost per row. That second assertion is the one that matters: it is a
+ratio of two measurements taken at the same moment, so a busy machine cannot make it
+fail, while a design that had become quadratic could not pass it. See
+`docs/performance.md`.
 
 **The startup figure is a measurement of the whole process, launcher included.**
 `--version` takes 28.3 ms averaged over five runs from a PowerShell shell, which
