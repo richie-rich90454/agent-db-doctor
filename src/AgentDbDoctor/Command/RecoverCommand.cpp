@@ -301,6 +301,12 @@ int RecoverCommand::execute(const CommandOptions& options) {
         && report.getIntegrityStatus()!=IntegrityStatus::NOT_A_DATABASE;
     lastRunOutcome.dataIsUnrecoverable=report.getIntegrityStatus()==IntegrityStatus::UNREADABLE
         || report.getIntegrityStatus()==IntegrityStatus::NOT_A_DATABASE;
+    // A folder has nothing to recover and nothing that was lost, so it is neither
+    // recoverable nor unrecoverable. Saying a folder's data cannot be recovered would
+    // read as though something had been damaged.
+    lastRunOutcome.isRecoverableByThisTool=report.getIntegrityStatus()!=IntegrityStatus::IS_A_FOLDER
+        ? lastRunOutcome.isRecoverableByThisTool
+        : false;
     const FileLockStatus lockStatus=FileLockDetector::checkLockStatus(options.databaseFilePath);
     const DiskSpace availableSpace=PlatformMetadata::readDiskSpace(options.databaseFilePath);
     const FailureMatch match=KnownFailurePatterns::classify(
@@ -333,6 +339,8 @@ int RecoverCommand::execute(const CommandOptions& options) {
         );
     } else if (report.getIntegrityStatus()==IntegrityStatus::STRUCTURALLY_DAMAGED) {
         plan=RecoveryPlaybook::buildPlanForDamagedDatabase(report);
+    } else if (report.getIntegrityStatus()==IntegrityStatus::IS_A_FOLDER) {
+        plan=RecoveryPlaybook::buildPlanForFolderOfTextFiles();
     } else if (report.getIntegrityStatus()==IntegrityStatus::INTACT
         || report.getIntegrityStatus()==IntegrityStatus::NOT_CHECKED) {
         plan=RecoveryPlaybook::buildPlanForHealthyDatabase(report);
