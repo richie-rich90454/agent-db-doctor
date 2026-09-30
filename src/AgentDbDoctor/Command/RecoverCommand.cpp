@@ -88,7 +88,7 @@ vector<RecoveryRecommendation> RecoverCommand::buildPlanFor(const CommandOptions
         match.plainExplanation
     );
 }
-RecoverOutcome RecoverCommand::rebuildIndexes(const CommandOptions& options, const string& databaseFilePath) {
+RecoverOutcome RecoverCommand::rebuildIndexes(const string& databaseFilePath) {
     RecoverOutcome outcome;
     const string workingCopyPath=databaseFilePath + REBUILT_FILE_SUFFIX;
     {
@@ -357,7 +357,7 @@ int RecoverCommand::execute(const CommandOptions& options) {
             if (lastRunOutcome.dataIsUnrecoverable) {
                 rebuildOutcome=rebuildFromDump(options, options.databaseFilePath);
             } else {
-                rebuildOutcome=rebuildIndexes(options, options.databaseFilePath);
+                rebuildOutcome=rebuildIndexes(options.databaseFilePath);
             }
             lastRunOutcome.recoveredRowCount=rebuildOutcome.recoveredRowCount;
             lastRunOutcome.rebuiltDatabasePath=rebuildOutcome.rebuiltDatabasePath;
@@ -378,7 +378,7 @@ int RecoverCommand::execute(const CommandOptions& options) {
                 + "original. Your original file is never modified."
             );
     }
-    reporter.writeLine(RecoveryPlaybook::closingSentence(options.databaseFilePath));
+    reporter.writeLine(RecoveryPlaybook::closingSentence());
     return 0;
 }
 }
