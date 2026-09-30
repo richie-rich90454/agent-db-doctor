@@ -151,6 +151,20 @@ int ServiceCommand::execute(const CommandOptions& options) {
         }
         ServiceManager serviceManager(configuration);
         if (options.serviceAction=="uninstall") {
+            // The state is read first, because removing something that was never
+            // installed is not a removal. Saying "removed" in that case claimed a
+            // change that did not happen.
+            if (!serviceManager.readStatus().isInstalled) {
+                reporter.writeHeading("Nothing to remove");
+                reporter.writeLine(
+                    "The agent-db-doctor service is not installed, so there was nothing to remove."
+                );
+                reporter.writeLine(
+                    "Nothing was changed. If you expected it to be installed, run the service "
+                    "status command to see where the tool thinks it is."
+                );
+                return 0;
+            }
             reporter.writeLine(string("Removing the service. Your configuration file is kept, so ")
                 + "reinstalling will use the same thresholds.");
             serviceManager.uninstall();
