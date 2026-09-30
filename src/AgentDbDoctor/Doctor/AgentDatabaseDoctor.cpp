@@ -91,8 +91,16 @@ void AgentDatabaseDoctor::recordStorageMetrics(const string& databaseFilePath, D
     if (fileMetadata.isDirectory) {
         // Several supported agents keep plain text files rather than a database.
         // There is nothing to check inside a folder, so the report says what the
-        // folder is and stops, rather than reporting a file that is not a database
-        // as though it were a fault.
+        // folder is and stops. The status is set rather than left at `NOT_CHECKED`,
+        // because a status that means "not run" reads as "nothing wrong" everywhere
+        // downstream, and that is how a folder ended up reported as a healthy database
+        // with a size of zero bytes.
+        report.setIntegrityStatus(IntegrityStatus::IS_A_FOLDER);
+        report.setIntegrityMessage(
+            "This path is a folder, not a database. Several supported agents keep plain "
+            "text files in a folder, so this is not a fault and there is nothing here to "
+            "check or repair."
+        );
         report.setPruningSupported(false);
         return;
     }
@@ -323,8 +331,9 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
         );
     } else if (report.getIsDirectory()) {
         report.addSuggestedNextStep(
-            "This is a folder of text files rather than a database, so there is nothing to repair. "
-            "Its size is reported above so you know whether it is worth keeping."
+            "This is a folder of text files rather than a database, so there is nothing to check, "
+            "prune, compact, or repair here, and this tool will not change anything inside it. "
+            "The coding agent that owns this folder manages these files itself."
         );
     } else if (report.getIntegrityStatus()==IntegrityStatus::UNREADABLE) {
         report.addSuggestedNextStep(
