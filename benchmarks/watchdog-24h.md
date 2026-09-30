@@ -51,6 +51,30 @@ head -1 rss.log              # the first sample, for comparison
 **The assertion is that the peak never exceeds 12 MB.** Not that the average does,
 and not that it usually does. A service that runs for months has to be flat.
 
+## Two soaks, because one cannot answer both questions
+
+A sanitized build and a resident memory measurement cannot come from the same run,
+and this is worth being explicit about, because getting it wrong produces a number
+that looks alarming and means nothing.
+
+AddressSanitizer maintains a shadow map of the whole address space, and
+UndefinedBehaviorSanitizer adds bookkeeping of its own. A binary built with both
+reported **57 MB resident** in an early run of this soak while doing almost nothing.
+That is the sanitizer, not the tool. Quoting it as the tool's memory cost would be
+nonsense in the other direction: it would suggest the tool is five times heavier
+than its budget, when the truth is that a sanitized binary is always several times
+heavier than the program it instruments.
+
+So the soak runs twice:
+
+| Run | Build | What it answers |
+|---|---|---|
+| `/root/soak` | `-fsanitize=address,undefined` | Does the service read or write memory it should not, over 24 hours of ticks? |
+| `/root/soak-release` | ordinary `-O3` release | What is the peak resident set the twelve megabyte budget is about? |
+
+Read the memory figure from the release run and the correctness verdict from the
+sanitized run. Mixing them produces a confident, wrong answer in either direction.
+
 ## The in-process benchmark
 
 `tests/benchmark/WatchdogBenchmark.cpp` measures the same properties in under a
