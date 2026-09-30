@@ -77,7 +77,7 @@ void ServiceManager::writePlatformServiceDefinition() const {
     std::ofstream unitFile(unitFilePath, std::ios::trunc);
     if (!unitFile.is_open()) {
         throw ServiceOperationException(
-            string("The service file could not be written"),
+            string("Writing the service file"),
             string("The tool tried to write ") + unitFilePath
             + ". That folder is owned by root, so the command needs to be run with "
             + "administrator rights, for example with sudo."
@@ -132,7 +132,7 @@ void ServiceManager::startPlatformService() const {
     const string result=runCommandAndCaptureOutput(string("systemctl start ") + UNIT_NAME + " 2>&1");
     if (result.find("Failed")!=string::npos || result.find("error")!=string::npos) {
         throw ServiceOperationException(
-            string("The service did not start"),
+            string("Starting the service"),
             string("systemctl said: ") + result
             + " Check the log at " + serviceConfiguration.logFilePath + "."
         );
