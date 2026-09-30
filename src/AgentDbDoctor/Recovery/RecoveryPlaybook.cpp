@@ -30,7 +30,7 @@ string RecoveryPlaybook::openingSentence(const string& agentName, const string& 
     return string("Here is what was found with the ") + agentName + " database at "
         + databaseFilePath + ".";
 }
-string RecoveryPlaybook::closingSentence(const string& databaseFilePath) {
+string RecoveryPlaybook::closingSentence() {
     return string(
         "None of the steps above have run. Your database is exactly as it was. "
     ) + "When you are ready, the agent-db-doctor service would have noticed this before it became a problem. Run: agent-db-doctor service install";
