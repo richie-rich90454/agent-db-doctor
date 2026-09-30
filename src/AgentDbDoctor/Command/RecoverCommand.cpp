@@ -286,6 +286,16 @@ int RecoverCommand::execute(const CommandOptions& options) {
         );
         return 1;
     }
+    if (fileMetadata.isDirectory) {
+        reporter.writeFailure(
+            string("That path is a folder, not a database file, so there is nothing to recover.\n\n")
+            + "Several supported coding agents keep their history as plain text files in a "
+            + "folder rather than in a SQLite database. Nothing was damaged and nothing was "
+            + "changed.\n\nNothing was changed.",
+            string()
+        );
+        return 1;
+    }
     // The facts are gathered with the same tools the diagnose command uses, so the
     // two commands can never disagree about what is wrong.
     AgentDatabaseDoctor doctor;
@@ -371,6 +381,20 @@ int RecoverCommand::execute(const CommandOptions& options) {
     reporter.writeRecoveryPlan(options.agentName, options.databaseFilePath, plan);
     // The rebuilding step is run only when the user named one, so an exploratory run
     // cannot write anything.
+    // A file that was never a SQLite database has no tables to read rows from, so
+    // rebuilding it produces an empty database that looks like a success and is not
+    // one. The diagnosis above is still the right thing to print for such a file, so
+    // only this action is refused.
+    if (options.rebuildWorkingCopy
+        && !StatisticsReader::readHeaderFields(options.databaseFilePath).isValidSqliteFile) {
+        reporter.writeLine("");
+        reporter.writeWarning(
+            string("No working copy was built. The file is not a SQLite database, so there are ")
+            + "no tables to read rows from, and the result would have been an empty database "
+            + "rather than a recovered one. Nothing was changed, and no file was created beside it."
+        );
+        return 0;
+    }
     if (options.rebuildWorkingCopy) {
         {
             RecoverOutcome rebuildOutcome;
