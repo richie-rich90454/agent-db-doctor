@@ -174,8 +174,24 @@ int main(int argumentCount, char** argumentValues) {
         application.parse(argumentCount, argumentValues);
     } catch (const CLI::ParseError& parseFailure) {
         // CLI11 reports a help request or a version request as an exception too, so
-        // both are handled here rather than treated as a mistake.
-        return application.exit(parseFailure);
+        // both are handled here rather than treated as a mistake. A help or version
+        // request is a success, so it exits zero.
+        if (parseFailure.get_exit_code()==0) {
+            return application.exit(parseFailure);
+        }
+        // A genuine mistake gets the same treatment as every other error this tool
+        // raises: a sentence, an explanation, and the command to run next. CLI11's own
+        // one line and its exit code of one hundred and six are neither of them, and
+        // one hundred and six is not a code a shell script expects.
+        fputs(
+            (string("There is a problem with the command line.\n\n")
+             + parseFailure.what()
+             + "\n\nRun agent-db-doctor --help to see what each command does, or "
+               "agent-db-doctor diagnose to look at your databases without changing anything.\n").c_str(),
+            stderr
+        );
+        fflush(stderr);
+        return EXIT_CODE_USAGE;
     }
     // The service is the one command that must run with no terminal, so a missing
     // `--yes` is a usage error there rather than a question nobody can answer.
