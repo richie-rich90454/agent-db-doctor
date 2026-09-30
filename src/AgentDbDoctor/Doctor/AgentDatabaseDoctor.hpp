@@ -48,7 +48,15 @@ public:
     //
     // `agentName` is used only for the report heading. Pass the empty string when
     // the agent is not known.
-    DiagnosisReport diagnoseDatabase(const string& databaseFilePath, const string& agentName);
+    //
+    // `runRequestedIntegrityCheck` is true when the user asked for the full page
+    // by page check with the `--check` flag. It is not needed on a small database,
+    // where the check runs anyway because it takes a moment rather than minutes.
+    DiagnosisReport diagnoseDatabase(
+        const string& databaseFilePath,
+        const string& agentName,
+        bool runRequestedIntegrityCheck
+    );
     // Runs a full diagnostic pass over every database every supported agent
     // reports. Databases that are not present are not reported, because a user
     // who has never installed an agent does not need to hear about it.
