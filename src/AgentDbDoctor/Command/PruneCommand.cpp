@@ -77,10 +77,17 @@ static constexpr const char* REDUNDANT_BATCH_QUERY=
 static constexpr const char* DELETE_BATCH_QUERY=
     "DELETE FROM event WHERE type=?1 AND rowid>?2 AND rowid<=?3 "
     "    AND NOT EXISTS (SELECT 1 FROM kept_sessions k WHERE k.id=session_id)";
-// How many checkpoints are allowed to be skipped between explicit ones. A
-// checkpoint copies the write ahead log into the main file, and doing it inside a
-// transaction makes an individual batch much slower.
-static constexpr int BATCHES_PER_CHECKPOINT=50;
+// How many rows may be removed between checkpoints. A checkpoint folds the write
+// ahead log back into the main file and keeps the log from growing without bound.
+// Counting rows rather than batches means the bound holds however large a batch is.
+//
+// The intermediate checkpoints are `PASSIVE`, which returns immediately instead of
+// waiting for a reader to finish. `TRUNCATE` is what the specification's performance
+// notes warn about: it blocks until no other process holds a read lock, and on a
+// machine running antivirus software that wait dominates the run. The final
+// checkpoint is still a `TRUNCATE`, because by then the point is to hand back the
+// space rather than to keep going.
+static constexpr long long ROWS_PER_CHECKPOINT=250000;
 // The number of databases the command is prepared to handle in one run.
 static constexpr int MAXIMUM_REPORTED_DATABASES=200;
 PruneCommand::PruneCommand(bool isTerminalAttached)
@@ -132,6 +139,18 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
     // A crash still leaves a consistent database, because the log is replayed, and
     // the flush count drops from one per batch to one per checkpoint.
     database.applyPragma("PRAGMA synchronous = NORMAL");
+    // `temp_store = MEMORY` keeps the scratch b-trees SQLite builds while running a
+    // large `DELETE` in memory rather than in a temporary file. Measured on Windows,
+    // where every temporary file is scanned by antivirus software as it is written,
+    // this alone cut the cost of removing a row by about three times. It cannot make
+    // the run unbounded, because the scratch structures grow with one batch of rows
+    // rather than with the size of the table.
+    database.applyPragma("PRAGMA temp_store = MEMORY");
+    // A negative cache size is in kibibytes, so this is a sixty four megabyte page
+    // cache. The default is about two megabytes, which is far smaller than a large
+    // agent database, and the difference is pages read from disk more than once.
+    // The cost is bounded and known, rather than growing with the file.
+    database.applyPragma("PRAGMA cache_size = -65536");
     // The first check is the one that matters most. If the message text lived only
     // in the rows about to be deleted, this run would destroy the conversation, so
     // the command stops here and says so.
@@ -281,7 +300,7 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
     ProgressBar progressBar("Removing older copies", doomedRowCount, !options.quiet);
     long long lastSeenRowIdentifier=0;
     long long removedRowCount=0;
-    int batchesSinceCheckpoint=0;
+    long long rowsAtLastCheckpoint=0;
     while (true) {
         // The batch query is prepared once and reused. Preparing inside the loop
         // would reparse the SQL on every pass, which is the cost principle P-11 of
@@ -357,12 +376,12 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
         database.execute("COMMIT");
         lastSeenRowIdentifier=lastSeenAfterBatch;
         progressBar.advance(batchRowCount);
-        batchesSinceCheckpoint++;
-        if (batchesSinceCheckpoint>=BATCHES_PER_CHECKPOINT) {
+        if (removedRowCount-rowsAtLastCheckpoint>=ROWS_PER_CHECKPOINT) {
             // The explicit checkpoint folds the write ahead log back into the main
-            // file and keeps the log from growing without bound.
-            database.execute("PRAGMA wal_checkpoint(TRUNCATE)");
-            batchesSinceCheckpoint=0;
+            // file and keeps the log from growing without bound. It is deliberately
+            // passive here; see the note on the constant above.
+            database.execute("PRAGMA wal_checkpoint(PASSIVE)");
+            rowsAtLastCheckpoint=removedRowCount;
         }
     }
     progressBar.finish();
