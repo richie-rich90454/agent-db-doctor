@@ -12,6 +12,9 @@
 #include <cstdio>
 // Provides `popen` and `pclose`, which run a command and read its output.
 #include <cstdio>
+#include <fstream>
+// Provides `ofstream`, which writes the unit file.
+#include <fstream>
 #include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
@@ -20,8 +23,12 @@
 #include <filesystem>
 // Provides the ServiceManager class declaration.
 #include "AgentDbDoctor/Service/ServiceManager.hpp"
+// Provides ServiceOperationException, which is what a failed systemctl call
+// raises.
+#include "AgentDbDoctor/Common/Exceptions.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
+using namespace AgentDbDoctor::Common;
 using namespace AgentDbDoctor::Service;
 namespace AgentDbDoctor::Service {
 // Where systemd keeps unit files that belong to the system rather than to a user.
