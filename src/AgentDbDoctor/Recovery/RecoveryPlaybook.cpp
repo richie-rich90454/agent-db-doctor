@@ -125,7 +125,7 @@ vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForDamagedDatabase(
         SeverityLevel::URGENT,
         string("Close the coding agent and make a copy of the file."),
         string(
-            "SQLite reports: " + report.getIntegrityMessage()
+            string("SQLite reports: ") + report.getIntegrityMessage()
             + "\n\nClose the coding agent first, then copy the file and any -wal or -shm file next to "
             "it. Everything below assumes you have a copy."
         ),
@@ -178,11 +178,10 @@ vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForOversizedDatabase(
         plan.push_back(RecoveryRecommendation(
             SeverityLevel::ATTENTION,
             string("Remove the duplicate rows."),
-            string(
-                "This database holds " + to_string(duplicateRows)
+            string("This database holds " + to_string(duplicateRows)
                 + " rows that are older copies of messages that have since been changed. Each one is a "
-                "complete copy of a state the conversation has already moved past, so the current text "
-                + "is stored elsewhere and nothing is lost by removing them.\n\n"
+                  "complete copy of a state the conversation has already moved past, so the current text "
+                  "is stored elsewhere and nothing is lost by removing them.\n\n"
                 + "The tool makes a copy of the file first and tells you where it put it."
             ),
             string("agent-db-doctor prune --database \"") + report.getDatabaseFilePath() + "\"",
