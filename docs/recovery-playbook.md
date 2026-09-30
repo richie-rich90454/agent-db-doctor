@@ -150,6 +150,23 @@ This copies the file, rebuilds every index in the copy, and tells you where the
 copy is. **Your original is never modified.** Move the copy into place yourself
 once you have checked it, keeping the original under a different name.
 
+**One flag covers both repairs.** `--rebuild` is the only rebuild flag, and it
+chooses between the two methods from the diagnosis it has already made:
+
+| What the tool found | What `--rebuild` does |
+|---|---|
+| The rows can still be read, an index is damaged | Rebuilds every index on a copy |
+| The rows cannot be read | Dumps what SQLite can still read into a fresh database |
+
+The second case leaves out the sessions that are too badly damaged rather than
+writing them half way, so the result opens cleanly. You do not choose: the tool
+picks the method that fits what it found, which is why the plan it prints tells you
+what it is about to do before you agree to it.
+
+There is no `--rebuild-indexes` or `--rebuild-from-dump` flag. An earlier version of
+this tool's own printed plan named both, and neither existed, so following the plan
+produced "the following argument was not expected".
+
 ## Pattern: the file is not a database
 
 **What you see:** `SQLITE_NOTADB`. The first sixteen bytes are not the SQLite
