@@ -75,11 +75,22 @@ FileMetadata PlatformMetadata::readFileMetadata(const string& filePath) {
 DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
     MetadataCallCounter::record();
     DiskSpace result;
+    // The question is about the file system that holds the path. When the caller
+    // passed a file rather than a folder, its parent folder is used, so the answer
+    // is the same whichever kind of path was given.
+    string volumePath=pathOnVolume;
+    const FileMetadata pathStatus=readFileMetadata(pathOnVolume);
+    if (pathStatus.exists && !pathStatus.isDirectory) {
+        const size_t lastSeparator=pathOnVolume.find_last_of('/');
+        if (lastSeparator!=string::npos) {
+            volumePath=pathOnVolume.substr(0, lastSeparator);
+        }
+    }
     // `struct statvfs` describes a mounted file system: its block size, its total
     // blocks, and how many are free. Multiplying a block count by the block size
     // gives bytes, which is why the arithmetic is done in long long.
     struct statvfs fileSystemStatus;
-    if (statvfs(pathOnVolume.c_str(), &fileSystemStatus)!=0) {
+    if (statvfs(volumePath.c_str(), &fileSystemStatus)!=0) {
         result.errorCode=errno;
         return result;
     }
