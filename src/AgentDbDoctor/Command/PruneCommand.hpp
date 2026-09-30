@@ -76,9 +76,9 @@ private:
     PruneOutcome performPrune(const CommandOptions& options, const string& databaseFilePath);
     // Every line the command prints goes through the reporter, which is the only
     // class in the tool allowed to write to the user's screen.
+    // Every line the command prints goes through the reporter, which is the only
+    // class in the tool allowed to write to the user's screen.
     ConsoleReport reporter;
-    // The guard makes the safety copy and asks the user before anything changes.
-    DestructiveOperationGuard guard;
     // The outcome of the last run, kept so a caller can read it as data rather than
     // parsing the printed text.
     PruneOutcome lastRunOutcome;
