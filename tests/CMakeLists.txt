@@ -64,6 +64,7 @@ set(AGENT_DB_DOCTOR_INTEGRATION_TESTS
     integration/RecoverIntegrationTest.cpp
     integration/ServiceIntegrationTest.cpp
     integration/CompressionCorruptionIntegrationTest.cpp
+    integration/NotADatabaseIntegrationTest.cpp
     integration/EndToEndIntegrationTest.cpp
 )
 foreach(test_source IN LISTS AGENT_DB_DOCTOR_INTEGRATION_TESTS)
