@@ -5,6 +5,7 @@
 // the `statx` system call where it is available, because it reports everything
 // the tool needs in one call, with `stat` as the fallback for older kernels.
 #include <cerrno>
+#include <fcntl.h>
 // Provides `struct statx`, the structure the `statx` call fills in.
 #include <linux/stat.h>
 // Provides `statx` itself. On very old C libraries the declaration lives in
@@ -169,16 +170,6 @@ string PlatformMetadata::hostName() {
     const size_t hostLength=strnlen(hostBuffer, sizeof(hostBuffer));
     return string(hostBuffer, hostLength);
 }
-string PlatformMetadata::homeDirectory() {
-    // `HOME` is the only variable a normal Linux session sets. The passwd database
-    // is the fallback for a process started without an environment, such as a
-    // systemd unit.
-    string homeFromEnvironment;
-    if (readEnvironmentVariable("HOME", homeFromEnvironment) && !homeFromEnvironment.empty()) {
-        return homeFromEnvironment;
-    }
-    return readPasswdHomeDirectory();
-}
 namespace {
 // Reads the home directory of the current user out of the passwd database.
 //
@@ -187,6 +178,9 @@ namespace {
 // hundred bytes. It is only reached when `HOME` is unset, which on this platform
 // means a service start rather than a user command. It is a file local function
 // because no other platform has a passwd file.
+//
+// It is defined ahead of its only call site rather than ahead of nothing, because
+// a function has to be declared before it is used.
 string readPasswdHomeDirectory() {
     FILE* passwdFile=fopen("/etc/passwd", "re");
     if (passwdFile==nullptr) {
@@ -230,6 +224,16 @@ string readPasswdHomeDirectory() {
     fclose(passwdFile);
     return result;
 }
+}
+string PlatformMetadata::homeDirectory() {
+    // `HOME` is the only variable a normal Linux session sets. The passwd database
+    // is the fallback for a process started without an environment, such as a
+    // systemd unit.
+    string homeFromEnvironment;
+    if (readEnvironmentVariable("HOME", homeFromEnvironment) && !homeFromEnvironment.empty()) {
+        return homeFromEnvironment;
+    }
+    return readPasswdHomeDirectory();
 }
 string PlatformMetadata::programDataDirectory() {
     // On Linux the conventional location for a system wide configuration file is
