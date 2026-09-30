@@ -76,7 +76,15 @@ public:
     // have to check for errors when it only wants to know whether another row
     // exists. Call `lastStepResultCode()` after the loop for that.
     bool step() const;
-    // The result code of the most recent `step()` call.
+    // Runs a statement that does not produce rows, such as an insert, an update,
+    // or a delete, and reports whether it succeeded.
+    //
+    // A statement that writes finishes by reporting that it is done rather than by
+    // producing a row, so `step()` cannot be used for one. This method treats both
+    // outcomes as success and anything else as a failure, which is the only thing
+    // a write site wants to know.
+    bool run() const;
+    // The result code of the most recent `step()` or `run()` call.
     int lastStepResultCode() const;
     // Rewinds the statement so it can be run again from the first row. Parameter
     // bindings survive a reset, so a loop can change one value and repeat.
