@@ -6,8 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [1.0.0] - 2026-09-30
 
-The first release. Everything below is implemented, tested on all three
-platforms, and verified against real agent databases.
+The first release. Everything below is implemented and verified against real agent
+databases. The full test suite is run and passes on Windows and on Linux; the macOS
+sources are compiled on every Linux build and are not run, because the machine this
+was written on is not a Mac. `README.md` says exactly what was verified where.
 
 ### Added
 
@@ -88,6 +90,36 @@ SQL, deleting a row costs about two and a half times more there, because every
 temporary file and every log write passes through antivirus software.
 `docs/performance.md` records what was changed to get from 20.1 to 8.0 and what is
 left to do.
+
+### Fixed before release, by building on a second platform
+
+The Linux and macOS implementations had never been compiled by anything, because the
+project was developed on one machine. Building them on Linux found nine real
+mistakes, all of them of the kind that only a compiler notices:
+
+| Where | What was wrong |
+|---|---|
+| `PlatformMetadataLinux.cpp` | `AT_FDCWD` used without including `<fcntl.h>`, so the file did not compile |
+| `PlatformMetadataLinux.cpp` | `readPasswdHomeDirectory` defined below its own call site |
+| `FileLockDetector.cpp` | A namespace written twice, resolving to `AgentDbDoctor::Common::AgentDbDoctor::Common` |
+| `ServiceManagerLinux.cpp` | `<fstream>` missing, and `ServiceOperationException` never brought into scope |
+| `ServiceManagerMacOS.cpp` | Neither the exceptions header nor the `Common` namespace, on the one platform the file exists for |
+| `PlatformMetadataMacOS.cpp` | `kill` and `HOST_NAME_MAX` used without `<signal.h>` or `<limits.h>` |
+| `PlatformMetadataMacOS.cpp` | The same passwd helper defined below its own call site |
+| `PlatformMetadataMacOS.cpp` | Two unused Apple-only includes, `sys/sysctl.h` and `sys/param.h` |
+| `RecoverCommand.cpp` | A metadata pattern could overwrite the integrity verdict, so a file that is not a database could be reported as recoverable |
+
+The last one was the most serious. A database whose first bytes are not the SQLite
+signature is unrecoverable by definition, but if a lock or a full drive was also
+noticed, the pattern's answer replaced that verdict. It is now the case that
+unrecoverable is sticky: a pattern may add what it found, and may not soften a
+verdict the integrity check already gave.
+
+Two of these would have failed on macOS itself. The rest would have failed the
+moment anyone built the project on a second machine.
+
+To stop the class of mistake rather than just the instances, every Linux build now
+also compiles the macOS sources into an object library that is never linked.
 
 ### Known limitations
 
