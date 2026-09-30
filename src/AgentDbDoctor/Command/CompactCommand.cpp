@@ -35,6 +35,21 @@ using namespace AgentDbDoctor::Persistence;
 using namespace AgentDbDoctor::Doctor;
 using namespace AgentDbDoctor::FileSystem;
 namespace AgentDbDoctor::Command {
+// Wraps `text` in single quotes for use inside a SQL statement, doubling any single
+// quote it contains. That is the rule SQLite follows for a string literal, and it is
+// why a path can be placed in the text of a statement that does not accept a bound
+// parameter without becoming a way to run someone else's SQL.
+static string toSqlStringLiteral(const string& text) {
+    string quotedText="'";
+    for (const char currentCharacter : text) {
+        if (currentCharacter=='\'') {
+            quotedText.push_back('\'');
+        }
+        quotedText.push_back(currentCharacter);
+    }
+    quotedText.push_back('\'');
+    return quotedText;
+}
 // The pragma that performs the rewrite. `VACUUM INTO` writes a fresh copy holding
 // only the live pages, and it never touches the file it was given. That is why the
 // tool uses it rather than a plain `VACUUM`, which rewrites the original in place.
@@ -45,8 +60,7 @@ static constexpr const char* REWRITTEN_FILE_SUFFIX=".compacting";
 // The quick check pragma, run against the new file before it is swapped in.
 static constexpr const char* QUICK_CHECK_PRAGMA="PRAGMA quick_check";
 CompactCommand::CompactCommand(bool isTerminalAttached)
-    : reporter(isTerminalAttached),
-      guard(CommandOptions(), reporter) {
+    : reporter(isTerminalAttached) {
 }
 string CompactCommand::describe() const {
     return string(
@@ -81,6 +95,13 @@ void CompactCommand::writePurpose(const CommandOptions& options) const {
 }
 CompactOutcome CompactCommand::performCompaction(const CommandOptions& options, const string& databaseFilePath) {
     CompactOutcome outcome;
+    // The guard is built here so it reads the options of the run that is happening,
+    // which is what makes the `--yes` flag reach the confirmation.
+    DestructiveOperationGuard guard(options, reporter);
+    // The clock is read outside the block below, because that block closes the
+    // connection and the readings have to outlive it.
+    long long startNanoseconds=0;
+    long long endNanoseconds=0;
     const FileMetadata sizeBefore=PlatformMetadata::readFileMetadata(databaseFilePath);
     outcome.sizeBeforeBytes=sizeBefore.logicalSizeBytes;
     // The space requirement is the whole size plus a margin, which is the worst
@@ -118,13 +139,24 @@ CompactOutcome CompactCommand::performCompaction(const CommandOptions& options, 
     // The source connection is opened read only, so the original cannot be changed
     // even in principle. `VACUUM INTO` needs a read connection to work from and a
     // separate path to write to.
+    //
+    startNanoseconds=PlatformMetadata::monotonicNanoseconds();
+    // Everything that needs the original open lives inside this block, because the
+    // handle has to be closed before the file can be renamed. On Windows a rename
+    // fails while any process has the file open, and SQLite does not open its files
+    // with delete sharing, so leaving this connection alive would make the swap
+    // impossible.
+    {
     Database sourceDatabase(databaseFilePath, Database::OPEN_READ_ONLY);
     sourceDatabase.setBusyTimeoutMilliseconds(5000);
-    // The space requirement is bound as a parameter rather than pasted into the
-    // pragma text, which keeps the statement preparable and the value out of the SQL.
+    // The pragma insists on a literal filename rather than a bound parameter, which
+    // is a limitation of the statement rather than of this tool. The path is quoted
+    // by doubling any single quote inside it, which is the rule for a SQL string
+    // literal and is what makes putting the path in the text safe.
+    const string quotedTargetPath=toSqlStringLiteral(rewrittenFilePath);
     Statement vacuumStatement(
         sourceDatabase.rawHandle(),
-        string(VACUUM_INTO_PRAGMA) + " ?1",
+        string(VACUUM_INTO_PRAGMA) + " " + quotedTargetPath,
         "the rewrite that produces a smaller database"
     );
     if (!vacuumStatement.isValid()) {
@@ -138,12 +170,8 @@ CompactOutcome CompactCommand::performCompaction(const CommandOptions& options, 
         outcome.summarySentence="Nothing was changed, because the rewrite could not be started.";
         return outcome;
     }
-    // `VACUUM INTO` binds its destination path as parameter one, because the path is
-    // text and text parameters are the only kind SQLite lets a caller supply safely.
-    vacuumStatement.bindText(1, rewrittenFilePath);
-    const long long startNanoseconds=PlatformMetadata::monotonicNanoseconds();
     vacuumStatement.step();
-    const long long endNanoseconds=PlatformMetadata::monotonicNanoseconds();
+    endNanoseconds=PlatformMetadata::monotonicNanoseconds();
     const FileMetadata sizeAfter=PlatformMetadata::readFileMetadata(rewrittenFilePath);
     if (sizeAfter.logicalSizeBytes<=0) {
         // The rewrite produced nothing usable, so the file that is being built is
@@ -193,6 +221,7 @@ CompactOutcome CompactCommand::performCompaction(const CommandOptions& options, 
         outcome.wasRefusedForDamage=true;
         outcome.summarySentence="Nothing was changed, because the rewrite did not pass its own integrity check.";
         return outcome;
+    }
     }
     // The safety copy is made before the swap. It is what makes the swap reversible.
     const BackupRecord backup=guard.createBackup(databaseFilePath);
@@ -320,6 +349,29 @@ int CompactCommand::execute(const CommandOptions& options) {
     }
     try {
         lastRunOutcome=performCompaction(options, options.databaseFilePath);
+    } catch (const PragmaException& pragmaFailure) {
+        // A setting could not be applied, which stops the run rather than continuing
+        // with settings the caller did not ask for.
+        reporter.writeFailure(pragmaFailure.message(), string());
+        reporter.writeLine("Nothing was changed.");
+        return 1;
+    } catch (const InsufficientDiskSpaceException& spaceFailure) {
+        // There was not enough room to do what was asked, which is the refusal the
+        // specification requires rather than a failure.
+        reporter.writeFailure(spaceFailure.message(), to_string(spaceFailure.requiredBytes()));
+        reporter.writeLine("Nothing was changed.");
+        return 1;
+    } catch (const FileSystemException& fileFailure) {
+        reporter.writeFailure(fileFailure.message(), string());
+        reporter.writeLine("Nothing was changed.");
+        return 1;
+    } catch (const ConfigurationException& configurationFailure) {
+        reporter.writeFailure(configurationFailure.message(), string());
+        return 1;
+    } catch (const AgentDatabaseMissingException& missingFailure) {
+        // No supported agent could be found, which is a result rather than a fault.
+        reporter.writeFailure(missingFailure.message(), string());
+        return 1;
     } catch (const DatabaseOpenException& openFailure) {
         reporter.writeFailure(openFailure.message(), to_string(openFailure.openResultCode()));
         reporter.writeLine("Nothing was changed.");
