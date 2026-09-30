@@ -1,5 +1,10 @@
 # Benchmark: the watchdog over twenty four hours
 
+> **This run was stopped early, after 45 minutes and 39 seconds.** The instructions
+> below are how to run it properly, and they are correct, but the figures this
+> document would have reported were never collected. What was collected is in
+> `results.md`, and it is clean. Nothing here is a twenty four hour result.
+
 ## What this measures
 
 The specification's idle cost for the background service: under twelve megabytes of
@@ -52,10 +57,17 @@ head -1 rss.log              # the first sample, for comparison
 and not that it usually does. A service that runs for months has to be flat.
 
 The in-process `WatchdogBenchmark` asserts the same property in under a second, so
-a regression fails the build rather than being discovered a day later. After nine
-minutes of the real soak the release build's resident set is **4.75 MB and flat**,
-with the first sample and the latest identical. The run has not finished; see
-`results.md` for its current state.
+a regression fails the build rather than being discovered a day later.
+
+**The soak above was stopped early, after 45 minutes and 39 seconds**, which is about
+276 watchdog passes at a ten second interval rather than the 8,640 a full day gives.
+The release build's resident set was **4.75 MB and flat** across all 46 samples, first
+sample and last identical, and the sanitized run reported no memory errors and no
+leaks. `results.md` has the full account.
+
+So the twelve megabyte claim is demonstrated by a thousand tick in-process benchmark
+that runs on every build, and supported by 46 minutes of continuous running. A full
+twenty four hour run is not done, and this document does not claim one.
 
 ## Two soaks, because one cannot answer both questions
 
@@ -75,7 +87,7 @@ So the soak runs twice:
 
 | Run | Build | What it answers |
 |---|---|---|
-| `/root/soak` | `-fsanitize=address,undefined` | Does the service read or write memory it should not, over 24 hours of ticks? |
+| `/root/soak` | `-fsanitize=address,undefined` | Does the service read or write memory it should not? |
 | `/root/soak-release` | ordinary `-O3` release | What is the peak resident set the twelve megabyte budget is about? |
 
 Read the memory figure from the release run and the correctness verdict from the
@@ -108,5 +120,9 @@ processor by an enormous margin, and measuring a percentage over a day on a buil
 machine would mostly measure the build machine.
 
 ## Results
+
+**Not reached.** Both runs were stopped after 45 minutes and 39 seconds. The
+figures are in `results.md`, and they are clean, but 276 passes is not 8,640 and
+this section does not present it as though it were.
 
 See `results.md`.
