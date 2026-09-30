@@ -217,7 +217,7 @@ void ServiceManager::writePlatformServiceDefinition() const {
     );
     if (createResult!=ERROR_SUCCESS) {
         throw ServiceOperationException(
-            string("The service could not be registered"),
+            string("Registering the service"),
             string("The registry key could not be created. That needs administrator rights, so run ")
                 + "the command from a prompt that was opened as an administrator."
         );
@@ -256,7 +256,7 @@ void ServiceManager::startPlatformService() const {
     const SC_HANDLE managerHandle=OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
     if (managerHandle==nullptr) {
         throw ServiceOperationException(
-            string("The service could not be started"),
+            string("Starting the service"),
             string("The Service Control Manager could not be opened. That needs administrator ")
                 + "rights, so run the command from a prompt that was opened as an administrator."
         );
@@ -269,7 +269,7 @@ void ServiceManager::startPlatformService() const {
     if (targetService==nullptr) {
         CloseServiceHandle(managerHandle);
         throw ServiceOperationException(
-            string("The service could not be started"),
+            string("Starting the service"),
             string("The service does not appear to be installed. Run the install command first.")
         );
     }
@@ -281,7 +281,7 @@ void ServiceManager::startPlatformService() const {
     CloseServiceHandle(managerHandle);
     if (!startResult && startError!=ERROR_SERVICE_ALREADY_RUNNING) {
         throw ServiceOperationException(
-            string("The service could not be started"),
+            string("Starting the service"),
             string("The operating system reported error ") + to_string(startError)
             + ". Check that the log folder exists and that the program can write to it."
         );
