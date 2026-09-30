@@ -99,19 +99,34 @@ TEST_CASE("the diagnose command counts a folder apart from healthy and damaged",
     REQUIRE(command.problemDatabaseCount()==0);
     REQUIRE(command.healthyDatabaseCount()==0);
 }
-TEST_CASE("recover tells a person that a folder is not a database", "[integration][notadatabase]") {
+TEST_CASE("recover refuses a folder and explains that nothing is wrong", "[integration][notadatabase]") {
     const TemporaryFolder folder("NotADatabaseRecover");
     CommandOptions commandOptions;
     commandOptions.databaseFilePath=folder.path;
     commandOptions.quiet=true;
     RecoverCommand command(false);
+    // A refusal, so a non zero exit code. A folder is not a database that was repaired
+    // and it is not a database that failed, so neither zero nor a damage verdict is
+    // right: the command was asked about something it cannot act on.
+    REQUIRE(command.execute(commandOptions)!=0);
+}
+TEST_CASE("recover does not build a working copy from a file that is not a database", "[integration][notadatabase]") {
+    const TemporaryTextFile textFile("NotADatabaseRecoverText");
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=textFile.path;
+    commandOptions.quiet=true;
+    commandOptions.rebuildWorkingCopy=true;
+    commandOptions.answerYesToEverything=true;
+    RecoverCommand command(false);
+    // The diagnosis is still printed, because a file that cannot be read as a database
+    // is exactly the case this command exists to explain.
     REQUIRE(command.execute(commandOptions)==0);
     const RecoverOutcome outcome=command.lastOutcome();
-    // Nothing was damaged and nothing needs recovering. Claiming either would frighten
-    // somebody about a folder that is entirely healthy.
-    REQUIRE_FALSE(outcome.dataIsUnrecoverable);
-    REQUIRE_FALSE(outcome.isRecoverableByThisTool);
-    REQUIRE(outcome.summarySentence.find("folder")!=string::npos);
+    REQUIRE(outcome.dataIsUnrecoverable);
+    // Nothing was created beside the file. Rebuilding one used to produce an empty
+    // database and report it as a success with nothing in it.
+    REQUIRE_FALSE(std::filesystem::exists(textFile.path + ".rebuilt"));
+    REQUIRE(outcome.rebuiltDatabasePath.empty());
 }
 TEST_CASE("compact refuses a folder without copying it", "[integration][notadatabase]") {
     const TemporaryFolder folder("NotADatabaseCompactFolder");
