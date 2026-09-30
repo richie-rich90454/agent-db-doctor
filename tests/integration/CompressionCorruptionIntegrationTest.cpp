@@ -45,9 +45,6 @@ TEST_CASE("the interrupted compression state is recognised by name", "[integrati
     // The signal is a file whose logical size and allocated size disagree wildly,
     // which is what a half finished compression leaves behind: the file system kept
     // the original clusters and the file itself was rewritten shorter.
-    const FileMetadata metadata=PlatformMetadata::readFileMetadata(
-        SyntheticDatabaseBuilder::temporaryDatabasePath("CompressionProbe")
-    );
     // A real file is built so the two numbers come from the operating system rather
     // than from a made up structure.
     const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompressionState");
