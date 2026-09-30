@@ -3,40 +3,72 @@ about: Something the tool did or said incorrectly
 title: ''
 labels: ''
 assignees: ''
-
----
-
-**What happened**
-
-<!-- What you did, what you expected, and what happened instead. -->
-
-**What you expected instead**
-
-**Which command**
-
-<!-- For example: `agent-db-doctor diagnose --database ~/.local/share/opencode/opencode.db` -->
-
-**Which agent, and which operating system**
-
-<!-- Agent: OpenCode, Cursor, Codex CLI, Claude Code, Continue, or Aider.
-     Operating system and version: Windows 11, Ubuntu 24.04, macOS 15, and so on. -->
-
-**The output, in full**
-
-<!--
-Paste the whole thing, including the lines that look wrong. Do not trim it.
-
-If the command printed something about a database, please also include the output of:
-
-    agent-db-doctor diagnose --database "the path"
-
-A diagnostic report is the fastest way for anyone to understand a report, because it
-says the file's size, its page count, its journal mode, and its integrity in one
-screen. If the output contains a path or a file name you would rather not share,
-replace it with something like `/home/you/...` and say that you have done so.
--->
-
-**Anything else**
-
-<!-- A crash, a hang, an error the tool did not explain, or a message that was
-     confusing even though the tool behaved correctly are all worth reporting. -->
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tool tries hard to explain itself, so a report that contradicts what it
+        said is worth filing. Please include the output in full rather than trimming
+        it to the part that looks wrong, because the surrounding lines are often what
+        explains the part that looks wrong.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+      placeholder: I ran ... and it said ..., but I expected ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      placeholder: I expected it to ...
+    validations:
+      required: false
+  - type: input
+    id: command
+    attributes:
+      label: Which command
+      placeholder: agent-db-doctor diagnose --database ~/.local/share/opencode/opencode.db
+    validations:
+      required: true
+  - type: input
+    id: agent-and-os
+    attributes:
+      label: Which agent, and which operating system
+      description: For example OpenCode on Ubuntu 24.04, or Cursor on Windows 11.
+      placeholder: OpenCode on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: The output, in full
+      description: Every line, including the ones that look fine.
+      render: text
+      placeholder: |
+        Paste the whole output here.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnose-output
+    attributes:
+      label: The diagnostic report
+      description: |
+        If the command involved a database, please also paste the output of
+        `agent-db-doctor diagnose --database "the path"`. It says the file's size,
+        page count, journal mode, and integrity in one screen, which is usually the
+        whole answer on its own.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: |
+        A crash, a hang, an error the tool did not explain, or a message that was
+        confusing even though the tool behaved correctly are all worth filing.
+    validations:
+      required: false
