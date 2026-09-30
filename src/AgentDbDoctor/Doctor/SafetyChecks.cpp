@@ -180,7 +180,7 @@ SafetyCheckResult SafetyChecks::verifySufficientFreeSpaceForBackup(
     const SpaceRequirement backupRequirement=DiskSpaceChecker::requiredBytesForBackup(currentFileSizeBytes);
     if (!DiskSpaceChecker::hasEnoughSpace(availableSpace, backupRequirement)) {
         return SafetyCheckResult::failed(
-            "There is not enough free space on the drive to make a safety copy first. "
+            string("There is not enough free space on the drive to make a safety copy first. ")
             + DiskSpaceChecker::describeAvailableSpace(availableSpace)
             + " A copy needs about " + to_string(backupRequirement.requiredBytes)
             + " bytes. Free some space and run the command again. Nothing was changed."
@@ -233,7 +233,7 @@ SafetyCheckResult SafetyChecks::verifyDatabaseIsNotDamaged(Database& database) {
     }
     if (reportedProblem) {
         return SafetyCheckResult::failed(
-            "SQLite reports that this database is damaged: " + firstProblemText
+            string("SQLite reports that this database is damaged: ") + firstProblemText
             + " Deleting rows from a damaged database makes the damage worse, so nothing was changed. "
             + "Run the recover command for the safe next step."
         );
@@ -248,7 +248,7 @@ SafetyCheckResult SafetyChecks::verifySchemaSupportsPruning(Database& database) 
     for (const string& requiredTable : requiredTables) {
         if (!StatisticsReader::tableExists(database, requiredTable)) {
             return SafetyCheckResult::failed(
-                "This database has no " + requiredTable
+                string("This database has no ") + requiredTable
                 + " table, so its layout is not one this tool recognises. Nothing was changed."
             );
         }
@@ -261,7 +261,7 @@ SafetyCheckResult SafetyChecks::verifySchemaSupportsPruning(Database& database) 
     for (const auto& requiredColumn : requiredColumns) {
         if (!StatisticsReader::columnExists(database, requiredColumn.first, requiredColumn.second)) {
             return SafetyCheckResult::failed(
-                "The " + requiredColumn.first + " table has no " + requiredColumn.second
+                string("The ") + requiredColumn.first + " table has no " + requiredColumn.second
                 + " column, so its layout is not one this tool recognises. Nothing was changed."
             );
         }
@@ -353,7 +353,7 @@ SafetyCheckResult SafetyChecks::verifySnapshotsSurvivedUnchanged(
         // tool only deletes event rows and never creates parts.
         if (readableTextPartCountNow < snapshotBefore.readableTextPartCount) {
             return SafetyCheckResult::failed(
-                "Session " + snapshotBefore.sessionIdentifier + " had "
+                string("Session ") + snapshotBefore.sessionIdentifier + " had "
                 + to_string(snapshotBefore.readableTextPartCount)
                 + " readable text parts before the change and has "
                 + to_string(readableTextPartCountNow)
