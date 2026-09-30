@@ -218,3 +218,48 @@ TEST_CASE("prune needs to be told which database to work on", "[integration][pru
     PruneCommand command(false);
     REQUIRE(command.execute(commandOptions)==1);
 }
+TEST_CASE("prune refuses a removal limit that is more than the whole table", "[integration][prune]") {
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=20;
+    options.messageCountPerSession=4;
+    options.redundantCopiesPerMessage=3;
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("PruneLimitAboveOne");
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    // Two is a hundred and fifty per cent over the limit's own name. It used to be
+    // accepted silently, which meant a typo quietly removed the safety limit the user
+    // believed they had set.
+    commandOptions.maximumFractionToRemove=2.0;
+    PruneCommand command(false);
+    command.execute(commandOptions);
+    REQUIRE_FALSE(command.lastOutcome().anythingWasRemoved);
+    // The refusal happens before the safety copy, so nothing was written beside the
+    // database. A limit the tool cannot use is not worth spending half the file size on.
+    REQUIRE_FALSE(std::filesystem::exists(databasePath + ".agent-db-doctor-backup"));
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("prune accepts a removal limit that is a real share of the table", "[integration][prune]") {
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=20;
+    options.messageCountPerSession=4;
+    options.redundantCopiesPerMessage=3;
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("PruneLimitValid");
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    commandOptions.sessionsToKeep=10;
+    // Ninety five per cent is a real share and must be honoured, so that the refusal
+    // above is about the value being impossible rather than about the tool being shy.
+    commandOptions.maximumFractionToRemove=0.95;
+    PruneCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    REQUIRE(command.lastOutcome().anythingWasRemoved);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
