@@ -99,8 +99,10 @@ $ agent-db-doctor service run --interval 1
 Nothing was changed.
 ```
 
-Ten seconds is also the shortest interval the twenty four hour soak uses, which is
-8,640 ticks over that period. See `benchmarks/watchdog-24h.md`.
+Ten seconds is also the shortest interval the twenty four hour soak uses, which would
+be 8,640 ticks over that period. That run was stopped after 276 ticks, so the memory
+figure quoted in this project comes from the in-process benchmark instead. See
+`benchmarks/watchdog-24h.md` for what was and was not measured.
 
 ## What it logs
 
