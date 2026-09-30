@@ -108,7 +108,7 @@ void Database::execute(const string& sqlStatement) const {
             : string("SQLite gave no further detail.");
         sqlite3_free(errorMessage);
         throw DatabaseOperationException(
-            "The statement " + sqlStatement,
+            string("The statement ") + sqlStatement,
             executeResult,
             capturedMessage
         );
