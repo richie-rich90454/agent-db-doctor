@@ -363,6 +363,11 @@ int RecoverCommand::execute(const CommandOptions& options) {
                 "not. This is not a judgement about anything you did.")
         );
     }
+    if (plan.size()==1 && report.getIntegrityStatus()==IntegrityStatus::IS_A_FOLDER) {
+        lastRunOutcome.summarySentence=
+            string("This path is a folder rather than a database, so there was nothing to "
+                "recover and nothing was changed.");
+    }
     reporter.writeRecoveryPlan(options.agentName, options.databaseFilePath, plan);
     // The rebuilding step is run only when the user named one, so an exploratory run
     // cannot write anything.
@@ -386,6 +391,16 @@ int RecoverCommand::execute(const CommandOptions& options) {
                 );
             }
         }
+    } else if (report.getIntegrityStatus()==IntegrityStatus::IS_A_FOLDER) {
+        // Nothing is offered here, deliberately. A working copy of a folder is not a
+        // thing this tool can make, and a background service would never have noticed
+        // a folder, so both closing sentences were about a database and were saying
+        // something untrue about this one.
+        reporter.writeLine("");
+        reporter.writeLine(
+            string("Nothing was changed, and there is nothing here that needs changing.")
+        );
+        return 0;
     } else {
         reporter.writeLine(
             string("This tool can also build a working copy for you, on request only. Add ")
