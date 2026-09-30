@@ -59,6 +59,11 @@ public:
     // Records whether the file was found at all.
     void setFileExists(bool exists);
     bool getFileExists() const;
+    // Records whether the path is a folder rather than a database file. Several
+    // supported agents keep their history as text files in a folder, and such a
+    // path has no integrity to check, so the report has to be able to say so.
+    void setIsDirectory(bool isDirectoryPath);
+    bool getIsDirectory() const;
     // Records the size the file would occupy if every byte were stored.
     void setLogicalSizeBytes(long long sizeBytes);
     long long getLogicalSizeBytes() const;
@@ -147,6 +152,7 @@ private:
     string databaseFilePath;
     string agentName;
     bool fileExists=false;
+    bool isDirectory=false;
     bool databaseOpenSucceeded=false;
     long long logicalSizeBytes=0;
     long long allocatedSizeBytes=0;
