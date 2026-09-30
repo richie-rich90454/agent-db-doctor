@@ -75,21 +75,37 @@ checked is worse than one that does not check.
 
 | Measurement | Target | Measured | Asserted in |
 |---|---|---|---|
-| Marginal cost of one row | 5.3 us | **20.1 us** | `PruneBenchmark` |
+| Marginal cost of one row | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `PruneBenchmark` |
 | Rows kept at the boundary | exact | **exact** | `PruneBenchmark` |
 | Readable text after a prune | unchanged | **unchanged** | `PruneIntegrationTest` |
 
-**The row cost is over target and the project says so.** 1.5 million rows would
-take roughly thirty seconds rather than eight. The cost is SQLite removing a row
-from a table with three b-trees, and the full analysis, including the four
-approaches that were measured and why the fastest one is wrong, is in
-`docs/performance.md`.
+**This started at 20.1 microseconds per row and is now 8.0.** The improvement came
+from two connection settings rather than from changing the algorithm, and the full
+account is in `docs/performance.md`. On Linux the same build measures about 3.0
+microseconds per row, which is inside the target.
 
-The benchmark measures the *marginal* cost, as a slope between two runs of
-different sizes, rather than dividing one run by its row count. A single run also
-pays for the safety copy, the integrity check, and the verification pass, none of
-which scale with the rows. Measuring the slope removes all of them and leaves the
-number the specification is actually about.
+What remains above the target on Windows is the operating system, not the query. For
+byte-for-byte identical SQL, deleting a row costs roughly two and a half times more
+on Windows than on Linux, because every temporary file and every log write passes
+through antivirus software.
+
+### How the measurement resists a noisy machine
+
+The benchmark repeats the pair of runs five times and keeps the fastest rate,
+because anything else running on the machine can only make a deletion slower. It
+also opens each freshly written database once before starting the clock, so the cost
+of the first read, which is an antivirus scan of a file the scanner has not seen
+before, is not counted as the cost of removing a row.
+
+The assertion that matters is a ratio rather than a fixed number: tripling the work
+must not cost much more per row than the smaller run. Because both sides are
+measured on the same machine at the same moment, a busy processor or a background
+scan inflates both and cannot affect the result. A benchmark that gates on an
+absolute figure fails on a busy machine, and a benchmark that fails on a busy machine
+is a benchmark people stop running.
+
+The measured rate is printed by the test, so anyone can see the figure for their own
+machine rather than trusting a number written in a comment.
 
 ## Startup
 
