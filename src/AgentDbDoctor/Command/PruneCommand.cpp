@@ -197,6 +197,24 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
     // The keep count is half the sessions by default, so a user who runs the command
     // once cannot empty their history. The number is never zero, because keeping
     // nothing would be the one outcome the user never asked for.
+    // A fraction above one is accepted only if it is a whole number, and even then it
+    // is refused. A limit of two hundred per cent means "no limit", which is the one
+    // outcome a person does not believe they are asking for when they type a number
+    // past one. This check runs before anything else so the refusal arrives before a
+    // safety copy has been made.
+    if (options.maximumFractionToRemove>1.0) {
+        reporter.writeFailure(
+            string("--max-fraction is a share of the event table, so it cannot be more than 1. ")
+            + "You gave "
+            + to_string(options.maximumFractionToRemove)
+            + ".\n\nA value of 1 means the whole table is available to remove, which is far more "
+            + "than any real prune needs. If you meant one part in twenty, write 0.05. If you "
+            + "meant to keep a fixed number of conversations, use --keep instead.\n\nNothing was changed.",
+            string()
+        );
+        outcome.summarySentence="Nothing was removed, because the limit you gave was not a fraction this tool can use.";
+        return outcome;
+    }
     int sessionsToKeep=options.sessionsToKeep;
     if (sessionsToKeep<=0) {
         sessionsToKeep=static_cast<int>(totalSessionCount / 2);
