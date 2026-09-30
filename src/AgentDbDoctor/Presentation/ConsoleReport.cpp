@@ -73,6 +73,16 @@ void ConsoleReport::writeDiagnosisReport(const DiagnosisReport& report) const {
         }
         return;
     }
+    // A folder is not a database, so the lines below, which describe a database's
+    // pages and journal, have nothing true to say about it. They are skipped rather
+    // than printed with placeholder values, and the folder is described instead.
+    if (report.getIntegrityStatus()==IntegrityStatus::IS_A_FOLDER) {
+        writeLine("This is a folder:       yes, so there is no database file here to measure");
+        writeDetailLine("A folder's own size is the size of a directory entry, not the size of "
+            "what is inside it. Adding up the files inside it would mean walking the whole "
+            "folder, which this tool does not do, so no size is given here.");
+        return;
+    }
     // The sizes come first, because they are what a worried user wants to know.
     writeLine("Size on disk:          " + HumanReadableFormatting::formatBytes(report.getLogicalSizeBytes()));
     string occupiedShareText="";
@@ -136,11 +146,20 @@ void ConsoleReport::writeDiagnosisReport(const DiagnosisReport& report) const {
         case IntegrityStatus::NOT_CHECKED:
             writeLine("Integrity:             not checked");
             break;
+        case IntegrityStatus::IS_A_FOLDER:
+            writeLine("Integrity:             not applicable, this is a folder rather than a database");
+            break;
         case IntegrityStatus::INTACT:
             writeLine("Integrity:             every page checked out, the database is sound");
             break;
         case IntegrityStatus::NOT_A_DATABASE:
-            writeLine("Integrity:             this file is not a SQLite database");
+            // An empty file gets its own words, because saying its first bytes are
+            // wrong when it has no bytes at all is not accurate.
+            if (report.getLogicalSizeBytes()==0) {
+                writeLine("Integrity:             the file is empty, so there is nothing in it to check");
+            } else {
+                writeLine("Integrity:             this file is not a SQLite database");
+            }
             break;
         case IntegrityStatus::STRUCTURALLY_DAMAGED:
             writeLine("Integrity:             DAMAGED - the structure inside the file is broken");
