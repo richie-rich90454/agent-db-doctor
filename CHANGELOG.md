@@ -78,13 +78,16 @@ regression fails the build.
 | Memory growth over 1000 idle ticks | ~0 | < 1 MB |
 | Peak resident memory, full diagnostic | < 40 MB | 7.1 MB |
 | Startup, command line tool | < 30 ms | 28.3 ms |
-| Marginal cost of removing one row | 5.3 us | 20.1 us |
+| Marginal cost of removing one row | 5.3 us | 8.0 us Windows, 3.0 us Linux |
 
-**Known gap.** Removing a duplicate row costs 20.1 microseconds against a target of
-5.3, so 1.5 million rows take about thirty seconds rather than eight. The cost is
-SQLite removing a row from a table carrying three b-trees, not anything this tool
-does. `docs/performance.md` records the four approaches that were measured, why the
-fastest one is wrong, and the upgrade path.
+**Known gap.** Removing a duplicate row costs 8.0 microseconds on Windows against a
+target of 5.3, so 1.5 million rows take about twelve seconds there rather than
+eight. On Linux the same build measures 3.0 microseconds per row, inside the target.
+The remainder on Windows is the operating system rather than the query: for identical
+SQL, deleting a row costs about two and a half times more there, because every
+temporary file and every log write passes through antivirus software.
+`docs/performance.md` records what was changed to get from 20.1 to 8.0 and what is
+left to do.
 
 ### Known limitations
 
