@@ -109,7 +109,8 @@ public:
     // `databaseFilePath` is the path that failed. `sqliteResultCode` is the
     // value returned by `sqlite3_open_v2`. Both are translated into a sentence.
     DatabaseOpenException(string databaseFilePath, int sqliteResultCode, string explanation)
-        : baseException(buildExplanation(move(databaseFilePath), sqliteResultCode, move(explanation))) {
+        : baseException(buildExplanation(move(databaseFilePath), sqliteResultCode, move(explanation))),
+          sqliteResultCode(sqliteResultCode) {
     }
     const char* what() const {
         return baseException.what();
@@ -138,7 +139,13 @@ private:
 class DatabaseOperationException final {
 public:
     DatabaseOperationException(string operationDescription, int sqliteResultCode, string explanation)
-        : baseException(buildExplanation(move(operationDescription), sqliteResultCode, move(explanation))) {
+        : baseException(buildExplanation(move(operationDescription), sqliteResultCode, move(explanation))),
+          sqliteResultCode(sqliteResultCode) {
+    }
+    // The raw SQLite result code, so a caller can branch on the specific failure
+    // rather than parsing the sentence.
+    int operationResultCode() const {
+        return sqliteResultCode;
     }
     const char* what() const {
         return baseException.what();
@@ -151,6 +158,7 @@ private:
         return operationDescription + " failed. " + SqliteErrorTranslator::explain(sqliteResultCode) + " " + explanation;
     }
     AgentDbDoctorException baseException;
+    int sqliteResultCode=0;
 };
 // The PragmaException is raised when a PRAGMA statement cannot be applied.
 class PragmaException final {
