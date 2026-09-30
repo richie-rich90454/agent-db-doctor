@@ -185,7 +185,6 @@ else()
         -Wall
         -Wextra
         -Wpedantic
-        -Wshadow
         -Wconversion
         -Wsign-conversion
         -Wnon-virtual-dtor
@@ -196,6 +195,15 @@ else()
         -Wdouble-promotion
         -Wformat=2
     )
+    # Clang can report the one shadowing case that is an actual bug, a field
+    # initialised from itself, without also reporting every constructor parameter
+    # that shares its member's name. That is the idiomatic form of an initialiser
+    # list and the specification's own example uses it, so plain `-Wshadow` would be
+    # noise. GCC has no separate switch for it, so it gets nothing rather than a flag
+    # it does not recognise.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        list(APPEND AGENT_DB_DOCTOR_WARNINGS -Wshadow-field-in-constructor)
+    endif()
     if(AGENT_DB_DOCTOR_ENABLE_WERROR)
         list(APPEND AGENT_DB_DOCTOR_WARNINGS -Werror)
     endif()
@@ -258,6 +266,23 @@ else()
 endif()
 add_library(agent_db_doctor_core STATIC ${AGENT_DB_DOCTOR_CORE_SOURCES})
 target_include_directories(agent_db_doctor_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+# The formatting and logging libraries are third party code. Their headers are
+# marked as system includes, so a strict warning set is never reported on code
+# this project does not control.
+foreach(third_party_target fmt::fmt spdlog::spdlog CLI11::CLI11)
+    # A namespaced target such as `fmt::fmt` is an alias, and an alias cannot hold a
+    # property, so the real target behind it is what gets set.
+    get_target_property(third_party_alias_target ${third_party_target} ALIASED_TARGET)
+    if(NOT third_party_alias_target)
+        set(third_party_alias_target ${third_party_target})
+    endif()
+    get_target_property(third_party_includes ${third_party_alias_target} INTERFACE_INCLUDE_DIRECTORIES)
+    if(third_party_includes)
+        set_target_properties(${third_party_alias_target} PROPERTIES
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${third_party_includes}"
+        )
+    endif()
+endforeach()
 target_link_libraries(agent_db_doctor_core
     PUBLIC sqlite3 CLI11::CLI11 fmt::fmt spdlog::spdlog
 )
