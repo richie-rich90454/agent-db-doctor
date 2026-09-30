@@ -124,7 +124,7 @@ FileLockStatus FileLockDetector::checkLockStatus(const string& databaseFilePath)
         status.errorCode=errno;
         status.explanation=errno==ENOENT
             ? string("The database file does not exist at that path.")
-            : AgentDbDoctor::Common::AgentDbDoctor::Common::OperatingSystemErrorTranslator::explain(errno);
+            : Common::OperatingSystemErrorTranslator::explain(errno);
         return status;
     }
     // `struct flock` describes one byte range lock. A length of zero with
