@@ -1,46 +1,62 @@
-name: An agent the tool does not know about
-about: A coding agent whose database agent-db-doctor should understand
+name: A coding agent this tool does not know about
+about: Report where another agent keeps its database
 title: ''
 labels: ''
 assignees: ''
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tool currently understands OpenCode, Cursor, Codex CLI, Claude Code,
+        Continue, and Aider. This form is for the ones it does not.
 
----
+        Nothing here is required except the name of the agent and where it keeps its
+        database. An honest "I do not know what accumulates, it just gets big" is more
+        useful than a guess, because this tool exists precisely because that question
+        is hard to answer from the outside.
+  - type: input
+    id: agent
+    attributes:
+      label: Which coding agent
+      placeholder: Cline, Zed, Windsurf, ...
+    validations:
+      required: true
+  - type: input
+    id: path
+    attributes:
+      label: Where it keeps its database
+      description: The path, or the paths. If there is more than one, say which is which.
+      placeholder: ~/.local/share/cline/state.db
+    validations:
+      required: true
+  - type: textarea
+    id: schema
+    attributes:
+      label: What the schema looks like
+      description: |
+        The output of `.schema` run against a **copy** of the database, never against
+        the original. Reading a database does not usually change it, but the point of
+        this tool is to be careful and a copy costs nothing.
 
-**Which agent**
-
-<!-- The name of the coding agent. -->
-
-**Where it keeps its database**
-
-<!-- The path, or the paths. If it uses more than one, say which is which. -->
-
-**What the schema looks like**
-
-<!--
-The output of the SQLite `.schema` command against a copy of the database, never
-against the original:
-
-    sqlite3 "the path" ".schema"
-
-Copy the file first. Reading a database does not usually change it, but the point of
-this tool is to be careful, and a copy costs nothing.
--->
-
-**What accumulates**
-
-<!--
-If you know: which table or tables grow, roughly how far, and how fast.
-
-If you do not know, say so. "I do not know, it just gets big" is a perfectly good
-answer and is the normal one. This tool exists because that question is hard to
-answer from the outside, and a report saying so is more useful than a guess.
--->
-
-**What would be safe to remove**
-
-<!--
-Only if you know. Please do not experiment on a database you care about.
-
-If nothing is known yet, the most useful thing you can bring is a copy of a database
-that is too big, with anything private removed.
--->
+        sqlite3 "the copy" ".schema"
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: what-accumulates
+    attributes:
+      label: What accumulates, if you know
+      description: |
+        Which table or tables grow, roughly how far, and how fast. If you do not know,
+        please say so rather than guessing.
+    validations:
+      required: false
+  - type: textarea
+    id: what-is-safe
+    attributes:
+      label: What would be safe to remove, if you know
+      description: |
+        Only if you already know. Please do not experiment on a database you care
+        about.
+    validations:
+      required: false
