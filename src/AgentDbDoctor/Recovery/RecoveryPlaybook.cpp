@@ -120,39 +120,48 @@ vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForUnreadableDatabase(
 vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForDamagedDatabase(
     const DiagnosisReport& report
 ) {
+    // Every command printed here exists. The plan used to offer two flags,
+    // `--rebuild-indexes` and `--rebuild-from-dump`, and the command had neither, so
+    // following the tool's own plan produced "the following argument was not
+    // expected". There is one flag, `--rebuild`, and it chooses between the two
+    // repairs from the diagnosis: it rebuilds the indexes when the rows can still be
+    // read, which is the case this plan describes, and it dumps what can be read when
+    // they cannot, which is the unrecoverable plan instead.
     vector<RecoveryRecommendation> plan;
     plan.push_back(RecoveryRecommendation(
         SeverityLevel::URGENT,
-        string("Close the coding agent and make a copy of the file."),
+        string("Close the coding agent."),
         string(
             string("SQLite reports: ") + report.getIntegrityMessage()
-            + "\n\nClose the coding agent first, then copy the file and any -wal or -shm file next to "
-            "it. Everything below assumes you have a copy."
+            + "\n\nClose the coding agent first. While it is open it may write to the file again, and "
+            "everything below assumes it is not."
+        ),
+        string(),
+        false
+    ));
+    plan.push_back(RecoveryRecommendation(
+        SeverityLevel::URGENT,
+        string("Copy the file somewhere else before touching it."),
+        string(
+            "Copy the database and any file next to it whose name starts with the same text and ends "
+            "in -wal or -shm. This costs one file's worth of space and it is the only way to be sure "
+            "that the next step cannot make things worse."
         ),
         string(),
         false
     ));
     plan.push_back(RecoveryRecommendation(
         SeverityLevel::ATTENTION,
-        string("Rebuild the indexes."),
+        string("Rebuild the indexes on the copy."),
         string(
             "SQLite can usually rebuild a damaged index from the data it describes, which is the most "
-            "common kind of damage and the easiest to repair. This writes to the file, so it is done "
-            "on your copy, never on the original."
+            "common kind of damage and the easiest to repair. The tool works on a copy beside your "
+            "file and never opens your original for writing.\n\n"
+            "If the rows themselves cannot be read, the same command notices that on its own and dumps "
+            "what SQLite can still read into a fresh database instead, leaving out the sessions that "
+            "are too badly damaged rather than writing them half way."
         ),
-        string("agent-db-doctor recover --database \"") + report.getDatabaseFilePath() + "\" --rebuild-indexes",
-        true
-    ));
-    plan.push_back(RecoveryRecommendation(
-        SeverityLevel::ATTENTION,
-        string("Let SQLite dump what it can read into a new database."),
-        string(
-            "This reads the damaged file and writes a fresh one containing only the rows SQLite can "
-            "still read. Sessions that were badly damaged are left out rather than half written, so "
-            "the result is a database that opens cleanly. It is done on your copy, never on the "
-            "original."
-        ),
-        string("agent-db-doctor recover --database \"") + report.getDatabaseFilePath() + "\" --rebuild-from-dump",
+        string("agent-db-doctor recover --database \"") + report.getDatabaseFilePath() + "\" --rebuild",
         true
     ));
     plan.push_back(RecoveryRecommendation(
