@@ -67,9 +67,38 @@ checked is worse than one that does not check.
 | Bytes read per tick | 0 | **0** | by construction |
 | Log lines while below threshold | 0 | **0** | `ServiceIntegrationTest` |
 | Memory growth over 1000 idle ticks | ~0 | **< 1 MB** | `WatchdogBenchmark` |
-| Peak working set, whole process | < 12 MB idle | **7.1 MB** during a diagnostic | process working set |
+| Peak working set, whole process | < 12 MB idle | **4.75 MB** idle, **7.1 MB** during a diagnostic | process working set, and the soak below |
 | Slowest tick over 20 ticks | far below 1 s | **well under 50 ms** | `WatchdogBenchmark` |
 | Stop request honoured | promptly | **immediate** | `WatchdogBenchmark` |
+
+### The long soak was stopped early, and here is what it reached
+
+Two runs were started on Ubuntu 24.04 and stopped on request after **45 minutes and
+39 seconds**, not the twenty four hours this section's name suggests. At the ten
+second interval the tool accepts, that is about **276 watchdog passes**, rather than
+the 8,640 a full day would give. Nothing here claims a twenty four hour result,
+because there was not one.
+
+| Run | Build | Question | What it reached |
+|---|---|---|---|
+| Sanitized | `-fsanitize=address,undefined` | Does it touch memory it should not? | **0** AddressSanitizer reports, **0** leaks, **0** findings in this project's sources, across 46 samples |
+| Release | ordinary `-O3` | What is the peak resident set? | **4.75 MB**, and flat: the first sample and the last are identical |
+
+The nine UndefinedBehaviorSanitizer reports are all inside spdlog and inside
+libstdc++'s `shared_ptr` when it performs a type erased cast. None are in this
+project. It is a well known interaction between UBSan's virtual pointer check and a
+library that stores objects polymorphically behind a shared pointer, and they are not
+counted as findings about this tool.
+
+**What the memory claim rests on** is the in-process `WatchdogBenchmark`, which runs a
+thousand ticks and asserts under a megabyte of growth on every build. The soak was
+supporting evidence for a figure the benchmark already enforces, so stopping it early
+weakens the demonstration rather than the guarantee.
+
+**A sanitized binary cannot measure memory.** AddressSanitizer keeps a shadow map of
+the whole address space, and the same code doing almost nothing reported 61 MB. That
+number is the sanitizer, not the tool. This is why the memory figure above comes from
+the release run, and why the two runs exist at all.
 
 ## Prune
 
