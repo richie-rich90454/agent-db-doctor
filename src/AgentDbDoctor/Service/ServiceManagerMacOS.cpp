@@ -97,7 +97,7 @@ void ServiceManager::writePlatformServiceDefinition() const {
     std::ofstream plistFile(plistFilePath, std::ios::trunc);
     if (!plistFile.is_open()) {
         throw ServiceOperationException(
-            string("The service file could not be written"),
+            string("Writing the service file"),
             string("The tool tried to write ") + plistFilePath
             + ". That folder is owned by root, so the command needs to be run with "
             + "administrator rights, for example with sudo."
@@ -172,7 +172,7 @@ void ServiceManager::startPlatformService() const {
     );
     if (result.find("Load failed")!=string::npos) {
         throw ServiceOperationException(
-            string("The service did not start"),
+            string("Starting the service"),
             string("launchctl said: ") + result
             + " Check the log at " + serviceConfiguration.logFilePath + "."
         );
