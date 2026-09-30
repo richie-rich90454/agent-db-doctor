@@ -18,9 +18,11 @@ cmake -S . -B build-soak -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined"
 cmake --build build-soak
 
-# Run the service directly rather than installing it, with a one second tick so
-# twenty four hours of wall clock is a meaningful number of ticks.
-agent-db-doctor service run --interval 1
+# Run the service directly rather than installing it, at the shortest interval the
+# tool accepts, which is ten seconds. Twenty four hours at that interval is 8,640
+# ticks. The tool refuses anything shorter and explains why rather than accepting it,
+# so `--interval 1` will not work.
+agent-db-doctor service run --interval 10
 ```
 
 While it runs, sample the resident set size:
@@ -60,6 +62,7 @@ second, so a regression is caught on every run rather than after a day.
 | a watchdog tick is far faster than its interval | The CPU budget |
 | many idle ticks do not grow the process | The memory budget |
 | a stop request ends the loop promptly | The service can be stopped |
+| an interval below ten seconds is refused | The tool will not spin |
 
 The memory test reads the process's own peak working set, which is the honest way
 to check a resident memory figure, and compares it before and after a thousand
