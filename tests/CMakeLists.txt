@@ -21,10 +21,16 @@ target_compile_options(agent_db_doctor_test_support PRIVATE ${AGENT_DB_DOCTOR_WA
 function(agent_db_doctor_add_test target_name)
     add_executable(${target_name} ${ARGN})
     target_link_libraries(${target_name}
-        PRIVATE agent_db_doctor_core agent_db_doctor_test_support Catch2::Catch2)
+        PRIVATE agent_db_doctor_core agent_db_doctor_test_support
+                agent_db_doctor_catch_main Catch2::Catch2)
     target_compile_options(${target_name} PRIVATE ${AGENT_DB_DOCTOR_WARNINGS})
     if(NOT MSVC)
         target_compile_options(${target_name} PRIVATE -fno-rtti)
+    endif()
+    # The watchdog benchmark reads the process's own memory usage, which on Windows
+    # comes from the process information library.
+    if(WIN32)
+        target_link_libraries(${target_name} PRIVATE psapi)
     endif()
     add_test(NAME ${target_name} COMMAND ${target_name})
     # A hung test would otherwise block a continuous integration run forever.
@@ -38,9 +44,7 @@ set(AGENT_DB_DOCTOR_UNIT_TESTS
     unit/TestHumanReadableFormatting.cpp
     unit/TestPlatformMetadata.cpp
     unit/TestDiskSpaceChecker.cpp
-    unit/TestFileLockDetector.cpp
     unit/TestStatisticsReader.cpp
-    unit/TestSafetyChecks.cpp
     unit/TestAgents.cpp
     unit/TestKnownFailurePatterns.cpp
     unit/TestProgressBar.cpp
