@@ -347,6 +347,21 @@ endif()
 add_executable(agent-db-doctor src/main.cpp)
 target_link_libraries(agent-db-doctor PRIVATE agent_db_doctor_core)
 target_compile_options(agent-db-doctor PRIVATE ${AGENT_DB_DOCTOR_WARNINGS})
+# The Windows icon and version stamp. The resource compiler resolves relative
+# names against its working directory, so the icon path is filled in as an
+# absolute path at configure time. Other platforms skip this entirely.
+if(WIN32)
+    string(REPLACE "." "," AGENT_DB_DOCTOR_VERSION_COMMA "${PROJECT_VERSION}")
+    set(APP_ICO_ABSOLUTE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.ico")
+    set(APP_VERSION_COMMA "${AGENT_DB_DOCTOR_VERSION_COMMA},0")
+    set(APP_VERSION_DOTS "${PROJECT_VERSION}")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/agent_db_doctor_app.rc"
+        @ONLY
+    )
+    target_sources(agent-db-doctor PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/agent_db_doctor_app.rc")
+endif()
 if(NOT MSVC)
     target_compile_options(agent-db-doctor PRIVATE -fno-rtti)
 endif()
