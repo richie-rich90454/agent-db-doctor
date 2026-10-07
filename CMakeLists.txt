@@ -224,6 +224,10 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Agents/CursorAgent.cpp
     src/AgentDbDoctor/Agents/ContinueAgent.cpp
     src/AgentDbDoctor/Agents/AiderAgent.cpp
+    src/AgentDbDoctor/Agents/ClineAgent.cpp
+    src/AgentDbDoctor/Agents/RooCodeAgent.cpp
+    src/AgentDbDoctor/Agents/ReasonixAgent.cpp
+    src/AgentDbDoctor/Agents/VscodeAgent.cpp
     src/AgentDbDoctor/Doctor/AgentDatabaseDoctor.cpp
     src/AgentDbDoctor/Doctor/DiagnosisReport.cpp
     src/AgentDbDoctor/Doctor/SchemaVersionDetector.cpp
