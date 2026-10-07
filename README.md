@@ -284,9 +284,22 @@ measured, the table gets a row.
 | Aider | `.aider.chat.history.md` | Diagnose only; a transcript is the only copy |
 | Roo Code | `~/.roo/` plus VS Code extension storage | Diagnose only; task state, undocumented |
 | Reasonix | `~/.reasonix/` | Diagnose only; skills and configuration |
+| Cline | `~/.cline/data/db/sessions.db` | Diagnose only; its tables are undocumented |
+| VS Code | platform-specific, one `state.vscdb` per workspace | Diagnose only; editor state, undocumented |
+| Gemini CLI | `~/.gemini/` | Diagnose only; session history, 30-day retention |
+| Windsurf | platform-specific data dir | Diagnose only; workspace state, undocumented |
+| Zed | platform-specific user data dir | Diagnose only; its database is undocumented |
+| GitHub Copilot | VS Code extension storage | Diagnose only; chat state, undocumented |
+| Warp | platform-specific data dir | Diagnose only; terminal state, undocumented |
+| Kilo Code | `~/.kilo/` plus VS Code extension storage | Diagnose only; task state, undocumented |
+| Augment | VS Code extension storage | Diagnose only; assistant state, undocumented |
+| Trae | platform-specific data dir | Diagnose only; workspace state, undocumented |
+| PearAI | platform-specific data dir | Diagnose only; workspace state, undocumented |
+| Amp | `~/.amp/` | Diagnose only; CLI session state, undocumented |
+| CommandCode | `~/.commandcode/` | Diagnose only; session state, undocumented |
 
-Only OpenCode stores redundant snapshots, so only OpenCode is pruned. The others are
-reported and left alone, because a plain text transcript is the only copy of that
+Only OpenCode stores redundant snapshots, so only OpenCode is pruned. The other
+twenty agents are reported and left alone, because a plain text transcript is the only copy of that
 conversation and deleting anything from it would be the tool's decision to make,
 not yours.
 
@@ -303,8 +316,7 @@ work.
 
 **It does not prune any agent except OpenCode.** Pruning removes the older copies of
 messages that an agent leaves behind when a message is edited, and only OpenCode
-produces them. Cursor, Codex CLI, Claude Code, Continue, and Aider are diagnosed and
-left alone. Their conversation is a plain text transcript or a rebuildable index,
+produces them. Every other supported agent is diagnosed and left alone. Their conversation is a plain text transcript or a rebuildable index,
 which is the only copy, so deciding what to delete from it is not this tool's call.
 
 **It does not compact, prune, or rebuild a folder.** Several agents keep their history
