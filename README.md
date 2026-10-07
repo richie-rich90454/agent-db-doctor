@@ -330,9 +330,50 @@ measured, the table gets a row.
 | PearAI | platform-specific data dir | Diagnose only; workspace state, undocumented |
 | Amp | `~/.amp/` | Diagnose only; CLI session state, undocumented |
 | CommandCode | `~/.commandcode/` | Diagnose only; session state, undocumented |
+| Pi | `~/.pi/` | Diagnose only; CLI session state, undocumented |
+| Void | platform-specific data dir | Diagnose only; workspace state, undocumented |
+| Tabnine | `~/.tabnine/` plus editor storage | Diagnose only; completion state, undocumented |
+| Cody | `~/.cody/` plus editor storage | Diagnose only; chat state, undocumented |
+| Codeium | `~/.codeium/` plus editor storage | Diagnose only; assistant state, undocumented |
+| Supermaven | editor extension storage | Diagnose only; completion state, undocumented |
+| Bito | editor extension storage | Diagnose only; assistant state, undocumented |
+| CodeGPT | editor extension storage | Diagnose only; assistant state, undocumented |
+| Blackbox AI | editor extension storage | Diagnose only; assistant state, undocumented |
+| AskCodi | editor extension storage | Diagnose only; assistant state, undocumented |
+| Phind | editor extension storage | Diagnose only; assistant state, undocumented |
+| IntelliCode | editor extension storage | Diagnose only; completion state, undocumented |
+| Tabby | `~/.tabby/` plus editor storage | Diagnose only; assistant state, undocumented |
+| Pieces | `~/.pieces/` | Diagnose only; snippets and state, undocumented |
+| Amazon Q | `~/.amazonq/` | Diagnose only; CLI session state, undocumented |
+| Junie | `~/.junie/` | Diagnose only; session state, undocumented |
+| Qoder | platform-specific data dir | Diagnose only; workspace state, undocumented |
+| Lingma | `~/.lingma/` | Diagnose only; session state, undocumented |
+| Comate | `~/.comate/` | Diagnose only; session state, undocumented |
+| Droid | `~/.factory/`, `~/.droid/` | Diagnose only; terminal state, undocumented |
+| GitLab Duo | editor extension storage | Diagnose only; assistant state, undocumented |
+| WorkBuddy | `~/.workbuddy/` | Diagnose only; task state, undocumented |
+| Kimi | `~/.kimi/` (`$KIMI_SHARE_DIR` overrides) | Diagnose only; session history, undocumented |
+| Kiro | `~/.kiro/` (`$KIRO_HOME` overrides) | Diagnose only; agents and sessions, undocumented |
+| Qwen Code | `~/.qwen/` | Diagnose only; CLI session state, undocumented |
+| CodeBuddy | `~/.codebuddy/` | Diagnose only; task state, undocumented |
+| MarsCode | `~/.marscode/` | Diagnose only; session state, undocumented |
+| Qodo | `~/.qodo/` | Diagnose only; review state, undocumented |
+| Sourcery | editor extension storage | Diagnose only; review state, undocumented |
+| Snyk | editor extension storage | Diagnose only; scan state, undocumented |
+| SonarQube | editor extension storage | Diagnose only; analysis state, undocumented |
+| AnythingLLM | `~/.anythingllm/` | Diagnose only; chat history, undocumented |
+| GPT4All | platform-specific data dir | Diagnose only; chat history, undocumented |
+| Jan | `~/.jan/` | Diagnose only; chat history, undocumented |
+| LM Studio | `~/.lmstudio/` | Diagnose only; chat history, undocumented |
+| Open WebUI | `~/.open-webui/` | Diagnose only; chat history, undocumented |
+| AIChat | `~/.config/aichat/` | Diagnose only; terminal state, undocumented |
+| gptme | `~/.config/gptme/` | Diagnose only; conversation logs, undocumented |
+| LLM | `~/.llm/` | Diagnose only; logged prompts, undocumented |
+| ShellGPT | `~/.config/shell_gpt/` | Diagnose only; terminal state, undocumented |
+| Raycast | platform-specific data dir | Diagnose only; launcher state, undocumented |
 
 Only OpenCode stores redundant snapshots, so only OpenCode is pruned. The other
-twenty agents are reported and left alone, because a plain text transcript is the only copy of that
+sixty one agents are reported and left alone, because a plain text transcript is the only copy of that
 conversation and deleting anything from it would be the tool's decision to make,
 not yours.
 
