@@ -355,6 +355,8 @@ if(WIN32)
     set(APP_ICO_ABSOLUTE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.ico")
     set(APP_VERSION_COMMA "${AGENT_DB_DOCTOR_VERSION_COMMA},0")
     set(APP_VERSION_DOTS "${PROJECT_VERSION}")
+    set(APP_EXE_FILENAME "agent-db-doctor.exe")
+    set(APP_FILE_DESCRIPTION "A doctor for AI coding agent databases.")
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.rc.in"
         "${CMAKE_CURRENT_BINARY_DIR}/agent_db_doctor_app.rc"
@@ -373,6 +375,105 @@ target_compile_definitions(agent-db-doctor PRIVATE
 )
 if(AGENT_DB_DOCTOR_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+# ---------------------------------------------------------------------------
+# The graphical interface. SDL3 and Dear ImGui live here and nowhere else: the
+# command line target above keeps its exact five dependencies, and a build with
+# `-DAGENT_DB_DOCTOR_BUILD_GUI=OFF` never downloads them.
+# ---------------------------------------------------------------------------
+option(AGENT_DB_DOCTOR_BUILD_GUI "Build the SDL3 graphical interface." ON)
+if(AGENT_DB_DOCTOR_BUILD_GUI)
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(SDL3
+        URL "https://github.com/libsdl-org/SDL/releases/download/release-3.4.16/SDL3-3.4.16.tar.gz"
+    )
+    FetchContent_MakeAvailable(SDL3)
+    # Dear ImGui ships no CMakeLists, so its sources are compiled directly. The
+    # backend pair is the official SDL3 platform layer with the SDL_Renderer
+    # layer: no OpenGL loader, nothing platform specific, the same binary
+    # everywhere.
+    FetchContent_Declare(imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.92.2
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(imgui)
+    add_library(imgui_lib STATIC
+        "${imgui_SOURCE_DIR}/imgui.cpp"
+        "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+        "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+        "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+        "${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp"
+        "${imgui_SOURCE_DIR}/backends/imgui_impl_sdlrenderer3.cpp"
+    )
+    target_include_directories(imgui_lib SYSTEM PUBLIC
+        "${imgui_SOURCE_DIR}"
+        "${imgui_SOURCE_DIR}/backends"
+    )
+    target_link_libraries(imgui_lib PUBLIC SDL3::SDL3)
+    if(MSVC)
+        target_compile_options(imgui_lib PRIVATE /W0)
+    else()
+        target_compile_options(imgui_lib PRIVATE -w)
+    endif()
+    # `stb_image` decodes the window icon PNG. It is one public domain header
+    # compiled once, GUI only, and never near the core library.
+    file(DOWNLOAD
+        "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h"
+        "${CMAKE_CURRENT_BINARY_DIR}/stb_image.h"
+    )
+    add_library(stb_image STATIC gui/StbImage.c)
+    target_include_directories(stb_image SYSTEM PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+    if(MSVC)
+        target_compile_options(stb_image PRIVATE /W0)
+    else()
+        target_compile_options(stb_image PRIVATE -w)
+    endif()
+    set(AGENT_DB_DOCTOR_GUI_SOURCES
+        gui/GuiMain.cpp
+    )
+    add_executable(agent-db-doctor-gui ${AGENT_DB_DOCTOR_GUI_SOURCES})
+    target_link_libraries(agent-db-doctor-gui PRIVATE agent_db_doctor_core imgui_lib stb_image SDL3::SDL3)
+    target_compile_options(agent-db-doctor-gui PRIVATE ${AGENT_DB_DOCTOR_WARNINGS})
+    if(NOT MSVC)
+        target_compile_options(agent-db-doctor-gui PRIVATE -fno-rtti)
+    endif()
+    target_compile_definitions(agent-db-doctor-gui PRIVATE
+        AGENT_DB_DOCTOR_VERSION="${PROJECT_VERSION}"
+        AGENT_DB_DOCTOR_PLATFORM="${AGENT_DB_DOCTOR_PLATFORM_TAG}"
+        AGENT_DB_DOCTOR_ASSET_DIR="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+    )
+    # The icon the window shows is copied beside the binary, so the program
+    # finds it with no search and no installation step.
+    file(COPY
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/favicon-64.png"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo-512.png"
+        DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+    )
+    if(WIN32)
+        # The shared library must sit beside the executable, or the program
+        # stops at startup with a missing DLL error.
+        add_custom_command(TARGET agent-db-doctor-gui POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE:SDL3::SDL3-shared>"
+                "$<TARGET_FILE_DIR:agent-db-doctor-gui>"
+        )
+        string(REPLACE "." "," AGENT_DB_DOCTOR_VERSION_COMMA "${PROJECT_VERSION}")
+        set(APP_ICO_ABSOLUTE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.ico")
+        set(APP_VERSION_COMMA "${AGENT_DB_DOCTOR_VERSION_COMMA},0")
+        set(APP_VERSION_DOTS "${PROJECT_VERSION}")
+        set(APP_EXE_FILENAME "agent-db-doctor-gui.exe")
+        set(APP_FILE_DESCRIPTION "A doctor for AI coding agent databases (graphical interface).")
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.rc.in"
+            "${CMAKE_CURRENT_BINARY_DIR}/agent_db_doctor_gui_app.rc"
+            @ONLY
+        )
+        target_sources(agent-db-doctor-gui PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/agent_db_doctor_gui_app.rc")
+    endif()
 endif()
 message(STATUS "agent-db-doctor ${PROJECT_VERSION} configured for ${AGENT_DB_DOCTOR_PLATFORM_TAG} "
     "with build type '${CMAKE_BUILD_TYPE}'.")
