@@ -6,6 +6,8 @@
 // without a terminal: that the bar is safe to drive, that it stops being active when
 // it is finished, and that nothing it does can throw or misbehave.
 #include <string>
+// Provides `vector`, which holds the updates the sink test collects.
+#include <vector>
 // Provides the Catch2 test registration macros.
 #include <catch2/catch_test_macros.hpp>
 // Provides the class under test.
@@ -71,4 +73,33 @@ TEST_CASE("a bar of zero width is a usable constant", "[progress]") {
     // never depends on geometry the tool cannot verify.
     REQUIRE(ProgressBar::BAR_WIDTH_IN_CHARACTERS>0);
     REQUIRE(ProgressBar::BAR_WIDTH_IN_CHARACTERS<80);
+}
+TEST_CASE("a sink receives the same throttled numbers the bar draws", "[progress]") {
+    // The sink gets one report per visible percentage point and a final
+    // finished report, which is what lets a graphical front end update at the
+    // same rate the console bar would have drawn.
+    vector<ProgressUpdate> receivedUpdates;
+    ProgressBar bar("Testing", 100, false);
+    bar.setSink([&receivedUpdates](const ProgressUpdate& update) {
+        receivedUpdates.push_back(update);
+    });
+    bar.advance(50);
+    bar.finish();
+    REQUIRE(receivedUpdates.size()==2);
+    REQUIRE(receivedUpdates[0].taskDescription=="Testing");
+    REQUIRE(receivedUpdates[0].completedUnits==50);
+    REQUIRE(receivedUpdates[0].totalUnits==100);
+    REQUIRE_FALSE(receivedUpdates[0].isFinished);
+    REQUIRE(receivedUpdates[1].isFinished);
+    REQUIRE(receivedUpdates[1].completedUnits==50);
+}
+TEST_CASE("an empty sink changes nothing about the bar", "[progress]") {
+    // With no receiver set the bar draws exactly as it always has: active
+    // until finished, and finishing twice is harmless.
+    ProgressBar bar("Testing", 100, false);
+    bar.setSink(ProgressSink());
+    REQUIRE(bar.isActive());
+    bar.finish();
+    bar.finish();
+    REQUIRE_FALSE(bar.isActive());
 }
