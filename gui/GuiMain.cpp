@@ -23,6 +23,8 @@
 #include "GuiState.hpp"
 // Provides the dashboard screen: agents, databases, detail, and the log.
 #include "DashboardScreen.hpp"
+// Provides the action center: worker, activity bar, and dialogues.
+#include "ActionScreens.hpp"
 // Provides the registry, which names every supported agent for the browser.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
 // The tool version, stamped by CMake so `--version` and the title bar agree.
@@ -36,6 +38,11 @@
 using namespace AgentDbDoctor::Gui;
 using namespace AgentDbDoctor::Agents;
 namespace {
+// What the main area shows: the dashboard, or the service view.
+enum class GuiView {
+    Dashboard,
+    Service
+};
 // Loads a PNG beside the binary into an SDL texture, or null when it is
 // missing. Missing artwork is never an error: the interface simply shows one
 // fewer picture, because pictures must never stop the tool from working.
@@ -152,6 +159,9 @@ int main(int /*argumentCount*/, char** /*argumentValues*/) {
     const std::vector<AgentDescriptor> agents = registry.allAgents();
     GuiState state;
     requestBackgroundScan(state);
+    ActionRunner actionRunner;
+    ActionUiState actionUi;
+    GuiView currentView = GuiView::Dashboard;
     bool isRunning = true;
     bool showAboutWindow = false;
     while (isRunning) {
@@ -203,9 +213,27 @@ int main(int /*argumentCount*/, char** /*argumentValues*/) {
                 }
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu("View")) {
+                if (ImGui::MenuItem(
+                        "Dashboard", nullptr, currentView == GuiView::Dashboard)) {
+                    currentView = GuiView::Dashboard;
+                }
+                if (ImGui::MenuItem(
+                        "Service", nullptr, currentView == GuiView::Service)) {
+                    currentView = GuiView::Service;
+                }
+                ImGui::EndMenu();
+            }
             ImGui::EndMenuBar();
         }
-        renderDashboard(state, agents);
+        pollActionResult(actionRunner, actionUi);
+        if (currentView == GuiView::Dashboard) {
+            renderDashboard(state, agents, actionRunner, actionUi);
+        } else {
+            renderServiceView(actionRunner, actionUi);
+        }
+        renderActivityBar(actionRunner);
+        renderActionDialogues(actionRunner, actionUi);
         if (showAboutWindow) {
             ImGui::OpenPopup("About agent-db-doctor");
             showAboutWindow = false;
