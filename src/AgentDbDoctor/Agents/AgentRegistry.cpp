@@ -14,7 +14,7 @@
 #include <vector>
 // Provides the locator, the descriptor types, and the registry declaration.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
-// Provides the twenty one agent classes that the registry holds.
+// Provides the sixty two agent classes that the registry holds.
 #include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/CodexAgent.hpp"
 #include "AgentDbDoctor/Agents/ClaudeCodeAgent.hpp"
@@ -36,6 +36,47 @@
 #include "AgentDbDoctor/Agents/PearAIAgent.hpp"
 #include "AgentDbDoctor/Agents/AmpAgent.hpp"
 #include "AgentDbDoctor/Agents/CommandCodeAgent.hpp"
+#include "AgentDbDoctor/Agents/PiAgent.hpp"
+#include "AgentDbDoctor/Agents/VoidAgent.hpp"
+#include "AgentDbDoctor/Agents/TabnineAgent.hpp"
+#include "AgentDbDoctor/Agents/CodyAgent.hpp"
+#include "AgentDbDoctor/Agents/CodeiumAgent.hpp"
+#include "AgentDbDoctor/Agents/SupermavenAgent.hpp"
+#include "AgentDbDoctor/Agents/BitoAgent.hpp"
+#include "AgentDbDoctor/Agents/CodeGPTAgent.hpp"
+#include "AgentDbDoctor/Agents/BlackboxAgent.hpp"
+#include "AgentDbDoctor/Agents/AskCodiAgent.hpp"
+#include "AgentDbDoctor/Agents/PhindAgent.hpp"
+#include "AgentDbDoctor/Agents/IntelliCodeAgent.hpp"
+#include "AgentDbDoctor/Agents/TabbyAgent.hpp"
+#include "AgentDbDoctor/Agents/PiecesAgent.hpp"
+#include "AgentDbDoctor/Agents/AmazonQAgent.hpp"
+#include "AgentDbDoctor/Agents/JunieAgent.hpp"
+#include "AgentDbDoctor/Agents/QoderAgent.hpp"
+#include "AgentDbDoctor/Agents/LingmaAgent.hpp"
+#include "AgentDbDoctor/Agents/ComateAgent.hpp"
+#include "AgentDbDoctor/Agents/DroidAgent.hpp"
+#include "AgentDbDoctor/Agents/GitLabDuoAgent.hpp"
+#include "AgentDbDoctor/Agents/WorkbuddyAgent.hpp"
+#include "AgentDbDoctor/Agents/KimiAgent.hpp"
+#include "AgentDbDoctor/Agents/KiroAgent.hpp"
+#include "AgentDbDoctor/Agents/QwenCodeAgent.hpp"
+#include "AgentDbDoctor/Agents/CodeBuddyAgent.hpp"
+#include "AgentDbDoctor/Agents/MarsCodeAgent.hpp"
+#include "AgentDbDoctor/Agents/QodoAgent.hpp"
+#include "AgentDbDoctor/Agents/SourceryAgent.hpp"
+#include "AgentDbDoctor/Agents/SnykAgent.hpp"
+#include "AgentDbDoctor/Agents/SonarQubeAgent.hpp"
+#include "AgentDbDoctor/Agents/AnythingLLMAgent.hpp"
+#include "AgentDbDoctor/Agents/GPT4AllAgent.hpp"
+#include "AgentDbDoctor/Agents/JanAgent.hpp"
+#include "AgentDbDoctor/Agents/LMStudioAgent.hpp"
+#include "AgentDbDoctor/Agents/OpenWebUIAgent.hpp"
+#include "AgentDbDoctor/Agents/AIChatAgent.hpp"
+#include "AgentDbDoctor/Agents/GptmeAgent.hpp"
+#include "AgentDbDoctor/Agents/LlmAgent.hpp"
+#include "AgentDbDoctor/Agents/ShellGPTAgent.hpp"
+#include "AgentDbDoctor/Agents/RaycastAgent.hpp"
 // Provides PlatformMetadata, used to read each candidate's metadata.
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
 using namespace std;
@@ -132,7 +173,48 @@ AgentRegistry::AgentRegistry()
       traeAgent(make_unique<TraeAgent>()),
       pearAIAgent(make_unique<PearAIAgent>()),
       ampAgent(make_unique<AmpAgent>()),
-      commandCodeAgent(make_unique<CommandCodeAgent>()) {
+      commandCodeAgent(make_unique<CommandCodeAgent>()),
+      piAgent(make_unique<PiAgent>()),
+      voidAgent(make_unique<VoidAgent>()),
+      tabnineAgent(make_unique<TabnineAgent>()),
+      codyAgent(make_unique<CodyAgent>()),
+      codeiumAgent(make_unique<CodeiumAgent>()),
+      supermavenAgent(make_unique<SupermavenAgent>()),
+      bitoAgent(make_unique<BitoAgent>()),
+      codeGPTAgent(make_unique<CodeGPTAgent>()),
+      blackboxAgent(make_unique<BlackboxAgent>()),
+      askCodiAgent(make_unique<AskCodiAgent>()),
+      phindAgent(make_unique<PhindAgent>()),
+      intelliCodeAgent(make_unique<IntelliCodeAgent>()),
+      tabbyAgent(make_unique<TabbyAgent>()),
+      piecesAgent(make_unique<PiecesAgent>()),
+      amazonQAgent(make_unique<AmazonQAgent>()),
+      junieAgent(make_unique<JunieAgent>()),
+      qoderAgent(make_unique<QoderAgent>()),
+      lingmaAgent(make_unique<LingmaAgent>()),
+      comateAgent(make_unique<ComateAgent>()),
+      droidAgent(make_unique<DroidAgent>()),
+      gitLabDuoAgent(make_unique<GitLabDuoAgent>()),
+      workbuddyAgent(make_unique<WorkbuddyAgent>()),
+      kimiAgent(make_unique<KimiAgent>()),
+      kiroAgent(make_unique<KiroAgent>()),
+      qwenCodeAgent(make_unique<QwenCodeAgent>()),
+      codeBuddyAgent(make_unique<CodeBuddyAgent>()),
+      marsCodeAgent(make_unique<MarsCodeAgent>()),
+      qodoAgent(make_unique<QodoAgent>()),
+      sourceryAgent(make_unique<SourceryAgent>()),
+      snykAgent(make_unique<SnykAgent>()),
+      sonarQubeAgent(make_unique<SonarQubeAgent>()),
+      anythingLLMAgent(make_unique<AnythingLLMAgent>()),
+      gpt4AllAgent(make_unique<GPT4AllAgent>()),
+      janAgent(make_unique<JanAgent>()),
+      lmStudioAgent(make_unique<LMStudioAgent>()),
+      openWebUIAgent(make_unique<OpenWebUIAgent>()),
+      aiChatAgent(make_unique<AIChatAgent>()),
+      gptmeAgent(make_unique<GptmeAgent>()),
+      llmAgent(make_unique<LlmAgent>()),
+      shellGPTAgent(make_unique<ShellGPTAgent>()),
+      raycastAgent(make_unique<RaycastAgent>()) {
 }
 AgentRegistry::~AgentRegistry() = default;
 vector<AgentDescriptor> AgentRegistry::allAgents() const {
@@ -160,6 +242,47 @@ vector<AgentDescriptor> AgentRegistry::allAgents() const {
     descriptors.push_back(pearAIAgent->describe());
     descriptors.push_back(ampAgent->describe());
     descriptors.push_back(commandCodeAgent->describe());
+    descriptors.push_back(piAgent->describe());
+    descriptors.push_back(voidAgent->describe());
+    descriptors.push_back(tabnineAgent->describe());
+    descriptors.push_back(codyAgent->describe());
+    descriptors.push_back(codeiumAgent->describe());
+    descriptors.push_back(supermavenAgent->describe());
+    descriptors.push_back(bitoAgent->describe());
+    descriptors.push_back(codeGPTAgent->describe());
+    descriptors.push_back(blackboxAgent->describe());
+    descriptors.push_back(askCodiAgent->describe());
+    descriptors.push_back(phindAgent->describe());
+    descriptors.push_back(intelliCodeAgent->describe());
+    descriptors.push_back(tabbyAgent->describe());
+    descriptors.push_back(piecesAgent->describe());
+    descriptors.push_back(amazonQAgent->describe());
+    descriptors.push_back(junieAgent->describe());
+    descriptors.push_back(qoderAgent->describe());
+    descriptors.push_back(lingmaAgent->describe());
+    descriptors.push_back(comateAgent->describe());
+    descriptors.push_back(droidAgent->describe());
+    descriptors.push_back(gitLabDuoAgent->describe());
+    descriptors.push_back(workbuddyAgent->describe());
+    descriptors.push_back(kimiAgent->describe());
+    descriptors.push_back(kiroAgent->describe());
+    descriptors.push_back(qwenCodeAgent->describe());
+    descriptors.push_back(codeBuddyAgent->describe());
+    descriptors.push_back(marsCodeAgent->describe());
+    descriptors.push_back(qodoAgent->describe());
+    descriptors.push_back(sourceryAgent->describe());
+    descriptors.push_back(snykAgent->describe());
+    descriptors.push_back(sonarQubeAgent->describe());
+    descriptors.push_back(anythingLLMAgent->describe());
+    descriptors.push_back(gpt4AllAgent->describe());
+    descriptors.push_back(janAgent->describe());
+    descriptors.push_back(lmStudioAgent->describe());
+    descriptors.push_back(openWebUIAgent->describe());
+    descriptors.push_back(aiChatAgent->describe());
+    descriptors.push_back(gptmeAgent->describe());
+    descriptors.push_back(llmAgent->describe());
+    descriptors.push_back(shellGPTAgent->describe());
+    descriptors.push_back(raycastAgent->describe());
     return descriptors;
 }
 vector<AgentDescriptor> AgentRegistry::sqliteAgents() const {
@@ -257,6 +380,47 @@ vector<DiscoveredDatabase> AgentRegistry::discoverAllDatabases() const {
     addFolderEntry(pearAIAgent->displayName(), pearAIAgent->findDatabasePath());
     addFolderEntry(ampAgent->displayName(), ampAgent->findDatabasePath());
     addFolderEntry(commandCodeAgent->displayName(), commandCodeAgent->findDatabasePath());
+    addFolderEntry(piAgent->displayName(), piAgent->findDatabasePath());
+    addFolderEntry(voidAgent->displayName(), voidAgent->findDatabasePath());
+    addFolderEntry(tabnineAgent->displayName(), tabnineAgent->findDatabasePath());
+    addFolderEntry(codyAgent->displayName(), codyAgent->findDatabasePath());
+    addFolderEntry(codeiumAgent->displayName(), codeiumAgent->findDatabasePath());
+    addFolderEntry(supermavenAgent->displayName(), supermavenAgent->findDatabasePath());
+    addFolderEntry(bitoAgent->displayName(), bitoAgent->findDatabasePath());
+    addFolderEntry(codeGPTAgent->displayName(), codeGPTAgent->findDatabasePath());
+    addFolderEntry(blackboxAgent->displayName(), blackboxAgent->findDatabasePath());
+    addFolderEntry(askCodiAgent->displayName(), askCodiAgent->findDatabasePath());
+    addFolderEntry(phindAgent->displayName(), phindAgent->findDatabasePath());
+    addFolderEntry(intelliCodeAgent->displayName(), intelliCodeAgent->findDatabasePath());
+    addFolderEntry(tabbyAgent->displayName(), tabbyAgent->findDatabasePath());
+    addFolderEntry(piecesAgent->displayName(), piecesAgent->findDatabasePath());
+    addFolderEntry(amazonQAgent->displayName(), amazonQAgent->findDatabasePath());
+    addFolderEntry(junieAgent->displayName(), junieAgent->findDatabasePath());
+    addFolderEntry(qoderAgent->displayName(), qoderAgent->findDatabasePath());
+    addFolderEntry(lingmaAgent->displayName(), lingmaAgent->findDatabasePath());
+    addFolderEntry(comateAgent->displayName(), comateAgent->findDatabasePath());
+    addFolderEntry(droidAgent->displayName(), droidAgent->findDatabasePath());
+    addFolderEntry(gitLabDuoAgent->displayName(), gitLabDuoAgent->findDatabasePath());
+    addFolderEntry(workbuddyAgent->displayName(), workbuddyAgent->findDatabasePath());
+    addFolderEntry(kimiAgent->displayName(), kimiAgent->findDatabasePath());
+    addFolderEntry(kiroAgent->displayName(), kiroAgent->findDatabasePath());
+    addFolderEntry(qwenCodeAgent->displayName(), qwenCodeAgent->findDatabasePath());
+    addFolderEntry(codeBuddyAgent->displayName(), codeBuddyAgent->findDatabasePath());
+    addFolderEntry(marsCodeAgent->displayName(), marsCodeAgent->findDatabasePath());
+    addFolderEntry(qodoAgent->displayName(), qodoAgent->findDatabasePath());
+    addFolderEntry(sourceryAgent->displayName(), sourceryAgent->findDatabasePath());
+    addFolderEntry(snykAgent->displayName(), snykAgent->findDatabasePath());
+    addFolderEntry(sonarQubeAgent->displayName(), sonarQubeAgent->findDatabasePath());
+    addFolderEntry(anythingLLMAgent->displayName(), anythingLLMAgent->findDatabasePath());
+    addFolderEntry(gpt4AllAgent->displayName(), gpt4AllAgent->findDatabasePath());
+    addFolderEntry(janAgent->displayName(), janAgent->findDatabasePath());
+    addFolderEntry(lmStudioAgent->displayName(), lmStudioAgent->findDatabasePath());
+    addFolderEntry(openWebUIAgent->displayName(), openWebUIAgent->findDatabasePath());
+    addFolderEntry(aiChatAgent->displayName(), aiChatAgent->findDatabasePath());
+    addFolderEntry(gptmeAgent->displayName(), gptmeAgent->findDatabasePath());
+    addFolderEntry(llmAgent->displayName(), llmAgent->findDatabasePath());
+    addFolderEntry(shellGPTAgent->displayName(), shellGPTAgent->findDatabasePath());
+    addFolderEntry(raycastAgent->displayName(), raycastAgent->findDatabasePath());
     // Cline keeps a single SQLite file, so it is reported the way OpenCode is:
     // one path, one size, and the SQLite flag set.
     const optional<string> clinePath=clineAgent->findDatabasePath();
