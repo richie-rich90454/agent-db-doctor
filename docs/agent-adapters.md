@@ -8,7 +8,7 @@ only to say where that program keeps its data. No affiliation, no endorsement,
 no other use.
 
 The short version: **only OpenCode stores redundant snapshots**, so only OpenCode
-is pruned. The other twenty are reported and left alone. That is a deliberate choice,
+is pruned. The other sixty one are reported and left alone. That is a deliberate choice,
 not an omission.
 
 ## Why only one agent is pruned
@@ -47,13 +47,56 @@ decision for you.
 | PearAI | Data dir | Unknown, undocumented | Diagnose only |
 | Amp | Session state folder | No | Diagnose only |
 | CommandCode | Session state folder | No | Diagnose only |
+| Pi | Session state folder | No | Diagnose only |
+| Void | Data dir plus workspace storage | Unknown, undocumented | Diagnose only |
+| Tabnine | Home folder plus extension storage | Unknown, undocumented | Diagnose only |
+| Cody | Home folder plus extension storage | Unknown, undocumented | Diagnose only |
+| Codeium | Home folder plus extension storage | Unknown, undocumented | Diagnose only |
+| Supermaven | Extension storage folder | Unknown, undocumented | Diagnose only |
+| Bito | Extension storage folder | Unknown, undocumented | Diagnose only |
+| CodeGPT | Extension storage folder | Unknown, undocumented | Diagnose only |
+| Blackbox AI | Extension storage folder | Unknown, undocumented | Diagnose only |
+| AskCodi | Extension storage folder | Unknown, undocumented | Diagnose only |
+| Phind | Extension storage folder | Unknown, undocumented | Diagnose only |
+| IntelliCode | Extension storage folder | Unknown, undocumented | Diagnose only |
+| Tabby | Home folder plus extension storage | Unknown, undocumented | Diagnose only |
+| Pieces | Snippets folder | No | Diagnose only |
+| Amazon Q | Session state folder | No | Diagnose only |
+| Junie | Session state folder | No | Diagnose only |
+| Qoder | Data dir | Unknown, undocumented | Diagnose only |
+| Lingma | Session state folder | No | Diagnose only |
+| Comate | Session state folder | No | Diagnose only |
+| Droid | Session state folders | No | Diagnose only |
+| GitLab Duo | Extension storage folder | Unknown, undocumented | Diagnose only |
+| WorkBuddy | Task state folder | No | Diagnose only |
+| Kimi | Session history folder (`$KIMI_SHARE_DIR` overrides) | No | Diagnose only |
+| Kiro | Agents and sessions folder (`$KIRO_HOME` overrides) | No | Diagnose only |
+| Qwen Code | Session state folder | No | Diagnose only |
+| CodeBuddy | Task state folder | No | Diagnose only |
+| MarsCode | Session state folder | No | Diagnose only |
+| Qodo | Review state folder | No | Diagnose only |
+| Sourcery | Extension storage folder | Unknown, undocumented | Diagnose only |
+| Snyk | Extension storage folder | Unknown, undocumented | Diagnose only |
+| SonarQube | Extension storage folder | Unknown, undocumented | Diagnose only |
+| AnythingLLM | Chat history folder | No | Diagnose only |
+| GPT4All | Data dir | Unknown, undocumented | Diagnose only |
+| Jan | Chat history folder | No | Diagnose only |
+| LM Studio | Chat history folder | No | Diagnose only |
+| Open WebUI | Chat history folder | No | Diagnose only |
+| AIChat | Config folder | No | Diagnose only |
+| gptme | Conversation logs folder | No | Diagnose only |
+| LLM | Logged prompts folder | No | Diagnose only |
+| ShellGPT | Config folder | No | Diagnose only |
+| Raycast | Data dir | Unknown, undocumented | Diagnose only |
 
-The OpenCode, Cline, Roo Code, Reasonix, VS Code, Copilot, Augment, Trae, and
-CommandCode paths above were confirmed against a real Windows machine that has
-all of them installed. The Gemini CLI, Windsurf, Zed, Warp, Kilo Code, PearAI,
-and Amp paths are the vendors' published defaults and have not been seen on a
-machine yet; if one of them is wrong on your system, pass the real location
-with `--database` and report it.
+The OpenCode, Cline, Roo Code, Reasonix, VS Code, Copilot, Augment, Trae,
+CommandCode, CodeBuddy, Codeium, Droid, Junie, Kiro, Lingma, Pi, Qoder,
+Qwen Code, and Tabnine paths above were confirmed against a real Windows
+machine that has all of them installed. The Kimi and Kiro layouts were
+confirmed against the vendors' own published data-location references. The
+rest are the vendors' published defaults and have not been seen on a machine
+yet; if one of them is wrong on your system, pass the real location with
+`--database` and report it.
 
 ## The schema the tool depends on
 
