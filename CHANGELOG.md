@@ -4,6 +4,50 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Sixty two agents instead of six, OpenCode v1 and v2 schemas, and a graphical
+interface. The application version is unchanged: this is all new coverage in
+the same v1 tool, verified the same way (full suite green on Windows and
+Linux, real databases on the author's machine).
+
+### Added
+
+**Fifty six more agents.** Cline, Roo Code, Reasonix, VS Code, Gemini CLI,
+Windsurf, Zed, GitHub Copilot, Warp, Kilo Code, Augment, Trae, PearAI, Amp,
+CommandCode, Pi, Void, Tabnine, Cody, Codeium, Supermaven, Bito, CodeGPT,
+Blackbox AI, AskCodi, Phind, IntelliCode, Tabby, Pieces, Amazon Q, Junie,
+Qoder, Lingma, Comate, Droid, GitLab Duo, WorkBuddy, Kimi, Kiro, Qwen Code,
+CodeBuddy, MarsCode, Qodo, Sourcery, Snyk, SonarQube, AnythingLLM, GPT4All,
+Jan, LM Studio, Open WebUI, AIChat, gptme, LLM, ShellGPT, and Raycast. All
+are diagnose-only; only OpenCode is pruned. Paths confirmed on a real machine
+where installed, vendor references where checked (Kimi, Kiro), published
+defaults otherwise, and the docs say which is which.
+
+**OpenCode v2 schema support.** A detector names the generation from the rows
+(`Version1`, `Version1And2`, `Version2Only`, `Unknown`); diagnose prints it;
+prune refuses unknown layouts instead of reporting nothing to do. Second
+generation tables are never touched.
+
+**Graphical interface.** `agent-db-doctor-gui` (SDL3 + Dear ImGui, always
+built, off with `-DAGENT_DB_DOCTOR_BUILD_GUI=OFF`): dashboard over all
+agents, sortable session browser, prune/compact previews with typed-`yes`
+confirmations, recovery plans rendered verbatim, service view, and a live
+activity bar fed by the same progress numbers as the console bar.
+
+**Logo and icons.** A `threaded pulse` master SVG, a simplified favicon, PNG
+renders at every size, a multi-size Windows icon stamped into both binaries
+with version information.
+
+### Fixed
+
+- The OpenCode location now follows the vendor's own resolution (`OPENCODE_DB`,
+  channel file names, the XDG-style path even on Windows) and prefers a file
+  with a size over zero byte placeholders.
+- `diagnose` reports duplicate counts again (the redundant types were never
+  wired into the report).
+- `README.md` links its license files, which now exist.
+
 ## [1.0.0] - 2026-09-30
 
 The first release. Everything below is implemented and verified against real agent
