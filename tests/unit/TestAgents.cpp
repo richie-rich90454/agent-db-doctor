@@ -7,7 +7,7 @@
 #include <string>
 // Provides the Catch2 test registration macros.
 #include <catch2/catch_test_macros.hpp>
-// Provides the catalogue and the ten agent classes.
+// Provides the catalogue and the twenty one agent classes.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
 #include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/CodexAgent.hpp"
@@ -154,12 +154,40 @@ TEST_CASE("VS Code is reported but not pruned", "[agents]") {
     REQUIRE(agent.redundantEventTypes().empty());
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
 }
+TEST_CASE("the wider catalogue is reported but never pruned", "[agents]") {
+    // Eleven more tools, none verified to keep redundant snapshots, so every
+    // one is reported and left alone. Each must be findable by name and carry
+    // a complete descriptor, or a report would show a blank section.
+    const vector<string> expectedNames={
+        string("Gemini CLI"),
+        string("Windsurf"),
+        string("Zed"),
+        string("GitHub Copilot"),
+        string("Warp"),
+        string("Kilo Code"),
+        string("Augment"),
+        string("Trae"),
+        string("PearAI"),
+        string("Amp"),
+        string("CommandCode")
+    };
+    const AgentRegistry registry;
+    for (const string& expectedName : expectedNames) {
+        const optional<AgentDescriptor> descriptor=registry.findAgent(expectedName);
+        REQUIRE(descriptor.has_value());
+        REQUIRE_FALSE(descriptor->displayName.empty());
+        REQUIRE_FALSE(descriptor->candidatePaths.empty());
+        REQUIRE_FALSE(descriptor->storageDescription.empty());
+        REQUIRE(descriptor->redundantEventTypes.empty());
+        REQUIRE_FALSE(descriptor->supportsPruning);
+    }
+}
 TEST_CASE("every supported agent is listed in a fixed order", "[agents]") {
     const AgentRegistry registry;
     const vector<AgentDescriptor> allAgents=registry.allAgents();
     // Ten agents are supported, and the order does not change between runs, so two
     // reports can be compared line by line.
-    REQUIRE(allAgents.size()==10);
+    REQUIRE(allAgents.size()==21);
     REQUIRE(allAgents[0].displayName=="OpenCode");
     REQUIRE(allAgents[1].displayName=="Cursor");
     // Every descriptor must be complete enough for a report, or a user sees a blank
