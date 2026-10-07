@@ -17,6 +17,8 @@
 #include "AgentDbDoctor/Doctor/DiagnosisReport.hpp"
 // Provides StatisticsReader, which answers the constant time questions.
 #include "AgentDbDoctor/Doctor/StatisticsReader.hpp"
+// Provides the schema generation detector, which names the layout from its rows.
+#include "AgentDbDoctor/Doctor/SchemaVersionDetector.hpp"
 // Provides the Database wrapper and the Statement class.
 #include "AgentDbDoctor/Persistence/Database.hpp"
 // Provides PlatformMetadata, the only place the file system is asked anything.
@@ -173,6 +175,14 @@ void AgentDatabaseDoctor::recordTableRowCounts(Database& database, DiagnosisRepo
         report.setRowCount(currentTable, StatisticsReader::exactRowCount(database, currentTable), false);
     }
 }
+void AgentDatabaseDoctor::recordSchemaGeneration(Database& database, DiagnosisReport& report) {
+    if (!report.getPruningSupported()) {
+        return;
+    }
+    report.setSchemaGenerationDescription(
+        SchemaVersionDetector::describe(SchemaVersionDetector::detect(database))
+    );
+}
 void AgentDatabaseDoctor::recordRedundantEventCount(Database& database, DiagnosisReport& report) {
     const vector<string> redundantTypes=report.getRedundantEventTypes();
     if (redundantTypes.empty()) {
@@ -279,6 +289,15 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
     DiagnosisReport report(databaseFilePath);
     if (!agentName.empty()) {
         report.setAgentName(agentName);
+        // The redundant types come from the agent's own descriptor, which is
+        // the single place that names them. Before this wiring the setter was
+        // never called, so every report carried an empty list and the duplicate
+        // count below always read zero without saying so.
+        const optional<AgentDescriptor> agentDescriptor=agentRegistry.findAgent(agentName);
+        if (agentDescriptor.has_value() && agentDescriptor->supportsPruning) {
+            report.setPruningSupported(true);
+            report.setRedundantEventTypes(agentDescriptor->redundantEventTypes);
+        }
     }
     recordStorageMetrics(databaseFilePath, report);
     if (report.getFileExists()
@@ -307,6 +326,7 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
             }
             recordIntegrityStatus(databaseFilePath, report, shouldRunCheck);
             recordTableRowCounts(database, report);
+            recordSchemaGeneration(database, report);
             recordRedundantEventCount(database, report);
             // The journal mode and the auto vacuum setting are both single value
             // pragmas, so they cost one prepared statement each.
