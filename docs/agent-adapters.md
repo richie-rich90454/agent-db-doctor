@@ -46,6 +46,23 @@ decides whether the part counts as readable. **This is the check that makes prun
 safe.** If the text lived only in the `event` rows, the check fails and nothing is
 deleted.
 
+## The second generation
+
+Newer releases dual write a second generation alongside the first: the
+`session.next.*` event family (`prompted`, `step.started`, `text.ended`,
+`tool.called`, and others, with no version suffix on the stored string) plus the
+`session_message`, `session_input`, and `session_context_epoch` tables. The
+first generation tables keep their names and columns, so every query above stays
+valid.
+
+Pruning still removes only the first generation `*.updated.1` rows. The second
+generation rows are each unique current state, not superseded snapshots, so
+there is nothing safe to remove from them and the tool never touches those
+tables. `SchemaVersionDetector` names the generation from the rows it finds
+(`Version1`, `Version1And2`, `Version2Only`, or `Unknown`), the diagnose report
+prints it, and prune refuses a database whose event content belongs to neither
+generation rather than reporting "nothing to do" over rows it cannot read.
+
 ## The three event types
 
 ```
