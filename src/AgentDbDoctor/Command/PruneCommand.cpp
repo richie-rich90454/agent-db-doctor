@@ -16,6 +16,12 @@
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
 // Provides the Database wrapper and the Statement class.
 #include "AgentDbDoctor/Persistence/Database.hpp"
+// Provides the OpenCode agent, which names the event types that mark a row as
+// an older copy. The list lives in exactly one place.
+#include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
+// Provides the schema generation detector, which refuses layouts no version of
+// this tool knows.
+#include "AgentDbDoctor/Doctor/SchemaVersionDetector.hpp"
 // Provides StatisticsReader, for the constant time counts.
 #include "AgentDbDoctor/Doctor/StatisticsReader.hpp"
 // Provides the ProgressBar class, for the deletion phase.
@@ -29,6 +35,7 @@ using namespace AgentDbDoctor::Common;
 using namespace AgentDbDoctor::Persistence;
 using namespace AgentDbDoctor::Doctor;
 using namespace AgentDbDoctor::FileSystem;
+using namespace AgentDbDoctor::Agents;
 namespace AgentDbDoctor::Command {
 // The query that finds the boundary between the sessions to keep and the ones to
 // prune. Ordering by the creation time and taking one row is an indexed read, so it
@@ -187,6 +194,21 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
         outcome.summarySentence="Nothing was removed, because this database is not laid out in a way the tool recognises.";
         return outcome;
     }
+    // A schema the checks accept can still hold rows from a generation no
+    // version of this tool knows: the tables are the old shape but the event
+    // content is something new. Reporting "nothing to do" there would be a
+    // lie, because there is content, only unrecognised, so the run stops.
+    if (SchemaVersionDetector::detect(database)==SchemaGeneration::Unknown) {
+        reporter.writeFailure(
+            string("The event table holds rows of a kind this version of the tool does not recognise, "
+                "so there is nothing it can safely remove.\n\nThe tables have the expected shape but "
+                "the event content belongs to neither the first nor the second generation of the "
+                "agent's history. A newer version of this tool may know it.\n\nNothing was changed."),
+            string()
+        );
+        outcome.summarySentence="Nothing was removed, because the event rows belong to no generation the tool knows.";
+        return outcome;
+    }
     // The number of sessions is counted once. It is a full scan of a small table,
     // and the answer decides the keep boundary.
     const long long totalSessionCount=StatisticsReader::exactRowCount(database, "session");
@@ -226,12 +248,9 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
         sessionsToKeep=static_cast<int>(totalSessionCount);
     }
     outcome.protectedSessionCount=sessionsToKeep;
-    // The event types that mark a duplicate come from the agent, not from a guess.
-    const vector<string> redundantTypes=vector<string>{
-        string("message.updated.1"),
-        string("message.part.updated.1"),
-        string("session.updated.1")
-    };
+    // The event types that mark a duplicate come from the agent's own
+    // descriptor, which is the single place that names them.
+    const vector<string> redundantTypes=OpenCodeAgent().redundantEventTypes();
     // The duplicate rows are counted first, with one indexed lookup per type, so the
     // user sees the size of the change before agreeing to it. The statement lives in
     // its own block so that it is finalised before the deletion loop begins: a
