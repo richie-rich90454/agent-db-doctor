@@ -33,6 +33,10 @@ class ClaudeCodeAgent;
 class CursorAgent;
 class ContinueAgent;
 class AiderAgent;
+class ClineAgent;
+class RooCodeAgent;
+class ReasonixAgent;
+class VscodeAgent;
 // The AgentDatabaseLocator class finds the first existing path from a fixed list
 // of candidates.
 //
@@ -106,7 +110,7 @@ struct DiscoveredDatabase final {
 // each of them to describe itself.
 //
 // The class is `final` because the specification forbids inheritance. It contains
-// the six agent classes as fields, which is the composition the specification
+// the ten agent classes as fields, which is the composition the specification
 // requires in place of a common base class.
 class AgentRegistry final {
 public:
@@ -177,6 +181,10 @@ private:
     unique_ptr<CursorAgent> cursorAgent;
     unique_ptr<ContinueAgent> continueAgent;
     unique_ptr<AiderAgent> aiderAgent;
+    unique_ptr<ClineAgent> clineAgent;
+    unique_ptr<RooCodeAgent> rooCodeAgent;
+    unique_ptr<ReasonixAgent> reasonixAgent;
+    unique_ptr<VscodeAgent> vscodeAgent;
 };
 }
 #endif
