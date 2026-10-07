@@ -18,10 +18,10 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "agent-db-doctor"
-            VALUE "FileDescription", "A doctor for AI coding agent databases."
+            VALUE "FileDescription", "@APP_FILE_DESCRIPTION@"
             VALUE "FileVersion", "@APP_VERSION_DOTS@"
             VALUE "InternalName", "agent-db-doctor"
-            VALUE "OriginalFilename", "agent-db-doctor.exe"
+            VALUE "OriginalFilename", "@APP_EXE_FILENAME@"
             VALUE "ProductName", "agent-db-doctor"
             VALUE "ProductVersion", "@APP_VERSION_DOTS@"
         END
