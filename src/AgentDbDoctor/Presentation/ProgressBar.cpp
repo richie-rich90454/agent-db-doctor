@@ -67,6 +67,9 @@ void ProgressBar::setTaskDescription(string taskDescription) {
     lastDrawnPercentage=-1;
     redraw();
 }
+void ProgressBar::setSink(ProgressSink sink) {
+    progressSink=move(sink);
+}
 void ProgressBar::advance(long long unitsCompleted) {
     completedUnits+=unitsCompleted;
     redraw();
@@ -107,6 +110,17 @@ void ProgressBar::redraw() {
         // most important line in the file, because it is what stops the bar from
         // costing more than the work it measures.
         return;
+    }
+    if (progressSink) {
+        // The sink gets exactly the redraws the screen gets: one per visible
+        // percentage point. A graphical front end therefore updates at the same
+        // rate the console bar would have drawn, and no faster.
+        ProgressUpdate update;
+        update.taskDescription=taskDescription;
+        update.completedUnits=completedUnits;
+        update.totalUnits=totalUnits;
+        update.isFinished=false;
+        progressSink(update);
     }
     if (terminalIsAttached) {
         // A terminal can be redrawn in place, so every visible change is drawn.
@@ -167,6 +181,14 @@ void ProgressBar::finish() {
         return;
     }
     isFinished=true;
+    if (progressSink) {
+        ProgressUpdate update;
+        update.taskDescription=taskDescription;
+        update.completedUnits=completedUnits;
+        update.totalUnits=totalUnits;
+        update.isFinished=true;
+        progressSink(update);
+    }
     writeFinalLine();
 }
 }
