@@ -30,6 +30,26 @@ decision for you.
 | Aider | One Markdown transcript per project | No | Diagnose only |
 | Roo Code | Task folder plus extension storage | Unknown, undocumented | Diagnose only |
 | Reasonix | Skills and configuration folder | No | Diagnose only |
+| Cline | One SQLite `sessions.db` | Unknown, undocumented | Diagnose only |
+| VS Code | One `state.vscdb` per workspace | Unknown, undocumented | Diagnose only |
+| Gemini CLI | Session history folder | No | Diagnose only |
+| Windsurf | Data dir plus workspace storage | Unknown, undocumented | Diagnose only |
+| Zed | User data dir with a database | Unknown, undocumented | Diagnose only |
+| GitHub Copilot | Extension storage folder | Unknown, undocumented | Diagnose only |
+| Warp | Terminal data dir | Unknown, undocumented | Diagnose only |
+| Kilo Code | Task folder plus extension storage | Unknown, undocumented | Diagnose only |
+| Augment | Extension storage folder | Unknown, undocumented | Diagnose only |
+| Trae | Data dir | Unknown, undocumented | Diagnose only |
+| PearAI | Data dir | Unknown, undocumented | Diagnose only |
+| Amp | Session state folder | No | Diagnose only |
+| CommandCode | Session state folder | No | Diagnose only |
+
+The OpenCode, Cline, Roo Code, Reasonix, VS Code, Copilot, Augment, Trae, and
+CommandCode paths above were confirmed against a real Windows machine that has
+all of them installed. The Gemini CLI, Windsurf, Zed, Warp, Kilo Code, PearAI,
+and Amp paths are the vendors' published defaults and have not been seen on a
+machine yet; if one of them is wrong on your system, pass the real location
+with `--database` and report it.
 
 ## The schema the tool depends on
 
