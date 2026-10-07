@@ -1,5 +1,7 @@
 # agent-db-doctor
 
+<img src="assets/logo.svg" width="128" alt="The agent-db-doctor logo: database rings threaded by a pulse line ending in a spark">
+
 **A doctor for AI coding agent databases. Diagnose, prune, recover, and monitor.**
 
 AI coding agents keep your work in local SQLite databases and JSONL files. They are
