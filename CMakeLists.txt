@@ -228,6 +228,17 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Agents/RooCodeAgent.cpp
     src/AgentDbDoctor/Agents/ReasonixAgent.cpp
     src/AgentDbDoctor/Agents/VscodeAgent.cpp
+    src/AgentDbDoctor/Agents/GeminiAgent.cpp
+    src/AgentDbDoctor/Agents/WindsurfAgent.cpp
+    src/AgentDbDoctor/Agents/ZedAgent.cpp
+    src/AgentDbDoctor/Agents/CopilotAgent.cpp
+    src/AgentDbDoctor/Agents/WarpAgent.cpp
+    src/AgentDbDoctor/Agents/KiloCodeAgent.cpp
+    src/AgentDbDoctor/Agents/AugmentAgent.cpp
+    src/AgentDbDoctor/Agents/TraeAgent.cpp
+    src/AgentDbDoctor/Agents/PearAIAgent.cpp
+    src/AgentDbDoctor/Agents/AmpAgent.cpp
+    src/AgentDbDoctor/Agents/CommandCodeAgent.cpp
     src/AgentDbDoctor/Doctor/AgentDatabaseDoctor.cpp
     src/AgentDbDoctor/Doctor/DiagnosisReport.cpp
     src/AgentDbDoctor/Doctor/SchemaVersionDetector.cpp
