@@ -1,0 +1,33 @@
+// The Windows application icon and version stamp.
+//
+// This file is generated at configure time from assets/app.rc.in, with the
+// absolute path of the icon filled in, because the resource compiler resolves
+// relative names against its working directory rather than against this file.
+#include <windows.h>
+1 ICON "@APP_ICO_ABSOLUTE_PATH@"
+1 VERSIONINFO
+FILEVERSION @APP_VERSION_COMMA@
+PRODUCTVERSION @APP_VERSION_COMMA@
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "agent-db-doctor"
+            VALUE "FileDescription", "A doctor for AI coding agent databases."
+            VALUE "FileVersion", "@APP_VERSION_DOTS@"
+            VALUE "InternalName", "agent-db-doctor"
+            VALUE "OriginalFilename", "agent-db-doctor.exe"
+            VALUE "ProductName", "agent-db-doctor"
+            VALUE "ProductVersion", "@APP_VERSION_DOTS@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
