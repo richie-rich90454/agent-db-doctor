@@ -169,7 +169,48 @@ TEST_CASE("the wider catalogue is reported but never pruned", "[agents]") {
         string("Trae"),
         string("PearAI"),
         string("Amp"),
-        string("CommandCode")
+        string("CommandCode"),
+        string("Pi"),
+        string("Void"),
+        string("Tabnine"),
+        string("Cody"),
+        string("Codeium"),
+        string("Supermaven"),
+        string("Bito"),
+        string("CodeGPT"),
+        string("Blackbox AI"),
+        string("AskCodi"),
+        string("Phind"),
+        string("IntelliCode"),
+        string("Tabby"),
+        string("Pieces"),
+        string("Amazon Q"),
+        string("Junie"),
+        string("Qoder"),
+        string("Lingma"),
+        string("Comate"),
+        string("Droid"),
+        string("GitLab Duo"),
+        string("WorkBuddy"),
+        string("Kimi"),
+        string("Kiro"),
+        string("Qwen Code"),
+        string("CodeBuddy"),
+        string("MarsCode"),
+        string("Qodo"),
+        string("Sourcery"),
+        string("Snyk"),
+        string("SonarQube"),
+        string("AnythingLLM"),
+        string("GPT4All"),
+        string("Jan"),
+        string("LM Studio"),
+        string("Open WebUI"),
+        string("AIChat"),
+        string("gptme"),
+        string("LLM"),
+        string("ShellGPT"),
+        string("Raycast")
     };
     const AgentRegistry registry;
     for (const string& expectedName : expectedNames) {
@@ -185,9 +226,9 @@ TEST_CASE("the wider catalogue is reported but never pruned", "[agents]") {
 TEST_CASE("every supported agent is listed in a fixed order", "[agents]") {
     const AgentRegistry registry;
     const vector<AgentDescriptor> allAgents=registry.allAgents();
-    // Ten agents are supported, and the order does not change between runs, so two
+    // Sixty two agents are supported, and the order does not change between runs, so two
     // reports can be compared line by line.
-    REQUIRE(allAgents.size()==21);
+    REQUIRE(allAgents.size()==62);
     REQUIRE(allAgents[0].displayName=="OpenCode");
     REQUIRE(allAgents[1].displayName=="Cursor");
     // Every descriptor must be complete enough for a report, or a user sees a blank
