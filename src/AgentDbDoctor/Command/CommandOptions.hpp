@@ -11,6 +11,9 @@
 #include <string>
 // Provides `vector`, a growable array of values.
 #include <vector>
+// Provides the ProgressSink vocabulary, so a graphical front end can receive
+// the same progress numbers the console bar draws.
+#include "AgentDbDoctor/Presentation/ProgressSink.hpp"
 using namespace std;
 namespace AgentDbDoctor::Command {
 // The CommandOptions value type holds the settings one run of one command uses.
@@ -74,6 +77,10 @@ struct CommandOptions final {
     int watchdogIntervalSeconds=3600;
     // The service subcommand: install, uninstall, start, stop, status, or run.
     string serviceAction;
+    // Receives progress reports from long operations. Empty on the command
+    // line, where the console bar draws them instead; a graphical front end
+    // sets one and feeds its own widgets from it.
+    AgentDbDoctor::Presentation::ProgressSink progressSink;
 };
 }
 #endif
