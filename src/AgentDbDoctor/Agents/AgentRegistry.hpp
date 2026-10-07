@@ -37,6 +37,17 @@ class ClineAgent;
 class RooCodeAgent;
 class ReasonixAgent;
 class VscodeAgent;
+class GeminiAgent;
+class WindsurfAgent;
+class ZedAgent;
+class CopilotAgent;
+class WarpAgent;
+class KiloCodeAgent;
+class AugmentAgent;
+class TraeAgent;
+class PearAIAgent;
+class AmpAgent;
+class CommandCodeAgent;
 // The AgentDatabaseLocator class finds the first existing path from a fixed list
 // of candidates.
 //
@@ -110,8 +121,8 @@ struct DiscoveredDatabase final {
 // each of them to describe itself.
 //
 // The class is `final` because the specification forbids inheritance. It contains
-// the ten agent classes as fields, which is the composition the specification
-// requires in place of a common base class.
+// the twenty one agent classes as fields, which is the composition the
+// specification requires in place of a common base class.
 class AgentRegistry final {
 public:
     // Builds a registry holding one instance of every supported agent.
@@ -185,6 +196,17 @@ private:
     unique_ptr<RooCodeAgent> rooCodeAgent;
     unique_ptr<ReasonixAgent> reasonixAgent;
     unique_ptr<VscodeAgent> vscodeAgent;
+    unique_ptr<GeminiAgent> geminiAgent;
+    unique_ptr<WindsurfAgent> windsurfAgent;
+    unique_ptr<ZedAgent> zedAgent;
+    unique_ptr<CopilotAgent> copilotAgent;
+    unique_ptr<WarpAgent> warpAgent;
+    unique_ptr<KiloCodeAgent> kiloCodeAgent;
+    unique_ptr<AugmentAgent> augmentAgent;
+    unique_ptr<TraeAgent> traeAgent;
+    unique_ptr<PearAIAgent> pearAIAgent;
+    unique_ptr<AmpAgent> ampAgent;
+    unique_ptr<CommandCodeAgent> commandCodeAgent;
 };
 }
 #endif
