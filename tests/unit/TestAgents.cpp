@@ -7,7 +7,7 @@
 #include <string>
 // Provides the Catch2 test registration macros.
 #include <catch2/catch_test_macros.hpp>
-// Provides the catalogue and the six agent classes.
+// Provides the catalogue and the ten agent classes.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
 #include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/CodexAgent.hpp"
@@ -15,6 +15,10 @@
 #include "AgentDbDoctor/Agents/CursorAgent.hpp"
 #include "AgentDbDoctor/Agents/ContinueAgent.hpp"
 #include "AgentDbDoctor/Agents/AiderAgent.hpp"
+#include "AgentDbDoctor/Agents/ClineAgent.hpp"
+#include "AgentDbDoctor/Agents/RooCodeAgent.hpp"
+#include "AgentDbDoctor/Agents/ReasonixAgent.hpp"
+#include "AgentDbDoctor/Agents/VscodeAgent.hpp"
 // Provides PlatformMetadata, whose counter is what the cost test watches.
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
 using namespace std;
@@ -110,12 +114,52 @@ TEST_CASE("Continue is reported but not pruned", "[agents]") {
     REQUIRE_FALSE(agent.describe().supportsPruning);
     REQUIRE(agent.redundantEventTypes().empty());
 }
+TEST_CASE("Cline is reported but not pruned", "[agents]") {
+    const ClineAgent agent;
+    const AgentDescriptor descriptor=agent.describe();
+    // Cline's sessions database uses undocumented tables, so the tool reports
+    // the size and refuses to prune rather than guessing.
+    REQUIRE(descriptor.displayName=="Cline");
+    REQUIRE(descriptor.usesSqliteDatabase);
+    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE(agent.redundantEventTypes().empty());
+    REQUIRE_FALSE(descriptor.candidatePaths.empty());
+    REQUIRE(descriptor.candidatePaths.front().find("sessions.db")!=string::npos);
+}
+TEST_CASE("Roo Code is reported but not pruned", "[agents]") {
+    const RooCodeAgent agent;
+    const AgentDescriptor descriptor=agent.describe();
+    REQUIRE(descriptor.displayName=="Roo Code");
+    REQUIRE_FALSE(descriptor.usesSqliteDatabase);
+    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE(agent.redundantEventTypes().empty());
+    REQUIRE_FALSE(descriptor.candidatePaths.empty());
+}
+TEST_CASE("Reasonix is reported but not pruned", "[agents]") {
+    const ReasonixAgent agent;
+    const AgentDescriptor descriptor=agent.describe();
+    REQUIRE(descriptor.displayName=="Reasonix");
+    REQUIRE_FALSE(descriptor.usesSqliteDatabase);
+    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE(agent.redundantEventTypes().empty());
+    REQUIRE_FALSE(descriptor.candidatePaths.empty());
+}
+TEST_CASE("VS Code is reported but not pruned", "[agents]") {
+    const VscodeAgent agent;
+    const AgentDescriptor descriptor=agent.describe();
+    // The workspace state files hold editor state in undocumented tables.
+    REQUIRE(descriptor.displayName=="VS Code");
+    REQUIRE(descriptor.usesSqliteDatabase);
+    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE(agent.redundantEventTypes().empty());
+    REQUIRE_FALSE(descriptor.candidatePaths.empty());
+}
 TEST_CASE("every supported agent is listed in a fixed order", "[agents]") {
     const AgentRegistry registry;
     const vector<AgentDescriptor> allAgents=registry.allAgents();
-    // Six agents are supported, and the order does not change between runs, so two
+    // Ten agents are supported, and the order does not change between runs, so two
     // reports can be compared line by line.
-    REQUIRE(allAgents.size()==6);
+    REQUIRE(allAgents.size()==10);
     REQUIRE(allAgents[0].displayName=="OpenCode");
     REQUIRE(allAgents[1].displayName=="Cursor");
     // Every descriptor must be complete enough for a report, or a user sees a blank
