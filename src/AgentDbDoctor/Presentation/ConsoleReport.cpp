@@ -117,6 +117,9 @@ void ConsoleReport::writeDiagnosisReport(const DiagnosisReport& report) const {
     writeLine("Returns unused space itself: " + string(report.getAutoVacuumEnabled()
         ? "yes"
         : "no, so the compact command is what shrinks the file"));
+    if (!report.getSchemaGenerationDescription().empty()) {
+        writeLine("Schema layout:           " + report.getSchemaGenerationDescription());
+    }
     if (report.getPruningSupported()) {
         for (const string& tableName : report.countedTableNames()) {
             const string approximateLabel=report.isRowCountApproximate(tableName)
