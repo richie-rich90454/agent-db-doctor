@@ -8,6 +8,9 @@
 #define AGENT_DB_DOCTOR_PRESENTATION_PROGRESSBAR_HPP
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
+// Provides the ProgressSink vocabulary, so a bar can feed a graphical front end
+// the same numbers it draws.
+#include "AgentDbDoctor/Presentation/ProgressSink.hpp"
 using namespace std;
 namespace AgentDbDoctor::Presentation {
 // The ProgressBar class draws a single line of progress and then erases it.
@@ -48,6 +51,10 @@ public:
     // Draws the line at a percentage rather than a unit count, for a task whose
     // total is not a meaningful count of things.
     void setFractionComplete(double completedFraction);
+    // Records a receiver for the same numbers the bar draws. Empty by default,
+    // in which case the bar behaves exactly as it always has. A graphical front
+    // end sets one and reads the numbers into its own widgets instead.
+    void setSink(ProgressSink sink);
     // Stops the bar, leaving the finished line in place. The destructor calls this,
     // so calling it explicitly is only needed to finish earlier than the object
     // does.
@@ -77,6 +84,8 @@ private:
     int plainLineCounter=0;
     bool terminalIsAttached=false;
     bool isFinished=false;
+    // The receiver of the same numbers, or empty when nobody is listening.
+    ProgressSink progressSink;
 };
 }
 #endif
