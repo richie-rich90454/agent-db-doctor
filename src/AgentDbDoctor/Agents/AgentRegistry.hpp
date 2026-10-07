@@ -48,6 +48,47 @@ class TraeAgent;
 class PearAIAgent;
 class AmpAgent;
 class CommandCodeAgent;
+class PiAgent;
+class VoidAgent;
+class TabnineAgent;
+class CodyAgent;
+class CodeiumAgent;
+class SupermavenAgent;
+class BitoAgent;
+class CodeGPTAgent;
+class BlackboxAgent;
+class AskCodiAgent;
+class PhindAgent;
+class IntelliCodeAgent;
+class TabbyAgent;
+class PiecesAgent;
+class AmazonQAgent;
+class JunieAgent;
+class QoderAgent;
+class LingmaAgent;
+class ComateAgent;
+class DroidAgent;
+class GitLabDuoAgent;
+class WorkbuddyAgent;
+class KimiAgent;
+class KiroAgent;
+class QwenCodeAgent;
+class CodeBuddyAgent;
+class MarsCodeAgent;
+class QodoAgent;
+class SourceryAgent;
+class SnykAgent;
+class SonarQubeAgent;
+class AnythingLLMAgent;
+class GPT4AllAgent;
+class JanAgent;
+class LMStudioAgent;
+class OpenWebUIAgent;
+class AIChatAgent;
+class GptmeAgent;
+class LlmAgent;
+class ShellGPTAgent;
+class RaycastAgent;
 // The AgentDatabaseLocator class finds the first existing path from a fixed list
 // of candidates.
 //
@@ -121,7 +162,7 @@ struct DiscoveredDatabase final {
 // each of them to describe itself.
 //
 // The class is `final` because the specification forbids inheritance. It contains
-// the twenty one agent classes as fields, which is the composition the
+// the sixty two agent classes as fields, which is the composition the
 // specification requires in place of a common base class.
 class AgentRegistry final {
 public:
@@ -207,6 +248,47 @@ private:
     unique_ptr<PearAIAgent> pearAIAgent;
     unique_ptr<AmpAgent> ampAgent;
     unique_ptr<CommandCodeAgent> commandCodeAgent;
+    unique_ptr<PiAgent> piAgent;
+    unique_ptr<VoidAgent> voidAgent;
+    unique_ptr<TabnineAgent> tabnineAgent;
+    unique_ptr<CodyAgent> codyAgent;
+    unique_ptr<CodeiumAgent> codeiumAgent;
+    unique_ptr<SupermavenAgent> supermavenAgent;
+    unique_ptr<BitoAgent> bitoAgent;
+    unique_ptr<CodeGPTAgent> codeGPTAgent;
+    unique_ptr<BlackboxAgent> blackboxAgent;
+    unique_ptr<AskCodiAgent> askCodiAgent;
+    unique_ptr<PhindAgent> phindAgent;
+    unique_ptr<IntelliCodeAgent> intelliCodeAgent;
+    unique_ptr<TabbyAgent> tabbyAgent;
+    unique_ptr<PiecesAgent> piecesAgent;
+    unique_ptr<AmazonQAgent> amazonQAgent;
+    unique_ptr<JunieAgent> junieAgent;
+    unique_ptr<QoderAgent> qoderAgent;
+    unique_ptr<LingmaAgent> lingmaAgent;
+    unique_ptr<ComateAgent> comateAgent;
+    unique_ptr<DroidAgent> droidAgent;
+    unique_ptr<GitLabDuoAgent> gitLabDuoAgent;
+    unique_ptr<WorkbuddyAgent> workbuddyAgent;
+    unique_ptr<KimiAgent> kimiAgent;
+    unique_ptr<KiroAgent> kiroAgent;
+    unique_ptr<QwenCodeAgent> qwenCodeAgent;
+    unique_ptr<CodeBuddyAgent> codeBuddyAgent;
+    unique_ptr<MarsCodeAgent> marsCodeAgent;
+    unique_ptr<QodoAgent> qodoAgent;
+    unique_ptr<SourceryAgent> sourceryAgent;
+    unique_ptr<SnykAgent> snykAgent;
+    unique_ptr<SonarQubeAgent> sonarQubeAgent;
+    unique_ptr<AnythingLLMAgent> anythingLLMAgent;
+    unique_ptr<GPT4AllAgent> gpt4AllAgent;
+    unique_ptr<JanAgent> janAgent;
+    unique_ptr<LMStudioAgent> lmStudioAgent;
+    unique_ptr<OpenWebUIAgent> openWebUIAgent;
+    unique_ptr<AIChatAgent> aiChatAgent;
+    unique_ptr<GptmeAgent> gptmeAgent;
+    unique_ptr<LlmAgent> llmAgent;
+    unique_ptr<ShellGPTAgent> shellGPTAgent;
+    unique_ptr<RaycastAgent> raycastAgent;
 };
 }
 #endif
