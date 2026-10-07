@@ -3,8 +3,12 @@
 How each supported coding agent stores its work, what this tool does about it, and
 how to add another one.
 
+Trademark note: every product name below belongs to its owner and is used here
+only to say where that program keeps its data. No affiliation, no endorsement,
+no other use.
+
 The short version: **only OpenCode stores redundant snapshots**, so only OpenCode
-is pruned. The other five are reported and left alone. That is a deliberate choice,
+is pruned. The other twenty are reported and left alone. That is a deliberate choice,
 not an omission.
 
 ## Why only one agent is pruned
