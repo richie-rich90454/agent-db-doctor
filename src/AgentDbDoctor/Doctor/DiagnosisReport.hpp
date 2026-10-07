@@ -117,6 +117,11 @@ public:
     // Records the event type names that count as duplicates for this agent.
     void setRedundantEventTypes(vector<string> typeNames);
     vector<string> getRedundantEventTypes() const;
+    // Records which generation of the agent's schema the database holds, in
+    // plain words. Empty when the database was never opened, because a file
+    // that cannot be read has no generation to describe.
+    void setSchemaGenerationDescription(string description);
+    string getSchemaGenerationDescription() const;
     // Records whether this database can be pruned at all.
     void setPruningSupported(bool isSupported);
     bool getPruningSupported() const;
@@ -184,6 +189,7 @@ private:
     // full scan. The set is parallel to the row count map.
     map<string, bool> approximateRowCounts;
     vector<string> redundantTypeNames;
+    string schemaGenerationDescription;
     vector<string> warningMessages;
     vector<string> nextStepMessages;
 };
