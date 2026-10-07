@@ -276,10 +276,14 @@ measured, the table gets a row.
 |---|---|---|
 | OpenCode | `~/.local/share/opencode/opencode.db` | Diagnose, prune, compact |
 | Cursor | platform-specific, one SQLite file per workspace | Diagnose only; its tables are undocumented |
+| VS Code | platform-specific, one `state.vscdb` per workspace | Diagnose only; editor state, undocumented |
+| Cline | `~/.cline/data/db/sessions.db` | Diagnose only; its tables are undocumented |
 | Codex CLI | `~/.codex/sessions/` (JSONL) | Diagnose only; no duplicate snapshots |
 | Claude Code | `~/.claude/projects/` (JSONL) | Diagnose only; no duplicate snapshots |
 | Continue | `~/.continue/` | Diagnose only; the index is rebuildable |
 | Aider | `.aider.chat.history.md` | Diagnose only; a transcript is the only copy |
+| Roo Code | `~/.roo/` plus VS Code extension storage | Diagnose only; task state, undocumented |
+| Reasonix | `~/.reasonix/` | Diagnose only; skills and configuration |
 
 Only OpenCode stores redundant snapshots, so only OpenCode is pruned. The others are
 reported and left alone, because a plain text transcript is the only copy of that
