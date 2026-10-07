@@ -226,6 +226,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Agents/AiderAgent.cpp
     src/AgentDbDoctor/Doctor/AgentDatabaseDoctor.cpp
     src/AgentDbDoctor/Doctor/DiagnosisReport.cpp
+    src/AgentDbDoctor/Doctor/SchemaVersionDetector.cpp
     src/AgentDbDoctor/Doctor/SafetyChecks.cpp
     src/AgentDbDoctor/Doctor/StatisticsReader.cpp
     src/AgentDbDoctor/Recovery/KnownFailurePatterns.cpp
