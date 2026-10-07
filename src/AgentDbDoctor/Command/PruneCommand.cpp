@@ -356,6 +356,9 @@ PruneOutcome PruneCommand::performPrune(const CommandOptions& options, const str
         ? options.deletionBatchSize
         : DEFAULT_DELETION_BATCH_SIZE;
     ProgressBar progressBar("Removing older copies", doomedRowCount, !options.quiet);
+    // A graphical front end passes its own receiver through the options. The
+    // console bar is untouched: with an empty sink it draws exactly as before.
+    progressBar.setSink(options.progressSink);
     long long lastSeenRowIdentifier=0;
     long long removedRowCount=0;
     long long rowsAtLastCheckpoint=0;
