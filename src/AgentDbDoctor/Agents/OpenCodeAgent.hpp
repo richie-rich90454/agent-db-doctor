@@ -35,6 +35,8 @@ public:
     // The name shown to the user.
     string displayName() const;
     // The first path that exists, or `nullopt` when OpenCode has never run here.
+    // A zero byte placeholder loses to a file with a size, so the live
+    // database is preferred over the empty files some installs leave behind.
     optional<string> findDatabasePath() const;
     // The event type names that mark a row as a redundant snapshot. A trailing
     // `.1` is OpenCode's convention for "the first version of this object", and
