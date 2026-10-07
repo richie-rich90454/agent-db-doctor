@@ -152,6 +152,12 @@ void DiagnosisReport::setRedundantEventTypes(vector<string> typeNames) {
 vector<string> DiagnosisReport::getRedundantEventTypes() const {
     return redundantTypeNames;
 }
+void DiagnosisReport::setSchemaGenerationDescription(string description) {
+    schemaGenerationDescription=move(description);
+}
+string DiagnosisReport::getSchemaGenerationDescription() const {
+    return schemaGenerationDescription;
+}
 void DiagnosisReport::setPruningSupported(bool isSupported) {
     pruningSupported=isSupported;
 }
