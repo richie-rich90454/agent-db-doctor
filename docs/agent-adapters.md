@@ -73,10 +73,20 @@ call per candidate. **No adapter walks a directory tree.**
 | Platform | Path |
 |---|---|
 | Linux, macOS | `~/.local/share/opencode/opencode.db` |
+| Windows | `~/.local/share/opencode/opencode.db` (yes, on Windows too: this is where the live database sits) |
 | Windows | `%LOCALAPPDATA%\opencode\opencode.db` |
 | Windows | `%APPDATA%\opencode\opencode.db` |
 | Windows | `~\AppData\Local\opencode\opencode.db` |
-| Any | `$OPENCODE_DATABASE` |
+| Any | `$OPENCODE_DB` (absolute or `:memory:` names it directly, a bare name joins the data directory) |
+| Any | `$OPENCODE_DATABASE` (the older name this tool used first, still honoured) |
+
+The file is named after the release channel: `opencode.db` for the `latest`,
+`beta`, and `prod` channels, and `opencode-{channel}.db` for anything else. The
+channel names are not published anywhere a tool can read them, so each data
+directory is listed once, one level deep, for files shaped like `opencode-*.db`,
+unless `$OPENCODE_DISABLE_CHANNEL_DB` is `1` or `true`. A zero byte file loses
+to a file with a size when several candidates exist, because some installs leave
+empty placeholders behind.
 
 ### Cursor
 
