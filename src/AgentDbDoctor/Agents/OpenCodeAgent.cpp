@@ -28,6 +28,23 @@ namespace AgentDbDoctor::Agents {
 static constexpr const char* EVENT_TYPE_MESSAGE_UPDATED="message.updated.1";
 static constexpr const char* EVENT_TYPE_MESSAGE_PART_UPDATED="message.part.updated.1";
 static constexpr const char* EVENT_TYPE_SESSION_UPDATED="session.updated.1";
+// The environment variable OpenCode itself reads for its database location.
+//
+// `path()` in `packages/core/src/database/database.ts` resolves `OPENCODE_DB`
+// first: the value `:memory:` or an absolute path is used directly, and a
+// relative name is joined with the data directory. `OPENCODE_DATABASE` is the
+// older name this tool used before the real one was checked against the source,
+// and it is still honoured as a fallback so that nobody's existing setup stops
+// working when they upgrade.
+static constexpr const char* ENVIRONMENT_VARIABLE_DATABASE="OPENCODE_DB";
+static constexpr const char* ENVIRONMENT_VARIABLE_DATABASE_LEGACY="OPENCODE_DATABASE";
+// Setting this to `1` or `true` makes OpenCode use `opencode.db` regardless of
+// release channel. The same file honours it by skipping the channel variants.
+static constexpr const char* ENVIRONMENT_VARIABLE_DISABLE_CHANNEL_DATABASE="OPENCODE_DISABLE_CHANNEL_DB";
+// How many entries of a data directory are listed when looking for channel
+// specific database files. One level only, the same bound the Cursor adapter
+// uses for its workspace folders.
+static constexpr int MAXIMUM_CHANNEL_FILE_COUNT=50;
 OpenCodeAgent::OpenCodeAgent()
     : redundantTypeNames({
         string(EVENT_TYPE_MESSAGE_UPDATED),
@@ -41,12 +58,20 @@ string OpenCodeAgent::displayName() const {
 }
 vector<string> OpenCodeAgent::buildCandidatePaths() {
     const string homeDirectoryPath=PlatformMetadata::homeDirectory();
-    // The documented Linux and macOS location is the only one on those systems.
-    vector<string> candidates;
+    // The data directories, in the order OpenCode itself prefers them. The
+    // `~/.local/share` entry applies on every platform: on this project's own
+    // Windows machine the live 4.1 GB database sits there while the two
+    // `%LOCALAPPDATA%` files are zero byte placeholders.
+    vector<string> dataDirectories;
     if (!homeDirectoryPath.empty()) {
-        candidates.push_back(
-            AgentRegistry::joinPath(homeDirectoryPath, ".local/share/opencode/opencode.db")
+        dataDirectories.push_back(
+            AgentRegistry::joinPath(homeDirectoryPath, ".local/share/opencode")
         );
+    }
+    vector<string> candidates;
+    // The documented Linux and macOS location is the only one on those systems.
+    for (const string& dataDirectory : dataDirectories) {
+        candidates.push_back(AgentRegistry::joinPath(dataDirectory, "opencode.db"));
     }
     // On Windows OpenCode follows the platform convention for application data.
     // `%LOCALAPPDATA%` is the per user, per machine location, which is where a
@@ -54,33 +79,119 @@ vector<string> OpenCodeAgent::buildCandidatePaths() {
 #if defined(_WIN32)
     string localAppData;
     if (PlatformMetadata::readEnvironmentVariable("LOCALAPPDATA", localAppData)) {
+        dataDirectories.push_back(AgentRegistry::joinPath(localAppData, "opencode"));
         candidates.push_back(AgentRegistry::joinPath(localAppData, "opencode/opencode.db"));
     }
     string roamingAppData;
     if (PlatformMetadata::readEnvironmentVariable("APPDATA", roamingAppData)) {
-        candidates.push_back(AgentRegistry::joinPath(roamingAppData, "opencode/opencode.db"));
+        dataDirectories.push_back(AgentRegistry::joinPath(roamingAppData, "opencode"));
+        candidates.push_back(AgentRegistry::joinPath(roamingAppData, "opencode.db"));
     }
     if (!homeDirectoryPath.empty()) {
+        dataDirectories.push_back(
+            AgentRegistry::joinPath(homeDirectoryPath, "AppData/Local/opencode")
+        );
         candidates.push_back(AgentRegistry::joinPath(
             homeDirectoryPath,
             "AppData/Local/opencode/opencode.db"
         ));
+        dataDirectories.push_back(
+            AgentRegistry::joinPath(homeDirectoryPath, "AppData/Roaming/opencode")
+        );
         candidates.push_back(AgentRegistry::joinPath(
             homeDirectoryPath,
             "AppData/Roaming/opencode/opencode.db"
         ));
     }
 #endif
-    // A local override is checked last so that a developer working on a test
-    // database is never surprised by their real one.
+    // The override OpenCode itself honours, checked first so that a developer
+    // working on a test database is never surprised by their real one. An
+    // absolute value, or `:memory:`, names the database directly; anything else
+    // is a file name inside the first data directory, exactly as OpenCode
+    // resolves it.
     string overridePath;
-    if (PlatformMetadata::readEnvironmentVariable("OPENCODE_DATABASE", overridePath)) {
-        candidates.push_back(overridePath);
+    if (!PlatformMetadata::readEnvironmentVariable(
+            ENVIRONMENT_VARIABLE_DATABASE, overridePath)
+        && !PlatformMetadata::readEnvironmentVariable(
+            ENVIRONMENT_VARIABLE_DATABASE_LEGACY, overridePath)) {
+        overridePath.clear();
+    }
+    if (!overridePath.empty() && overridePath!=":memory:") {
+        const bool isAbsolutePath=!overridePath.empty()
+            && (overridePath.front()=='/'
+                || (overridePath.size()>2 && overridePath[1]==':')
+                || (overridePath.size()>1 && overridePath.front()=='\\'));
+        if (isAbsolutePath) {
+            candidates.insert(candidates.begin(), overridePath);
+        } else if (!dataDirectories.empty()) {
+            candidates.insert(
+                candidates.begin(),
+                AgentRegistry::joinPath(dataDirectories.front(), overridePath)
+            );
+        }
+    }
+    // OpenCode names the file after its release channel: `opencode.db` for the
+    // `latest`, `beta`, and `prod` channels, and `opencode-{channel}.db` for
+    // anything else. The channel names are not enumerated anywhere a tool can
+    // read them, so the data directories are listed once, one level deep, for
+    // files matching that shape. The flag that disables the behaviour is
+    // honoured by skipping the listing.
+    string disableChannelDatabase;
+    const bool channelDatabaseDisabled=
+        PlatformMetadata::readEnvironmentVariable(
+            ENVIRONMENT_VARIABLE_DISABLE_CHANNEL_DATABASE, disableChannelDatabase)
+        && (disableChannelDatabase=="1" || disableChannelDatabase=="true");
+    if (!channelDatabaseDisabled) {
+        for (const string& dataDirectory : dataDirectories) {
+            for (const string& entryName :
+                 AgentRegistry::directoryEntryNames(
+                     dataDirectory, MAXIMUM_CHANNEL_FILE_COUNT)) {
+                if (entryName.size()<=string("opencode-.db").size()
+                    || entryName.compare(0, string("opencode-").size(), "opencode-")!=0
+                    || entryName.compare(
+                           entryName.size()-string(".db").size(),
+                           string(".db").size(),
+                           ".db")!=0) {
+                    continue;
+                }
+                const string channelPath=
+                    AgentRegistry::joinPath(dataDirectory, entryName);
+                bool alreadyListed=false;
+                for (const string& existingCandidate : candidates) {
+                    if (existingCandidate==channelPath) {
+                        alreadyListed=true;
+                        break;
+                    }
+                }
+                if (!alreadyListed) {
+                    candidates.push_back(channelPath);
+                }
+            }
+        }
     }
     return candidates;
 }
 optional<string> OpenCodeAgent::findDatabasePath() const {
-    return databaseLocator.findFirstExistingPath();
+    // A zero byte file is a placeholder, not a database: on Windows the two
+    // `%LOCALAPPDATA%` candidates exist but are empty while the live database
+    // sits elsewhere. The first candidate with a size is preferred, and only
+    // when every existing candidate is empty is the first of them returned, so
+    // that a fresh install still reports something rather than nothing.
+    optional<string> firstExistingPath;
+    for (const string& candidatePath : databaseLocator.candidatePaths()) {
+        const FileMetadata candidateStatus=
+            PlatformMetadata::readFileMetadata(candidatePath);
+        if (!candidateStatus.exists) {
+            continue;
+        }
+        if (!firstExistingPath.has_value()) {
+            firstExistingPath=candidatePath;
+        }
+        if (!candidateStatus.isDirectory && candidateStatus.logicalSizeBytes>0) {
+            return candidatePath;
+        }
+    }
+    return firstExistingPath;
 }
 vector<string> OpenCodeAgent::redundantEventTypes() const {
     return redundantTypeNames;
