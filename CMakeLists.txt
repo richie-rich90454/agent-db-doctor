@@ -239,6 +239,47 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Agents/PearAIAgent.cpp
     src/AgentDbDoctor/Agents/AmpAgent.cpp
     src/AgentDbDoctor/Agents/CommandCodeAgent.cpp
+    src/AgentDbDoctor/Agents/PiAgent.cpp
+    src/AgentDbDoctor/Agents/VoidAgent.cpp
+    src/AgentDbDoctor/Agents/TabnineAgent.cpp
+    src/AgentDbDoctor/Agents/CodyAgent.cpp
+    src/AgentDbDoctor/Agents/CodeiumAgent.cpp
+    src/AgentDbDoctor/Agents/SupermavenAgent.cpp
+    src/AgentDbDoctor/Agents/BitoAgent.cpp
+    src/AgentDbDoctor/Agents/CodeGPTAgent.cpp
+    src/AgentDbDoctor/Agents/BlackboxAgent.cpp
+    src/AgentDbDoctor/Agents/AskCodiAgent.cpp
+    src/AgentDbDoctor/Agents/PhindAgent.cpp
+    src/AgentDbDoctor/Agents/IntelliCodeAgent.cpp
+    src/AgentDbDoctor/Agents/TabbyAgent.cpp
+    src/AgentDbDoctor/Agents/PiecesAgent.cpp
+    src/AgentDbDoctor/Agents/AmazonQAgent.cpp
+    src/AgentDbDoctor/Agents/JunieAgent.cpp
+    src/AgentDbDoctor/Agents/QoderAgent.cpp
+    src/AgentDbDoctor/Agents/LingmaAgent.cpp
+    src/AgentDbDoctor/Agents/ComateAgent.cpp
+    src/AgentDbDoctor/Agents/DroidAgent.cpp
+    src/AgentDbDoctor/Agents/GitLabDuoAgent.cpp
+    src/AgentDbDoctor/Agents/WorkbuddyAgent.cpp
+    src/AgentDbDoctor/Agents/KimiAgent.cpp
+    src/AgentDbDoctor/Agents/KiroAgent.cpp
+    src/AgentDbDoctor/Agents/QwenCodeAgent.cpp
+    src/AgentDbDoctor/Agents/CodeBuddyAgent.cpp
+    src/AgentDbDoctor/Agents/MarsCodeAgent.cpp
+    src/AgentDbDoctor/Agents/QodoAgent.cpp
+    src/AgentDbDoctor/Agents/SourceryAgent.cpp
+    src/AgentDbDoctor/Agents/SnykAgent.cpp
+    src/AgentDbDoctor/Agents/SonarQubeAgent.cpp
+    src/AgentDbDoctor/Agents/AnythingLLMAgent.cpp
+    src/AgentDbDoctor/Agents/GPT4AllAgent.cpp
+    src/AgentDbDoctor/Agents/JanAgent.cpp
+    src/AgentDbDoctor/Agents/LMStudioAgent.cpp
+    src/AgentDbDoctor/Agents/OpenWebUIAgent.cpp
+    src/AgentDbDoctor/Agents/AIChatAgent.cpp
+    src/AgentDbDoctor/Agents/GptmeAgent.cpp
+    src/AgentDbDoctor/Agents/LlmAgent.cpp
+    src/AgentDbDoctor/Agents/ShellGPTAgent.cpp
+    src/AgentDbDoctor/Agents/RaycastAgent.cpp
     src/AgentDbDoctor/Doctor/AgentDatabaseDoctor.cpp
     src/AgentDbDoctor/Doctor/DiagnosisReport.cpp
     src/AgentDbDoctor/Doctor/SchemaVersionDetector.cpp
@@ -457,14 +498,15 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo-512.png"
         DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
     )
+    # The shared library sits beside the executable on every platform: a missing
+    # DLL error on Windows and a loader search miss on Unix are the same
+    # failure, and neither should reach a user.
+    add_custom_command(TARGET agent-db-doctor-gui POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:SDL3::SDL3-shared>"
+            "$<TARGET_FILE_DIR:agent-db-doctor-gui>"
+    )
     if(WIN32)
-        # The shared library must sit beside the executable, or the program
-        # stops at startup with a missing DLL error.
-        add_custom_command(TARGET agent-db-doctor-gui POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                "$<TARGET_FILE:SDL3::SDL3-shared>"
-                "$<TARGET_FILE_DIR:agent-db-doctor-gui>"
-        )
         string(REPLACE "." "," AGENT_DB_DOCTOR_VERSION_COMMA "${PROJECT_VERSION}")
         set(APP_ICO_ABSOLUTE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.ico")
         set(APP_VERSION_COMMA "${AGENT_DB_DOCTOR_VERSION_COMMA},0")
