@@ -14,7 +14,7 @@
 #include <vector>
 // Provides the locator, the descriptor types, and the registry declaration.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
-// Provides the ten agent classes that the registry holds.
+// Provides the twenty one agent classes that the registry holds.
 #include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/CodexAgent.hpp"
 #include "AgentDbDoctor/Agents/ClaudeCodeAgent.hpp"
@@ -25,6 +25,17 @@
 #include "AgentDbDoctor/Agents/RooCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/ReasonixAgent.hpp"
 #include "AgentDbDoctor/Agents/VscodeAgent.hpp"
+#include "AgentDbDoctor/Agents/GeminiAgent.hpp"
+#include "AgentDbDoctor/Agents/WindsurfAgent.hpp"
+#include "AgentDbDoctor/Agents/ZedAgent.hpp"
+#include "AgentDbDoctor/Agents/CopilotAgent.hpp"
+#include "AgentDbDoctor/Agents/WarpAgent.hpp"
+#include "AgentDbDoctor/Agents/KiloCodeAgent.hpp"
+#include "AgentDbDoctor/Agents/AugmentAgent.hpp"
+#include "AgentDbDoctor/Agents/TraeAgent.hpp"
+#include "AgentDbDoctor/Agents/PearAIAgent.hpp"
+#include "AgentDbDoctor/Agents/AmpAgent.hpp"
+#include "AgentDbDoctor/Agents/CommandCodeAgent.hpp"
 // Provides PlatformMetadata, used to read each candidate's metadata.
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
 using namespace std;
@@ -110,7 +121,18 @@ AgentRegistry::AgentRegistry()
       clineAgent(make_unique<ClineAgent>()),
       rooCodeAgent(make_unique<RooCodeAgent>()),
       reasonixAgent(make_unique<ReasonixAgent>()),
-      vscodeAgent(make_unique<VscodeAgent>()) {
+      vscodeAgent(make_unique<VscodeAgent>()),
+      geminiAgent(make_unique<GeminiAgent>()),
+      windsurfAgent(make_unique<WindsurfAgent>()),
+      zedAgent(make_unique<ZedAgent>()),
+      copilotAgent(make_unique<CopilotAgent>()),
+      warpAgent(make_unique<WarpAgent>()),
+      kiloCodeAgent(make_unique<KiloCodeAgent>()),
+      augmentAgent(make_unique<AugmentAgent>()),
+      traeAgent(make_unique<TraeAgent>()),
+      pearAIAgent(make_unique<PearAIAgent>()),
+      ampAgent(make_unique<AmpAgent>()),
+      commandCodeAgent(make_unique<CommandCodeAgent>()) {
 }
 AgentRegistry::~AgentRegistry() = default;
 vector<AgentDescriptor> AgentRegistry::allAgents() const {
@@ -127,6 +149,17 @@ vector<AgentDescriptor> AgentRegistry::allAgents() const {
     descriptors.push_back(rooCodeAgent->describe());
     descriptors.push_back(reasonixAgent->describe());
     descriptors.push_back(vscodeAgent->describe());
+    descriptors.push_back(geminiAgent->describe());
+    descriptors.push_back(windsurfAgent->describe());
+    descriptors.push_back(zedAgent->describe());
+    descriptors.push_back(copilotAgent->describe());
+    descriptors.push_back(warpAgent->describe());
+    descriptors.push_back(kiloCodeAgent->describe());
+    descriptors.push_back(augmentAgent->describe());
+    descriptors.push_back(traeAgent->describe());
+    descriptors.push_back(pearAIAgent->describe());
+    descriptors.push_back(ampAgent->describe());
+    descriptors.push_back(commandCodeAgent->describe());
     return descriptors;
 }
 vector<AgentDescriptor> AgentRegistry::sqliteAgents() const {
@@ -213,6 +246,17 @@ vector<DiscoveredDatabase> AgentRegistry::discoverAllDatabases() const {
     addFolderEntry(aiderAgent->displayName(), aiderAgent->findDatabasePath());
     addFolderEntry(rooCodeAgent->displayName(), rooCodeAgent->findDatabasePath());
     addFolderEntry(reasonixAgent->displayName(), reasonixAgent->findDatabasePath());
+    addFolderEntry(geminiAgent->displayName(), geminiAgent->findDatabasePath());
+    addFolderEntry(windsurfAgent->displayName(), windsurfAgent->findDatabasePath());
+    addFolderEntry(zedAgent->displayName(), zedAgent->findDatabasePath());
+    addFolderEntry(copilotAgent->displayName(), copilotAgent->findDatabasePath());
+    addFolderEntry(warpAgent->displayName(), warpAgent->findDatabasePath());
+    addFolderEntry(kiloCodeAgent->displayName(), kiloCodeAgent->findDatabasePath());
+    addFolderEntry(augmentAgent->displayName(), augmentAgent->findDatabasePath());
+    addFolderEntry(traeAgent->displayName(), traeAgent->findDatabasePath());
+    addFolderEntry(pearAIAgent->displayName(), pearAIAgent->findDatabasePath());
+    addFolderEntry(ampAgent->displayName(), ampAgent->findDatabasePath());
+    addFolderEntry(commandCodeAgent->displayName(), commandCodeAgent->findDatabasePath());
     // Cline keeps a single SQLite file, so it is reported the way OpenCode is:
     // one path, one size, and the SQLite flag set.
     const optional<string> clinePath=clineAgent->findDatabasePath();
