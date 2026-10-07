@@ -11,6 +11,8 @@
 #include <vector>
 // Provides the shared state the screen reads.
 #include "GuiState.hpp"
+// Provides the action runner and the dialogue state the detail buttons use.
+#include "ActionScreens.hpp"
 // Provides the AgentDescriptor value type for the agent browser.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
 namespace AgentDbDoctor::Gui {
@@ -19,6 +21,8 @@ namespace AgentDbDoctor::Gui {
 // is taken under the lock and released before anything draws.
 void renderDashboard(
     GuiState& state,
-    const std::vector<AgentDbDoctor::Agents::AgentDescriptor>& agents);
+    const std::vector<AgentDbDoctor::Agents::AgentDescriptor>& agents,
+    ActionRunner& runner,
+    ActionUiState& ui);
 }
 #endif
