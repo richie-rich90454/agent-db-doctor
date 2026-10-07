@@ -436,6 +436,8 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
         gui/GuiMain.cpp
         gui/BackgroundScan.cpp
         gui/DashboardScreen.cpp
+        gui/ActionRunner.cpp
+        gui/ActionScreens.cpp
     )
     add_executable(agent-db-doctor-gui ${AGENT_DB_DOCTOR_GUI_SOURCES})
     target_link_libraries(agent-db-doctor-gui PRIVATE agent_db_doctor_core imgui_lib stb_image SDL3::SDL3)
