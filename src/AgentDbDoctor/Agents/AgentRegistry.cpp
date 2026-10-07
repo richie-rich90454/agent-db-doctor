@@ -14,13 +14,17 @@
 #include <vector>
 // Provides the locator, the descriptor types, and the registry declaration.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
-// Provides the six agent classes that the registry holds.
+// Provides the ten agent classes that the registry holds.
 #include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/CodexAgent.hpp"
 #include "AgentDbDoctor/Agents/ClaudeCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/CursorAgent.hpp"
 #include "AgentDbDoctor/Agents/ContinueAgent.hpp"
 #include "AgentDbDoctor/Agents/AiderAgent.hpp"
+#include "AgentDbDoctor/Agents/ClineAgent.hpp"
+#include "AgentDbDoctor/Agents/RooCodeAgent.hpp"
+#include "AgentDbDoctor/Agents/ReasonixAgent.hpp"
+#include "AgentDbDoctor/Agents/VscodeAgent.hpp"
 // Provides PlatformMetadata, used to read each candidate's metadata.
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
 using namespace std;
@@ -102,7 +106,11 @@ AgentRegistry::AgentRegistry()
       claudeCodeAgent(make_unique<ClaudeCodeAgent>()),
       cursorAgent(make_unique<CursorAgent>()),
       continueAgent(make_unique<ContinueAgent>()),
-      aiderAgent(make_unique<AiderAgent>()) {
+      aiderAgent(make_unique<AiderAgent>()),
+      clineAgent(make_unique<ClineAgent>()),
+      rooCodeAgent(make_unique<RooCodeAgent>()),
+      reasonixAgent(make_unique<ReasonixAgent>()),
+      vscodeAgent(make_unique<VscodeAgent>()) {
 }
 AgentRegistry::~AgentRegistry() = default;
 vector<AgentDescriptor> AgentRegistry::allAgents() const {
@@ -115,6 +123,10 @@ vector<AgentDescriptor> AgentRegistry::allAgents() const {
     descriptors.push_back(claudeCodeAgent->describe());
     descriptors.push_back(continueAgent->describe());
     descriptors.push_back(aiderAgent->describe());
+    descriptors.push_back(clineAgent->describe());
+    descriptors.push_back(rooCodeAgent->describe());
+    descriptors.push_back(reasonixAgent->describe());
+    descriptors.push_back(vscodeAgent->describe());
     return descriptors;
 }
 vector<AgentDescriptor> AgentRegistry::sqliteAgents() const {
@@ -199,10 +211,31 @@ vector<DiscoveredDatabase> AgentRegistry::discoverAllDatabases() const {
     addFolderEntry(codexAgent->displayName(), codexAgent->findDatabasePath());
     addFolderEntry(claudeCodeAgent->displayName(), claudeCodeAgent->findDatabasePath());
     addFolderEntry(aiderAgent->displayName(), aiderAgent->findDatabasePath());
+    addFolderEntry(rooCodeAgent->displayName(), rooCodeAgent->findDatabasePath());
+    addFolderEntry(reasonixAgent->displayName(), reasonixAgent->findDatabasePath());
+    // Cline keeps a single SQLite file, so it is reported the way OpenCode is:
+    // one path, one size, and the SQLite flag set.
+    const optional<string> clinePath=clineAgent->findDatabasePath();
+    if (clinePath.has_value()) {
+        const FileMetadata clineStatus=PlatformMetadata::readFileMetadata(clinePath.value());
+        if (clineStatus.exists && !clineStatus.isDirectory) {
+            DiscoveredDatabase discovered;
+            discovered.agentName=clineAgent->displayName();
+            discovered.filePath=clinePath.value();
+            discovered.isSqliteDatabase=true;
+            discovered.sizeBytes=clineStatus.logicalSizeBytes;
+            discoveredDatabases.push_back(discovered);
+        }
+    }
     // Cursor is added after the fixed list because finding it requires a bounded
     // directory listing, and the specification prefers a fixed candidate list
     // wherever one is possible.
     for (const DiscoveredDatabase& workspaceDatabase : cursorAgent->findWorkspaceDatabases(500)) {
+        discoveredDatabases.push_back(workspaceDatabase);
+    }
+    // VS Code lists its workspace state the same way Cursor does, for the same
+    // reason: the folder names are hashes no fixed list can predict.
+    for (const DiscoveredDatabase& workspaceDatabase : vscodeAgent->findWorkspaceDatabases(500)) {
         discoveredDatabases.push_back(workspaceDatabase);
     }
     return discoveredDatabases;
