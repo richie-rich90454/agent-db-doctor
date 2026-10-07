@@ -51,11 +51,17 @@ set(AGENT_DB_DOCTOR_UNIT_TESTS
     unit/TestProgressBar.cpp
     unit/TestServiceConfiguration.cpp
     unit/TestStatement.cpp
+    unit/TestActionRunner.cpp
 )
 foreach(test_source IN LISTS AGENT_DB_DOCTOR_UNIT_TESTS)
     get_filename_component(test_name "${test_source}" NAME_WE)
     agent_db_doctor_add_test(${test_name} "${CMAKE_CURRENT_SOURCE_DIR}/${test_source}")
 endforeach()
+# The action worker test drives the graphical worker headlessly. Its sources
+# live with the interface but depend only on the core library, so they compile
+# here without SDL or Dear ImGui anywhere near the test.
+target_include_directories(TestActionRunner PRIVATE "${CMAKE_SOURCE_DIR}/gui")
+target_sources(TestActionRunner PRIVATE "${CMAKE_SOURCE_DIR}/gui/ActionRunner.cpp")
 # The integration suite. These tests open real SQLite files on the real file
 # system and exercise whole commands from end to end.
 set(AGENT_DB_DOCTOR_INTEGRATION_TESTS
