@@ -22,10 +22,14 @@ decision for you.
 |---|---|---|---|
 | OpenCode | One SQLite database | Yes | Diagnose, prune, compact |
 | Cursor | One SQLite file per workspace | Unknown, undocumented | Diagnose only |
+| VS Code | One `state.vscdb` per workspace | Unknown, undocumented | Diagnose only |
+| Cline | One SQLite `sessions.db` | Unknown, undocumented | Diagnose only |
 | Codex CLI | One JSONL file per session | No | Diagnose only |
 | Claude Code | One JSONL file per project folder | No | Diagnose only |
 | Continue | Config folder, optional index | No | Diagnose only |
 | Aider | One Markdown transcript per project | No | Diagnose only |
+| Roo Code | Task folder plus extension storage | Unknown, undocumented | Diagnose only |
+| Reasonix | Skills and configuration folder | No | Diagnose only |
 
 ## The schema the tool depends on
 
