@@ -73,7 +73,11 @@ string shortPath(const string& filePath) {
     return string("...") + filePath.substr(beforeLast);
 }
 } // namespace
-void renderDashboard(GuiState& state, const vector<AgentDescriptor>& agents) {
+void renderDashboard(
+    GuiState& state,
+    const vector<AgentDescriptor>& agents,
+    ActionRunner& runner,
+    ActionUiState& ui) {
     // One lock per frame: copy everything the frame needs, then draw from the
     // copies. The worker never waits on the interface this way.
     vector<ScannedDatabase> databases;
@@ -223,6 +227,9 @@ void renderDashboard(GuiState& state, const vector<AgentDescriptor>& agents) {
                 for (const string& nextStep : report.getSuggestedNextSteps()) {
                     ImGui::BulletText("%s", nextStep.c_str());
                 }
+            }
+            if (ImGui::CollapsingHeader("Actions", ImGuiTreeNodeFlags_DefaultOpen)) {
+                renderDatabaseActions(scanned, runner, ui);
             }
             if (!scanned.newestSessions.empty()
                 && ImGui::CollapsingHeader("Newest sessions")) {
