@@ -100,13 +100,13 @@ the whole address space, and the same code doing almost nothing reported 61 MB. 
 number is the sanitizer, not the tool. This is why the memory figure above comes from
 the release run, and why the two runs exist at all.
 
-## Prune
+## Compaction
 
 | Measurement | Target | Measured | Asserted in |
 |---|---|---|---|
-| Marginal cost of one row | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `PruneBenchmark` |
-| Rows kept at the boundary | exact | **exact** | `PruneBenchmark` |
-| Readable text after a prune | unchanged | **unchanged** | `PruneIntegrationTest` |
+| Marginal cost of one redundant snapshot | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `CompactBenchmark` |
+| Rows kept at the boundary | exact | **exact** | `CompactBenchmark` |
+| Readable text after a compaction | unchanged | **unchanged** | `CompactIntegrationTest` |
 
 **This started at 20.1 microseconds per row and is now 8.0.** The improvement came
 from two connection settings rather than from changing the algorithm, and the full
