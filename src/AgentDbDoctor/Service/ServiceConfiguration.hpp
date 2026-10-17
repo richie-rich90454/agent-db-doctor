@@ -36,7 +36,7 @@ struct ServiceConfiguration final {
     // True when the service should also delete redundant rows on its own. The
     // default is false, because a tool that changes a database while nobody is
     // watching is a tool nobody trusts.
-    bool allowAutomaticPruning=false;
+    bool allowAutomaticCompaction=false;
     // The full path of the log file.
     string logFilePath;
     // The full path of the file this configuration was read from.
