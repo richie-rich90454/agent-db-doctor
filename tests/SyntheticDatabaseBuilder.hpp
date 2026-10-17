@@ -31,7 +31,7 @@ public:
         // tool results, which is roughly what a real session looks like.
         int partCountPerMessage=3;
         // How many older copies of each changed message to write into the event
-        // table. This is the duplication the prune command exists to remove.
+        // table. This is the duplication the compact command exists to remove.
         int redundantCopiesPerMessage=4;
         // The text placed in each part. It is deliberately longer than the
         // twenty character threshold the safety check uses.
