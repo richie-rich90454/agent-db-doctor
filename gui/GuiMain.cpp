@@ -303,7 +303,7 @@ int main(int argumentCount, char** argumentValues) {
             ImGui::Text("agent-db-doctor %s", AGENT_DB_DOCTOR_VERSION);
             ImGui::TextWrapped("A doctor for AI coding agent databases.");
             ImGui::Text("%d agents supported.", static_cast<int>(agents.size()));
-            ImGui::Text("Diagnose, prune, compact, recover, and monitor.");
+            ImGui::Text("Diagnose, compact, vacuum, recover, and monitor.");
             if (ImGui::Button("Close")) {
                 ImGui::CloseCurrentPopup();
             }
