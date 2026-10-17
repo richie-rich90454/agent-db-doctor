@@ -1,5 +1,4 @@
 // The implementation of the ClaudeCodeAgent class.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -13,10 +12,6 @@ using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::FileSystem;
 using namespace AgentDbDoctor::Agents;
 namespace AgentDbDoctor::Agents {
-// How many session files are listed when reporting. The list is bounded so that a
-// home directory with ten thousand saved conversations still costs a fixed number
-// of system calls rather than one per file.
-static constexpr int MAXIMUM_LISTED_SESSION_FILES=2000;
 // The suffix every Claude Code session file ends with. The file name also carries
 // a random identifier before this suffix, so the name cannot be predicted and the
 // directory has to be listed.
