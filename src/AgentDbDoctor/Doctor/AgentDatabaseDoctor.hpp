@@ -86,7 +86,7 @@ private:
     // and falling back to a full scan only for the small tables.
     void recordTableRowCounts(Database& database, DiagnosisReport& report);
     // Names the generation of the agent's schema from the rows it holds. Only
-    // runs for an agent whose history the tool prunes, because the generations
+    // runs for an agent whose history the tool compacts, because the generations
     // are that agent's own layout and the words would be wrong anywhere else.
     void recordSchemaGeneration(Database& database, DiagnosisReport& report);
     // Counts the event rows that are known duplicates, one indexed lookup per
