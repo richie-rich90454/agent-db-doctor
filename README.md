@@ -2,7 +2,7 @@
 
 <img src="assets/logo.svg" width="128" alt="The agent-db-doctor logo: database rings threaded by a pulse line ending in a spark">
 
-**A doctor for AI coding agent databases. Diagnose, prune, recover, and monitor.**
+**A doctor for AI coding agent databases. Diagnose, compact, and recover.**
 
 AI coding agents keep your work in local SQLite databases and JSONL files. They are
 built for streaming, not for keeping: every partial response, every tool call, and
@@ -65,7 +65,7 @@ What cannot be done from a Windows machine is run the thing on a Mac, and this f
 does not claim otherwise. Two specific things are therefore unverified on macOS:
 that the `launchctl` calls behave as documented, and that the service installs and
 starts under launchd. Everything the tool does without root, which is the whole of
-`diagnose`, `prune`, `compact`, and `recover`, uses only `stat`, `statfs`, `clock_gettime`,
+`diagnose`, `compact`, `vacuum`, and `recover`, uses only `stat`, `statfs`, `clock_gettime`,
 `getpid`, and `getenv`, and that code is compiled and unit-tested on Linux.
 
 </details>
@@ -92,23 +92,23 @@ Looked at 2 databases. 2 healthy, 0 need attention.
 ```
 
 ```bash
-# 2. Remove the duplicate rows, after copying your database.
-$ agent-db-doctor prune --keep 200
+# 2. Compact the event log, after copying your database.
+$ agent-db-doctor compact --keep 200
 
 What would be removed
-Older copies of changed messages: 1,200
+Redundant snapshots in the event log: 1,200
 Sessions kept untouched:          200 of 412
 A copy of your database was made first
 Nothing has been changed yet. The copy is at:
   /home/ann/.local/share/opencode/opencode.db.backup-20260930-162913
 
-About to remove 1,200 older copies of changed messages.
+About to remove 1,200 redundant snapshots from the event log.
 Type yes to go ahead, or anything else to stop: yes
 ```
 
 ```bash
 # 3. Hand the space back to the drive.
-$ agent-db-doctor compact
+$ agent-db-doctor vacuum
 
 Size before: 257.7 MB
 Size after:  198.4 MB
@@ -126,13 +126,13 @@ on it.
 
 ```bash
 agent-db-doctor diagnose                    # what is it, and how bad
-agent-db-doctor prune --keep 200            # remove the duplicates
-agent-db-doctor compact                     # give the space back
+agent-db-doctor compact --keep 200          # remove the redundant snapshots
+agent-db-doctor vacuum                      # give the space back
 agent-db-doctor service install             # so it never happens unannounced
 ```
 
-`prune` alone will not shrink the file. Removing rows marks the space reusable;
-only `compact` hands it to the file system. The tool says this after every prune,
+`compact` alone will not shrink the file. Removing rows marks the space reusable;
+only `vacuum` hands it to the file system. The tool says this after every compact,
 because it is the single most common surprise.
 
 ### 2. "The agent will not open and I think I have lost everything"
@@ -213,7 +213,7 @@ Configure it in plain text, with no need to rebuild:
   "warningThresholdBytes": 53687091200,
   "criticalThresholdBytes": 107374182400,
   "checkIntervalSeconds": 3600,
-  "allowAutomaticPruning": false
+  "allowAutomaticCompaction": false
 }
 ```
 
@@ -235,7 +235,7 @@ cmake --build build
 The dashboard browses all twenty one agents, shows every database with its
 size, health, schema generation, and duplicate count, and opens the newest
 sessions of each OpenCode database in a sortable table. Selecting a database
-offers its actions: prune and compact run as preview-then-confirm (the
+offers its actions: compaction and vacuum run as preview-then-confirm (the
 confirmation demands the typed word `yes`, the same bar as the terminal),
 recover shows its plan before anything is offered, and the service view holds
 the six service actions. Every run shows a live activity bar fed by the same
@@ -268,7 +268,7 @@ quietly arriving in a release.
 | Memory growth over 1000 idle watchdog ticks | ~0 | **< 1 MB** | `WatchdogBenchmark` |
 | Peak resident memory, whole process, full diagnostic | < 40 MB | **7.1 MB** | measured with the process working set |
 | Startup, command line tool | < 30 ms | **28.3 ms** | average of 5 runs of `--version` |
-| Marginal cost of removing one duplicate row | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `PruneBenchmark` |
+| Marginal cost of removing one redundant snapshot | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `CompactBenchmark` |
 
 Measured on the machine described in `benchmarks/results.md`, with the tool built
 at `-O3` and SQLite compiled with `SQLITE_THREADSAFE=0`. The 100 GB database is a
@@ -307,21 +307,20 @@ measured, the table gets a row.
 
 | Agent | Database location | What the tool does |
 |---|---|---|
-| OpenCode | `~/.local/share/opencode/opencode.db` | Diagnose, prune, compact |
-| Cursor | platform-specific, one SQLite file per workspace | Diagnose only; its tables are undocumented |
-| VS Code | platform-specific, one `state.vscdb` per workspace | Diagnose only; editor state, undocumented |
-| Cline | `~/.cline/data/db/sessions.db` | Diagnose only; its tables are undocumented |
+| OpenCode | `~/.local/share/opencode/opencode.db` | Diagnose, compact the event log, vacuum |
+| Cursor | platform-specific, one SQLite file per workspace | Diagnose and vacuum; its tables are undocumented |
+| VS Code | platform-specific, one `state.vscdb` per workspace | Diagnose and vacuum; editor state, undocumented |
+| Cline | `~/.cline/data/db/sessions.db` | Diagnose and vacuum; its tables are undocumented |
+| Windsurf | platform-specific data dir | Diagnose and vacuum; workspace state, undocumented |
+| Zed | platform-specific user data dir | Diagnose and vacuum; its database is undocumented |
+| Void | platform-specific data dir | Diagnose and vacuum; workspace state, undocumented |
 | Codex CLI | `~/.codex/sessions/` (JSONL) | Diagnose only; no duplicate snapshots |
 | Claude Code | `~/.claude/projects/` (JSONL) | Diagnose only; no duplicate snapshots |
 | Continue | `~/.continue/` | Diagnose only; the index is rebuildable |
 | Aider | `.aider.chat.history.md` | Diagnose only; a transcript is the only copy |
 | Roo Code | `~/.roo/` plus VS Code extension storage | Diagnose only; task state, undocumented |
 | Reasonix | `~/.reasonix/` | Diagnose only; skills and configuration |
-| Cline | `~/.cline/data/db/sessions.db` | Diagnose only; its tables are undocumented |
-| VS Code | platform-specific, one `state.vscdb` per workspace | Diagnose only; editor state, undocumented |
 | Gemini CLI | `~/.gemini/` | Diagnose only; session history, 30-day retention |
-| Windsurf | platform-specific data dir | Diagnose only; workspace state, undocumented |
-| Zed | platform-specific user data dir | Diagnose only; its database is undocumented |
 | GitHub Copilot | VS Code extension storage | Diagnose only; chat state, undocumented |
 | Warp | platform-specific data dir | Diagnose only; terminal state, undocumented |
 | Kilo Code | `~/.kilo/` plus VS Code extension storage | Diagnose only; task state, undocumented |
@@ -331,7 +330,6 @@ measured, the table gets a row.
 | Amp | `~/.amp/` | Diagnose only; CLI session state, undocumented |
 | CommandCode | `~/.commandcode/` | Diagnose only; session state, undocumented |
 | Pi | `~/.pi/` | Diagnose only; CLI session state, undocumented |
-| Void | platform-specific data dir | Diagnose only; workspace state, undocumented |
 | Tabnine | `~/.tabnine/` plus editor storage | Diagnose only; completion state, undocumented |
 | Cody | `~/.cody/` plus editor storage | Diagnose only; chat state, undocumented |
 | Codeium | `~/.codeium/` plus editor storage | Diagnose only; assistant state, undocumented |
@@ -372,10 +370,12 @@ measured, the table gets a row.
 | ShellGPT | `~/.config/shell_gpt/` | Diagnose only; terminal state, undocumented |
 | Raycast | platform-specific data dir | Diagnose only; launcher state, undocumented |
 
-Only OpenCode stores redundant snapshots, so only OpenCode is pruned. The other
-sixty one agents are reported and left alone, because a plain text transcript is the only copy of that
-conversation and deleting anything from it would be the tool's decision to make,
-not yours.
+Only OpenCode stores redundant snapshots, so only OpenCode's event log is
+compacted. Every SQLite based storage, which is OpenCode, Cursor, VS Code, Cline,
+Windsurf, Zed, and Void, can be vacuumed, because giving unused space back needs
+no knowledge of the tables' contents. The rest are reported and left alone: a
+plain text transcript is the only copy of that conversation, and deleting
+anything from it would be the tool's decision to make, not yours.
 
 `docs/agent-adapters.md` explains how a new agent is added, which is a small change
 in one place.
@@ -388,12 +388,15 @@ The list is here because knowing where a tool stops is more useful than being
 surprised by it later. Everything below is a deliberate decision, not a gap in the
 work.
 
-**It does not prune any agent except OpenCode.** Pruning removes the older copies of
-messages that an agent leaves behind when a message is edited, and only OpenCode
-produces them. Every other supported agent is diagnosed and left alone. Their conversation is a plain text transcript or a rebuildable index,
-which is the only copy, so deciding what to delete from it is not this tool's call.
+**It does not compact any agent except OpenCode.** Compaction removes the older
+copies of messages that an agent leaves behind when a message is edited, and only
+OpenCode produces them. Every other supported agent is diagnosed and left alone,
+except that any SQLite based storage can be vacuumed: removing unused pages needs no
+knowledge of what the tables hold. Their conversation is a plain text transcript or a
+rebuildable index, which is the only copy, so deciding what to delete from it is not
+this tool's call.
 
-**It does not compact, prune, or rebuild a folder.** Several agents keep their history
+**It does not compact, vacuum, or rebuild a folder.** Several agents keep their history
 as text files in a folder. There is no database there to work on, and the tool says so
 in one sentence rather than producing a report full of zeroes or copying the folder
 first. A file that is not a SQLite database is refused the same way, before anything is
@@ -435,8 +438,8 @@ The workflow is `.github/workflows/ci.yml`.
 | Command | What it does | Changes your data? |
 |---|---|---|
 | `diagnose` | Reports size, contents, and health | No |
-| `prune` | Removes older copies of changed messages | Yes, after a copy and a confirmation |
-| `compact` | Rewrites the database to its smallest useful size | Yes, after a copy and a confirmation |
+| `compact` | Compacts the event log: removes redundant message snapshots | Yes, after a copy and a confirmation |
+| `vacuum` | Rewrites the database to its smallest useful size | Yes, after a copy and a confirmation |
 | `recover` | Explains what is wrong and what can be fixed | Only with `--rebuild` |
 | `service` | Installs and controls the background watcher | No |
 
@@ -448,11 +451,11 @@ The workflow is `.github/workflows/ci.yml`.
 | `-d, --database PATH` | The file to work on. Leave it out and the tool finds it. |
 | `-a, --agent NAME` | Only look at this coding agent. |
 | `-y, --yes` | Do not ask before changing something. Required with no terminal. |
-| `-n, --dry-run` | Report what would happen and change nothing. |
+| `-n, --dry-run` | Report what would happen and change nothing, on `compact` and `vacuum` alike. |
 | `-q, --quiet` | Print only the lines that matter. |
 | `-v, --verbose` | Write extra detail to the log. |
-| `-k, --keep N` | How many of the most recent sessions to keep when pruning. |
-| `--max-fraction F` | Refuse to prune more than this share of the event table. Default `0.5`. |
+| `-k, --keep N` | How many of the most recent sessions to keep when compacting. |
+| `--max-fraction F` | Refuse to compact more than this share of the event table. Default `0.5`. |
 | `--batch-size N` | Rows removed per transaction. Default `10000`. |
 | `--backup-to PATH` | Where to write the safety copy. |
 | `--warning-threshold N` | Size in bytes at which the service mentions a database. |
@@ -462,6 +465,34 @@ The workflow is `.github/workflows/ci.yml`.
 | `--machine-readable` | Print numbers rather than sentences. |
 
 </details>
+
+---
+
+## Compacting the event log
+
+**Event log compaction** removes redundant message snapshots from the `event` table
+while leaving every session, message, and file part intact. On a real-world
+database that has been used for weeks, compaction typically reclaims 60–90% of the
+file's original size.
+
+The agent writes a full snapshot of a message into its event log every time the
+message changes and keeps every previous snapshot too, which is why these files
+grow far faster than the conversations in them. Compaction keeps the newest copy
+of every message and removes the older copies, without changing the logical
+content of the log. It is the same operation Kafka calls log compaction.
+
+Three distinct operations are involved, and the tool keeps them separate:
+
+1. **Event log compaction** (`compact`) removes the redundant snapshots. It frees
+   space inside the file but does not shrink the file itself.
+2. **Vacuuming** (`vacuum`) rewrites the file at its smallest useful size, which is
+   what actually hands the space back to the drive.
+3. **Watchdog monitoring** (`service`) notices the growth before it becomes a
+   crisis, with one metadata call per database per hour.
+
+The full workflow is: **diagnose → compact → vacuum → verify**. Every step ends by
+telling you the next one, and `compact --dry-run` and `vacuum --dry-run` report
+exactly what would happen without touching the file.
 
 ---
 
