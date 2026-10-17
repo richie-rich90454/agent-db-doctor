@@ -5,7 +5,8 @@
 // path is always set, the run is always quiet (the dialogue shows the outcome
 // structs, not the console text), and confirmation is always pre-answered,
 // because the interface asked the user itself before starting the worker.
-#include <string>
+// Provides `exception`, the standard failure type the worker catches first.
+#include <exception>
 // Provides `string`, used for the sentences the dialogues show.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -171,36 +172,59 @@ void runRequest(ActionRunner* runner, ActionRequest request) {
     runner->progress.completedUnits=0;
     runner->progress.totalUnits=0;
     ActionResult result;
-    switch (request.kind) {
-        case ActionKind::PrunePreview:
-            runPrunePreview(runner, request, result);
-            break;
-        case ActionKind::PruneRun:
-            runPrune(runner, request, result);
-            break;
-        case ActionKind::CompactPreview:
-            runCompactPreview(runner, request, result);
-            break;
-        case ActionKind::CompactRun:
-            runCompact(runner, request, result);
-            break;
-        case ActionKind::RecoverPlan:
-            runRecoverPlan(runner, request, result);
-            break;
-        case ActionKind::RecoverRebuild:
-            runRecoverRebuild(runner, request, result);
-            break;
-        case ActionKind::Service:
-            runService(runner, request, result);
-            break;
-        case ActionKind::None:
-            break;
+    result.kind=request.kind;
+    try {
+        switch (request.kind) {
+            case ActionKind::PrunePreview:
+                runPrunePreview(runner, request, result);
+                break;
+            case ActionKind::PruneRun:
+                runPrune(runner, request, result);
+                break;
+            case ActionKind::CompactPreview:
+                runCompactPreview(runner, request, result);
+                break;
+            case ActionKind::CompactRun:
+                runCompact(runner, request, result);
+                break;
+            case ActionKind::RecoverPlan:
+                runRecoverPlan(runner, request, result);
+                break;
+            case ActionKind::RecoverRebuild:
+                runRecoverRebuild(runner, request, result);
+                break;
+            case ActionKind::Service:
+                runService(runner, request, result);
+                break;
+            case ActionKind::None:
+                break;
+        }
+    } catch (const exception& operationFailure) {
+        // Nothing may escape a worker thread: an escaping exception ends the whole
+        // process, dialogue and all. The command classes catch their own known
+        // failures and return codes, so this is the backstop for the rest.
+        result.exitCode=1;
+        result.title="Something went wrong";
+        result.summary=string("The operation did not finish. ") + operationFailure.what()
+            + "\n\nYour original data was not replaced. To read the full explanation, run the "
+              "same command in a terminal.";
+    } catch (...) {
+        // The tool's own failure types deliberately share no common base class, so
+        // this backstop cannot read their sentences. It still keeps one failed
+        // action from ending the whole program.
+        result.exitCode=1;
+        result.title="Something went wrong";
+        result.summary=string("The operation did not finish, and your original data was not "
+            "replaced.\n\nTo read the full explanation, run the same command in a terminal "
+            "and it will print the reason there.");
     }
+    // The result is stored before the worker is marked idle, so any frame that
+    // reads an idle worker through `isBusy` also finds its result already waiting.
+    // The numbers were final before that, so the bar never jumps backwards on the
+    // frame the dialogue appears.
+    runner->storeResult(result);
     runner->progress.isFinished=true;
     runner->progress.isRunning=false;
-    // The numbers are final before the result becomes visible, so the bar
-    // never jumps backwards on the frame the dialogue appears.
-    runner->storeResult(result);
 }
 } // namespace
 ActionRunner::~ActionRunner() {
