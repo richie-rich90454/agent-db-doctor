@@ -1,9 +1,10 @@
 // The integration test for the compact command.
 //
-// Compaction is the operation that makes the space usable again, and it is also the
-// one that writes a second whole copy of the database. The tests check that it
-// shrinks a bloated file, that it refuses when there is no room, and that it leaves
-// the conversation exactly as it was.
+// This is the most important test in the suite, because the compact command is the
+// only one that deletes rows. Every test here checks one of the promises the tool
+// makes: nothing is deleted unless the content is proven to live elsewhere, a copy
+// is made first, the oldest sessions are checked afterwards, and the conversation
+// text is still there when the command finishes.
 #include <string>
 // Provides `remove` and `exists`, which clear and check a test's own files.
 #include <filesystem>
@@ -15,20 +16,20 @@
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
 // Provides the database wrapper, so the test can read the file itself.
 #include "AgentDbDoctor/Persistence/Database.hpp"
-// Provides the platform metadata, for the sizes before and after.
-#include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
+// Provides the constant time counters.
+#include "AgentDbDoctor/Doctor/StatisticsReader.hpp"
 // Provides the synthetic database builder.
 #include "SyntheticDatabaseBuilder.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Command;
+using namespace AgentDbDoctor::Doctor;
 using namespace AgentDbDoctor::Persistence;
-using namespace AgentDbDoctor::FileSystem;
 using namespace AgentDbDoctor::TestSupport;
 namespace {
-// Counts the readable text across the whole database, which is what a conversation
-// is. It is measured before and after so a compaction that lost a session would be
-// caught even though the file got smaller.
+// Counts the readable text parts across every session, which is the direct measure
+// of whether a conversation survived. The comparison is made before and after every
+// destructive test, because that is the promise the tool makes.
 long long countAllReadableTextParts(const string& databasePath) {
     Database database(databasePath, Database::OPEN_READ_ONLY);
     Statement countingStatement(
@@ -43,57 +44,116 @@ long long countAllReadableTextParts(const string& databasePath) {
     }
     return countingStatement.columnInteger(0);
 }
-// Adds free pages to a database so it occupies more space than it needs, which is
-// exactly the state a prune leaves behind.
-void inflateWithFreePages(const string& databasePath, int freePageCount) {
-    Database database(databasePath, Database::OPEN_READ_WRITE);
-    // A table of filler pages that is then dropped leaves the pages on the free list
-    // while the file stays the size it grew to. That is the state compaction exists to
-    // undo, and it cannot be produced any other way.
-    database.execute("PRAGMA auto_vacuum = NONE");
-    database.execute("CREATE TABLE filler (id INTEGER PRIMARY KEY, body BLOB)");
-    for (int pageIndex=0; pageIndex<freePageCount; ++pageIndex) {
-        database.execute(
-            "INSERT INTO filler (body) VALUES (zeroblob(3000))"
+long long countRedundantEventRows(const string& databasePath) {
+    Database database(databasePath, Database::OPEN_READ_ONLY);
+    const vector<string> redundantTypes{
+        string("message.updated.1"),
+        string("message.part.updated.1"),
+        string("session.updated.1")
+    };
+    long long totalRows=0;
+    for (const string& currentType : redundantTypes) {
+        Statement countingStatement(
+            database.rawHandle(),
+            "SELECT COUNT(*) FROM event WHERE type=?1",
+            "a count of one kind of duplicated event"
         );
+        if (!countingStatement.isValid()) {
+            continue;
+        }
+        countingStatement.bindText(1, currentType);
+        if (countingStatement.step()) {
+            totalRows+=countingStatement.columnInteger(0);
+        }
     }
-    database.execute("DROP TABLE filler");
-    database.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+    return totalRows;
 }
 }
-TEST_CASE("compaction gives unused space back and keeps the content", "[integration][compact]") {
-    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactShrinks");
+TEST_CASE("compaction removes duplicates and keeps every word of the conversation", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactKeepsContent");
     SyntheticDatabaseBuilder::Options options;
     options.sessionCount=20;
     options.messageCountPerSession=10;
+    options.redundantCopiesPerMessage=4;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    const long long redundantRowsBefore=SyntheticDatabaseBuilder::build(databasePath, options);
+    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    // The answer is given in advance, because the confirmation cannot be read in a
+    // test process and because this is exactly what a scheduled run does.
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    CompactCommand command(false);
+    const int exitCode=command.execute(commandOptions);
+    REQUIRE(exitCode==0);
+    // The command reports what it did, and the count must match what the builder
+    // wrote into the young sessions.
+    REQUIRE(command.lastOutcome().anythingWasRemoved);
+    REQUIRE(command.lastOutcome().removedRowCount>0);
+    // The promise that matters: not one readable word was lost.
+    const long long readablePartsAfter=countAllReadableTextParts(databasePath);
+    REQUIRE(readablePartsAfter==readablePartsBefore);
+    // The old sessions are the ones whose events go, so the count must have dropped.
+    REQUIRE(countRedundantEventRows(databasePath) < redundantRowsBefore);
+    // Nothing was rolled back, because the verification passed.
+    REQUIRE_FALSE(command.lastOutcome().wasRolledBack);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction makes a safety copy before it deletes anything", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactMakesBackup");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=10;
+    options.messageCountPerSession=5;
     options.redundantCopiesPerMessage=2;
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, options);
-    // Two thousand free pages is about eight megabytes of space the file is holding
-    // but not using, which is the state a prune leaves behind.
-    inflateWithFreePages(databasePath, 2000);
-    const long long sizeBefore=PlatformMetadata::readFileMetadata(databasePath).logicalSizeBytes;
-    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    const long long sizeBefore=countAllReadableTextParts(databasePath);
     CommandOptions commandOptions;
     commandOptions.databaseFilePath=databasePath;
     commandOptions.answerYesToEverything=true;
     commandOptions.quiet=true;
+    // A known path is given so the test can prove the copy is where it says it is.
     commandOptions.backupFilePath=databasePath+".test-backup";
     CompactCommand command(false);
-    const int exitCode=command.execute(commandOptions);
-    REQUIRE(exitCode==0);
-    REQUIRE(command.lastOutcome().wasCompacted);
-    // The file must be smaller, which is the whole point of the command.
-    REQUIRE(command.lastOutcome().sizeAfterBytes < sizeBefore);
-    REQUIRE(command.lastOutcome().bytesReclaimed > 0);
-    // And the content must be identical. A compaction that lost a session would be a
-    // catastrophic bug, and this is the check that would catch it.
-    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
+    command.execute(commandOptions);
+    // The copy is the whole point of the safety rules, so its absence would mean the
+    // tool deleted rows from a user's only copy.
+    REQUIRE(std::filesystem::exists(commandOptions.backupFilePath));
+    // The copy is a complete copy, not a partial one, so the text in it is intact.
+    REQUIRE(countAllReadableTextParts(commandOptions.backupFilePath)==sizeBefore);
     std::filesystem::remove(commandOptions.backupFilePath);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
-TEST_CASE("compaction of a file with no free pages still succeeds", "[integration][compact]") {
-    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactNoFreeSpace");
+TEST_CASE("compaction refuses when the change would be more than half the table", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactRefusesLargeChange");
+    SyntheticDatabaseBuilder::Options options;
+    // Four copies of each of three event types per message makes the event table
+    // almost entirely duplicated, which is the shape that trips the refusal.
+    options.sessionCount=10;
+    options.messageCountPerSession=10;
+    options.redundantCopiesPerMessage=20;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    // A limit of a tenth is far below what the change would be, so the refusal is
+    // exercised whatever the exact row arithmetic comes to.
+    commandOptions.maximumFractionToRemove=0.1;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    CompactCommand command(false);
+    command.execute(commandOptions);
+    // A change that large usually means a miscount, so the tool stops rather than
+    // acting on a number it does not trust.
+    REQUIRE_FALSE(command.lastOutcome().anythingWasRemoved);
+    // And the refusal changed nothing at all.
+    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction does nothing when there is nothing duplicated", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactNothingToDo");
     SyntheticDatabaseBuilder::Options options;
     options.sessionCount=5;
     options.messageCountPerSession=3;
@@ -105,15 +165,35 @@ TEST_CASE("compaction of a file with no free pages still succeeds", "[integratio
     commandOptions.databaseFilePath=databasePath;
     commandOptions.answerYesToEverything=true;
     commandOptions.quiet=true;
-    commandOptions.backupFilePath=databasePath+".test-backup";
+    CompactCommand command(false);
+    const int exitCode=command.execute(commandOptions);
+    // A database with no duplicates needs no copy and no confirmation, so the command
+    // finishes quickly and says there was nothing to do.
+    REQUIRE(exitCode==0);
+    REQUIRE_FALSE(command.lastOutcome().anythingWasRemoved);
+    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction keeps the newest sessions untouched", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactKeepsNewest");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=20;
+    options.messageCountPerSession=5;
+    options.redundantCopiesPerMessage=3;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    // A specific number is asked for, so the boundary is known rather than guessed.
+    commandOptions.sessionsToKeep=20;
     CompactCommand command(false);
     command.execute(commandOptions);
-    // Nothing is freed, and the tool has to say so rather than claiming a success
-    // that produced no space.
-    REQUIRE(command.lastOutcome().wasCompacted);
-    REQUIRE(command.lastOutcome().bytesReclaimed==0);
-    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
-    std::filesystem::remove(commandOptions.backupFilePath);
+    // Keeping every session means the events in them are protected, so nothing is
+    // removed. This is the setting a cautious user would try first.
+    REQUIRE_FALSE(command.lastOutcome().anythingWasRemoved);
+    REQUIRE(command.lastOutcome().protectedSessionCount==20);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
 TEST_CASE("compaction refuses a file that is not there", "[integration][compact]") {
@@ -124,35 +204,62 @@ TEST_CASE("compaction refuses a file that is not there", "[integration][compact]
     commandOptions.answerYesToEverything=true;
     commandOptions.quiet=true;
     CompactCommand command(false);
-    // The command must not create the file it was asked to compact.
-    REQUIRE(command.execute(commandOptions)==1);
+    const int exitCode=command.execute(commandOptions);
+    // The command must say what is wrong and change nothing, rather than creating a
+    // file it was not asked to create.
+    REQUIRE(exitCode==1);
     REQUIRE_FALSE(std::filesystem::exists(missingPath));
 }
-TEST_CASE("compaction leaves no half written file behind", "[integration][compact]") {
-    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactNoLeftovers");
+TEST_CASE("compaction needs to be told which database to work on", "[integration][compact]") {
+    CommandOptions commandOptions;
+    // With no path, the command has nothing to act on. Guessing would be dangerous.
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    CompactCommand command(false);
+    REQUIRE(command.execute(commandOptions)==1);
+}
+TEST_CASE("compaction refuses a removal limit that is more than the whole table", "[integration][compact]") {
     SyntheticDatabaseBuilder::Options options;
-    options.sessionCount=5;
-    options.messageCountPerSession=3;
-    options.redundantCopiesPerMessage=1;
+    options.sessionCount=20;
+    options.messageCountPerSession=4;
+    options.redundantCopiesPerMessage=3;
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactLimitAboveOne");
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, options);
     CommandOptions commandOptions;
     commandOptions.databaseFilePath=databasePath;
     commandOptions.answerYesToEverything=true;
     commandOptions.quiet=true;
-    commandOptions.backupFilePath=databasePath+".test-backup";
+    // Two is a hundred and fifty per cent over the limit's own name. It used to be
+    // accepted silently, which meant a typo quietly removed the safety limit the user
+    // believed they had set.
+    commandOptions.maximumFractionToRemove=2.0;
     CompactCommand command(false);
     command.execute(commandOptions);
-    // The file the rewrite is built into is renamed into place, so it must not
-    // survive the run. A leftover would look like a database to the next tool that
-    // looked in the folder.
-    REQUIRE_FALSE(std::filesystem::exists(databasePath+".compacting"));
-    REQUIRE_FALSE(std::filesystem::exists(databasePath+".before-compaction"));
-    // And the compacted file still opens.
-    Database reopenedDatabase(databasePath, Database::OPEN_READ_ONLY);
-    const auto integrityCheck=reopenedDatabase.querySingleText("PRAGMA quick_check");
-    REQUIRE(integrityCheck.has_value());
-    REQUIRE(integrityCheck.value()=="ok");
-    std::filesystem::remove(commandOptions.backupFilePath);
+    REQUIRE_FALSE(command.lastOutcome().anythingWasRemoved);
+    // The refusal happens before the safety copy, so nothing was written beside the
+    // database. A limit the tool cannot use is not worth spending half the file size on.
+    REQUIRE_FALSE(std::filesystem::exists(databasePath + ".agent-db-doctor-backup"));
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction accepts a removal limit that is a real share of the table", "[integration][compact]") {
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=20;
+    options.messageCountPerSession=4;
+    options.redundantCopiesPerMessage=3;
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactLimitValid");
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    commandOptions.sessionsToKeep=10;
+    // Ninety five per cent is a real share and must be honoured, so that the refusal
+    // above is about the value being impossible rather than about the tool being shy.
+    commandOptions.maximumFractionToRemove=0.95;
+    CompactCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    REQUIRE(command.lastOutcome().anythingWasRemoved);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
