@@ -4,7 +4,7 @@
 // The specification's humanist rule is that the first destructive operation on any
 // database produces a backup, that the tool prints where it went, and that nothing
 // is deleted without a confirmation. Those three rules are implemented once here
-// and used by the prune, compact, and recover commands, rather than being written
+// and used by the compact, vacuum, and recover commands, rather than being written
 // three times and drifting apart.
 #ifndef AGENT_DB_DOCTOR_COMMAND_DESTRUCTIVEOPERATIONGUARD_HPP
 #define AGENT_DB_DOCTOR_COMMAND_DESTRUCTIVEOPERATIONGUARD_HPP
