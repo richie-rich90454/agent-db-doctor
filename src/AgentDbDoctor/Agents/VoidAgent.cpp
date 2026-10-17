@@ -1,5 +1,4 @@
 // The implementation of the VoidAgent class.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -55,11 +54,16 @@ AgentDescriptor VoidAgent::describe() const {
     descriptor.candidatePaths=databaseLocator.candidatePaths();
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
-    descriptor.usesSqliteDatabase=false;
+    // Void is a VS Code family editor: its workspace state lives in the same
+    // SQLite state files the family uses, so the flag matches the other members
+    // of the family. The tool still only reports, because the tables are
+    // undocumented.
+    descriptor.usesSqliteDatabase=true;
     descriptor.supportsPruning=false;
     descriptor.storageDescription=string(
-        "Void keeps session and workspace state under its data directory. "
-        "The tool reports the size and leaves the files alone."
+        "Void keeps session and workspace state in the editor's own SQLite state files "
+        "under its data directory. The tool reports their sizes. It does not change them, "
+        "because the format is undocumented."
     );
     return descriptor;
 }
