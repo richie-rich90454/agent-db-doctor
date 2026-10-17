@@ -4,7 +4,6 @@
 // number of metadata calls, reads one hundred bytes of the database itself, and
 // runs only constant time queries. The only linear work anywhere in this file is
 // the row count fallback, which is deliberately restricted to the small tables.
-#include <optional>
 // Provides `optional`, a container that may or may not hold a value.
 #include <optional>
 // Provides `string`, which owns and stores a sequence of characters.
@@ -141,7 +140,7 @@ void AgentDatabaseDoctor::recordTableRowCounts(Database& database, DiagnosisRepo
         if (!StatisticsReader::tableExists(database, currentTable)) {
             continue;
         }
-        const optional<long> approximateCount=StatisticsReader::approximateRowCount(database, currentTable);
+        const optional<long long> approximateCount=StatisticsReader::approximateRowCount(database, currentTable);
         if (approximateCount.has_value()) {
             report.setRowCount(currentTable, approximateCount.value(), true);
             continue;
@@ -334,7 +333,7 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
             if (journalMode.has_value()) {
                 report.setJournalMode(journalMode.value());
             }
-            const optional<long> autoVacuumMode=database.queryPragmaInteger("PRAGMA auto_vacuum");
+            const optional<long long> autoVacuumMode=database.queryPragmaInteger("PRAGMA auto_vacuum");
             if (autoVacuumMode.has_value()) {
                 report.setAutoVacuumEnabled(autoVacuumMode.value()!=0);
             }
