@@ -95,14 +95,14 @@ class RaycastAgent;
 // The class is `final` because the specification forbids inheritance. It exists
 // as a separate class precisely to demonstrate composition: the agent classes
 // contain one of these rather than deriving from it, and the registry contains
-// six agents rather than deriving anything from them.
+// sixty two agents rather than deriving anything from them.
 class AgentDatabaseLocator final {
 public:
     // Stores the candidate paths in the order they should be tried. The order
     // matters: the first candidate is the documented location, and the rest are
     // fallbacks for other platforms and older releases.
     explicit AgentDatabaseLocator(vector<string> candidatePaths)
-        : candidatePathList(move(candidatePaths)) {
+        : candidatePathList(std::move(candidatePaths)) {
     }
     // Returns the first candidate that exists, or `nullopt` when none of them do.
     // Each candidate is tested with one metadata call, and no directory is ever
