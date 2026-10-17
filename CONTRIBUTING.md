@@ -72,7 +72,7 @@ Conventional Commits, imperative mood, in American English.
 
 ```
 feat: add the compact command
-fix: refuse to prune when the content would not survive
+fix: refuse to compact when the content would not survive
 perf: replace the offset cursor with a forward rowid cursor
 docs: explain why the integrity check is skipped above 2 GB
 ```
