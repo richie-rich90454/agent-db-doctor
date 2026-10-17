@@ -205,11 +205,11 @@ AgentDescriptor OpenCodeAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=true;
-    descriptor.supportsPruning=true;
+    descriptor.supportsCompaction=true;
     descriptor.storageDescription=string(
         "OpenCode keeps every session in one SQLite database. Each change to a message writes a new row "
         "and leaves the previous version behind, which is why the file grows much faster than the "
-        "conversation does."
+        "conversation does. The compact command keeps the newest row for every changed message and removes the older rows, without losing the conversation."
     );
     return descriptor;
 }
