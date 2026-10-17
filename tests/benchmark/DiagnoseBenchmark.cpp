@@ -7,8 +7,6 @@
 // contract rather than a claim. Any regression in time, calls, or bytes read fails
 // the build.
 #include <string>
-// Provides `fstream`, used to grow a file into a sparse region.
-#include <fstream>
 // Provides the Catch2 test registration macros.
 #include <catch2/catch_test_macros.hpp>
 // Provides the class under test.
@@ -38,21 +36,18 @@ TEST_CASE("a diagnostic pass on a huge database stays inside the call budget", "
     options.sessionCount=5;
     options.messageCountPerSession=3;
     options.redundantCopiesPerMessage=1;
+    // The builder grows the file to a hundred gigabytes with a sparse region: the
+    // bytes are never written, so the test costs no disk space, but the file
+    // system's metadata now reports a size that would take a full scan minutes to
+    // read. That is the point: a pass that read the file could not possibly finish
+    // inside the budget.
+    options.padToLargeSize=true;
+    options.paddedSizeBytes=HUNDRED_GIGABYTES;
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, options);
-    // The file is grown to a hundred gigabytes with a sparse region. The bytes are
-    // not written, so the test costs nothing, but the file system's metadata now
-    // reports a size that would take a full scan minutes to read. That is the point:
-    // a pass that read the file could not possibly finish inside the budget.
-    {
-        std::fstream growingFile(
-            databasePath,
-            std::ios::in | std::ios::out | std::ios::binary
-        );
-        REQUIRE(growingFile.is_open());
-        growingFile.seekp(HUNDRED_GIGABYTES - 1);
-        growingFile.put('\0');
-    }
+    // The growth is asserted rather than assumed. A growth that quietly did not
+    // happen, which is what a build machine without the free space used to
+    // produce, would make every measurement below pass for the wrong reason.
     const long long reportedSize=PlatformMetadata::readFileMetadata(databasePath).logicalSizeBytes;
     REQUIRE(reportedSize>90000000000LL);
     AgentDatabaseDoctor doctor;
@@ -79,16 +74,13 @@ TEST_CASE("the integrity check is skipped above the size limit and says so", "[b
     options.sessionCount=3;
     options.messageCountPerSession=2;
     options.redundantCopiesPerMessage=0;
+    // Grown with a sparse region, exactly as above, so the size limit is reached
+    // without the disk space.
+    options.padToLargeSize=true;
+    options.paddedSizeBytes=HUNDRED_GIGABYTES;
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, options);
-    {
-        std::fstream growingFile(
-            databasePath,
-            std::ios::in | std::ios::out | std::ios::binary
-        );
-        growingFile.seekp(HUNDRED_GIGABYTES - 1);
-        growingFile.put('\0');
-    }
+    REQUIRE(PlatformMetadata::readFileMetadata(databasePath).logicalSizeBytes>90000000000LL);
     AgentDatabaseDoctor doctor;
     PlatformMetadata::resetMetadataCallCount();
     const long long startNanoseconds=PlatformMetadata::monotonicNanoseconds();
@@ -122,15 +114,12 @@ TEST_CASE("a pass costs the same on a small database and a huge one", "[benchmar
     SyntheticDatabaseBuilder::removeIfPresent(smallDatabasePath);
     SyntheticDatabaseBuilder::removeIfPresent(hugeDatabasePath);
     SyntheticDatabaseBuilder::build(smallDatabasePath, options);
+    // Only the second file is padded, and by the builder, so the growth is the
+    // same sparse growth the tests above rely on.
+    options.padToLargeSize=true;
+    options.paddedSizeBytes=HUNDRED_GIGABYTES;
     SyntheticDatabaseBuilder::build(hugeDatabasePath, options);
-    {
-        std::fstream growingFile(
-            hugeDatabasePath,
-            std::ios::in | std::ios::out | std::ios::binary
-        );
-        growingFile.seekp(HUNDRED_GIGABYTES - 1);
-        growingFile.put('\0');
-    }
+    REQUIRE(PlatformMetadata::readFileMetadata(hugeDatabasePath).logicalSizeBytes>90000000000LL);
     AgentDatabaseDoctor doctor;
     const DiagnosisReport smallReport=doctor.diagnoseDatabase(smallDatabasePath, "OpenCode", false);
     const DiagnosisReport hugeReport=doctor.diagnoseDatabase(hugeDatabasePath, "OpenCode", false);
