@@ -1,9 +1,8 @@
 // The implementation of the locator and the registry.
 //
 // The registry is where composition is put to work. It holds one instance of each
-// of the six agent classes as a field, and every method here asks one of those
-// instances to describe itself. Nothing is derived from anything.
-#include <filesystem>
+// of the sixty two agent classes as a field, and every method here asks one of
+// those instances to describe itself. Nothing is derived from anything.
 // Provides `directory_iterator`, which lists the entries of one directory.
 #include <filesystem>
 // Provides `tolower`, the C library function that lowercases one character.
@@ -84,6 +83,12 @@ using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::FileSystem;
 using namespace AgentDbDoctor::Agents;
 namespace AgentDbDoctor::Agents {
+// How many entries are listed inside a Continue configuration folder, and the
+// size above which one is worth reporting. The listing bound keeps the number of
+// system calls fixed; the threshold exists because a vector index can reach
+// gigabytes while everything else in the folder is noise.
+static constexpr int CONTINUE_INDEX_LISTING_LIMIT=2000;
+static constexpr long long CONTINUE_INDEX_MINIMUM_REPORTING_BYTES=10LL*1024LL*1024LL;
 optional<string> AgentDatabaseLocator::findFirstExistingPath() const {
     // Every candidate costs exactly one metadata call, and no directory is ever
     // opened. That is principle I/O-19 of the specification: file discovery is a
@@ -349,7 +354,7 @@ vector<DiscoveredDatabase> AgentRegistry::discoverAllDatabases() const {
     // specification forbids inheritance and there is no shared type to loop over.
     // The lambda holds one short piece of shared behaviour rather than a base class
     // with one method.
-    const auto addFolderEntry = [this, &discoveredDatabases](const string& agentName, const optional<string>& folderPath) {
+    const auto addFolderEntry = [&discoveredDatabases](const string& agentName, const optional<string>& folderPath) {
         if (!folderPath.has_value()) {
             return;
         }
@@ -367,6 +372,17 @@ vector<DiscoveredDatabase> AgentRegistry::discoverAllDatabases() const {
     addFolderEntry(codexAgent->displayName(), codexAgent->findDatabasePath());
     addFolderEntry(claudeCodeAgent->displayName(), claudeCodeAgent->findDatabasePath());
     addFolderEntry(aiderAgent->displayName(), aiderAgent->findDatabasePath());
+    // Continue's configuration folder can hold a code index that grows to
+    // gigabytes. The folder is reported like the other text based agents, and in
+    // addition every file inside it above the reporting threshold is listed on
+    // its own, because the index is the part that actually grows. The listing is
+    // one level deep and bounded, so it costs a fixed number of system calls.
+    addFolderEntry(continueAgent->displayName(), continueAgent->findDatabasePath());
+    for (const DiscoveredDatabase& indexFile : continueAgent->findLargeIndexFiles(
+            CONTINUE_INDEX_LISTING_LIMIT,
+            CONTINUE_INDEX_MINIMUM_REPORTING_BYTES)) {
+        discoveredDatabases.push_back(indexFile);
+    }
     addFolderEntry(rooCodeAgent->displayName(), rooCodeAgent->findDatabasePath());
     addFolderEntry(reasonixAgent->displayName(), reasonixAgent->findDatabasePath());
     addFolderEntry(geminiAgent->displayName(), geminiAgent->findDatabasePath());
