@@ -122,9 +122,9 @@ public:
     // that cannot be read has no generation to describe.
     void setSchemaGenerationDescription(string description);
     string getSchemaGenerationDescription() const;
-    // Records whether this database can be pruned at all.
-    void setPruningSupported(bool isSupported);
-    bool getPruningSupported() const;
+    // Records whether this database can be compacted at all.
+    void setCompactionSupported(bool isSupported);
+    bool getCompactionSupported() const;
     // Records what the quick integrity check found.
     void setIntegrityStatus(IntegrityStatus status);
     IntegrityStatus getIntegrityStatus() const;
@@ -176,7 +176,7 @@ private:
     string journalMode;
     bool autoVacuumEnabled=false;
     long long redundantEventRowCount=0;
-    bool pruningSupported=false;
+    bool compactionSupported=false;
     IntegrityStatus integrityStatus=IntegrityStatus::NOT_CHECKED;
     string integrityMessage;
     int openFailureCode=0;
