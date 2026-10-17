@@ -5,7 +5,6 @@
 // turn the command line into a CommandOptions value, and turn the return value into
 // an exit code. That is the whole of its job, and keeping it that small is what
 // makes the tool easy to extend without making the entry point unreadable.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides the CLI11 header only command line parser.
@@ -22,15 +21,11 @@
 #include "AgentDbDoctor/Presentation/ConsoleReport.hpp"
 // Provides PlatformMetadata, for the terminal test.
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
-// Provides the exception types, so a failure is reported rather than thrown out of
-// the program as an unhandled error.
-#include "AgentDbDoctor/Common/Exceptions.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Command;
 using namespace AgentDbDoctor::Presentation;
 using namespace AgentDbDoctor::FileSystem;
-using namespace AgentDbDoctor::Common;
 // The exit code used when the program stops because of a problem rather than
 // because of a bad answer. It is one, which is what a shell script checks for.
 static constexpr int EXIT_CODE_PROBLEM=1;
@@ -222,21 +217,26 @@ int main(int argumentCount, char** argumentValues) {
         // A subcommand with no name means the user asked for help, which CLI11 has
         // already printed by the time control gets here.
         return EXIT_CODE_USAGE;
-    } catch (const AgentDbDoctorException& toolFailure) {
-        // Every exception this tool raises carries a complete sentence, which is
-        // what the specification requires. It is printed as a failure rather than
-        // allowed to escape, so the user sees a sentence and not a stack trace.
-        reporter.writeFailure(toolFailure.message(), string());
-        return EXIT_CODE_PROBLEM;
     } catch (const std::exception& unexpectedFailure) {
-        // A failure this tool did not anticipate is still reported in plain
-        // language. The technical text goes on the end so it can be searched for,
+        // A failure from the standard library itself, such as running out of
+        // memory. The technical text goes on the end so it can be searched for,
         // but the sentence comes first.
         reporter.writeFailure(
             string("Something went wrong that this version of the tool does not have an "
                 "explanation for. Nothing was changed.\n\nIf you can, please report this. The "
                 "technical text follows."),
             unexpectedFailure.what()
+        );
+        return EXIT_CODE_PROBLEM;
+    } catch (...) {
+        // The tool's own exception types deliberately share no base class, so this
+        // final catch cannot read their sentences. Every command catches the
+        // failure types it raises, so reaching here means a gap somewhere; even
+        // then the user gets words rather than a crash.
+        reporter.writeFailure(
+            string("Something went wrong that this version of the tool does not have an "
+                "explanation for. Nothing was changed.\n\nIf you can, please report this."),
+            string()
         );
         return EXIT_CODE_PROBLEM;
     }
