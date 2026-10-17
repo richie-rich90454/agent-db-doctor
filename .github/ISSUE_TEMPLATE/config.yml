@@ -5,8 +5,8 @@ contact_links:
     about: Read this before reporting a limitation. Several behaviours that look like
       bugs are documented decisions, including why an integrity check is skipped on a
       database over two gigabytes and why Cursor and Continue are reported but never
-      pruned.
-  - name: Why a prune is slower than the specification asks for
+      compacted.
+  - name: Why a compaction is slower than the specification asks for
     url: https://github.com/richie-rich90454/agent-db-doctor/blob/main/docs/performance.md
     about: The measured cost of removing a row, what was tried, and what the remaining
       gap is. Read this before suggesting that deletion is too slow; the analysis is
