@@ -41,7 +41,7 @@ same pass on a 100 GB database takes the same 13 milliseconds.
 ## 2. Find out what is actually removable
 
 ```bash
-$ agent-db-doctor prune --database ~/.local/share/opencode/opencode.db --keep 200
+$ agent-db-doctor compact --database ~/.local/share/opencode/opencode.db --keep 200
 ```
 
 ```
