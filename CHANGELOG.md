@@ -39,13 +39,11 @@ activity bar fed by the same progress numbers as the console bar.
 renders at every size, a multi-size Windows icon stamped into both binaries
 with version information.
 
-### Added
-
-- A continuous integration workflow builds and tests every change with GCC and
-  Clang on Linux, MSVC on Windows, and AppleClang on macOS, starts both the
-  command line program and the window on each platform, and packages a runnable
-  copy of the tool for every system. Pushing a tag attaches the packages to the
-  release.
+**Continuous integration.** A workflow builds and tests every change with GCC
+and Clang on Linux, MSVC on Windows, and AppleClang on macOS, starts both the
+command line program and the window on each platform, and packages a runnable
+copy of the tool for every system. Pushing a tag attaches the packages to the
+release.
 
 ### Fixed
 
