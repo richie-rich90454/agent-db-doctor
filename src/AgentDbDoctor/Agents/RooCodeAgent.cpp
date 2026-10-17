@@ -1,5 +1,4 @@
 // The implementation of the RooCodeAgent class.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -28,13 +27,12 @@ vector<string> RooCodeAgent::buildCandidatePaths() {
         candidates.push_back(AgentRegistry::joinPath(homeDirectoryPath, ".roo"));
         // Extension storage follows the VS Code convention, which differs per
         // platform. All three are listed so the tool works on a machine set up
-        // for a different platform, and both published extension ids are
-        // covered because either one may own the stored state.
-        candidates.push_back(AgentRegistry::joinPath(homeDirectoryPath, "AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev"));
+        // for a different platform. Only Roo Code's own extension id is listed:
+        // the older id under `saoudrizwan.claude-dev` belongs to the Cline
+        // extension, which has its own adapter, and claiming it here made Cline's
+        // folder appear in reports as Roo Code.
         candidates.push_back(AgentRegistry::joinPath(homeDirectoryPath, "AppData/Roaming/Code/User/globalStorage/rooveterinaryinc.roo-cline"));
-        candidates.push_back(AgentRegistry::joinPath(homeDirectoryPath, ".config/Code/User/globalStorage/saoudrizwan.claude-dev"));
         candidates.push_back(AgentRegistry::joinPath(homeDirectoryPath, ".config/Code/User/globalStorage/rooveterinaryinc.roo-cline"));
-        candidates.push_back(AgentRegistry::joinPath(homeDirectoryPath, "Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev"));
         candidates.push_back(AgentRegistry::joinPath(homeDirectoryPath, "Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline"));
     }
     return candidates;
