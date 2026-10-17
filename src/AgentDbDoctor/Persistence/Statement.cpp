@@ -3,7 +3,6 @@
 // Every method here is the body of a method declared in Statement.hpp. The
 // separator is a single blank line because this file is a sequence of short
 // methods with no shared state between them.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `string_view`, a read only view of characters owned elsewhere.
@@ -14,7 +13,7 @@ using namespace std;
 using namespace AgentDbDoctor;
 namespace AgentDbDoctor::Persistence {
 Statement::Statement(sqlite3* databaseHandle, const string& sqlStatement, string operationDescription)
-    : operationDescription(move(operationDescription)) {
+    : operationDescription(std::move(operationDescription)) {
     // The third argument asks SQLite to also report where in the SQL text it
     // stopped. The tool does not use that offset, so `nullptr` is passed. The
     // length of `-1` means "the text is null terminated, work it out yourself".
