@@ -1,6 +1,6 @@
 // The unit tests for the StatisticsReader and SafetyChecks classes.
 //
-// These two classes are the reason a prune cannot lose a conversation. The tests
+// These two classes are the reason a compaction cannot lose a conversation. The tests
 // therefore check the two things that matter: that row counts come from the
 // constant time path, and that the safety checks fail closed when they cannot
 // prove something is safe.
@@ -96,7 +96,7 @@ TEST_CASE("tables and columns are tested for", "[statistics]") {
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, SyntheticDatabaseBuilder::Options());
     Database database(databasePath, Database::OPEN_READ_ONLY);
-    // The prune query depends on exactly these tables and columns, so a release that
+    // The compaction query depends on exactly these tables and columns, so a release that
     // changes the shape has to be detected before a deletion, not during one.
     REQUIRE(StatisticsReader::tableExists(database, "event"));
     REQUIRE_FALSE(StatisticsReader::tableExists(database, "no_such_table"));
@@ -119,7 +119,7 @@ TEST_CASE("the safety check passes when content lives outside the events", "[saf
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, SyntheticDatabaseBuilder::Options());
     Database database(databasePath, Database::OPEN_READ_ONLY);
-    // This is the check that makes pruning safe, and it must pass on a well formed
+    // This is the check that makes compaction safe, and it must pass on a well formed
     // database whose text is in the part table.
     const SafetyCheckResult result=
         SafetyChecks::verifyMessageContentPersistsOutsideEventTable(database);
@@ -151,11 +151,11 @@ TEST_CASE("the schema check names what is missing", "[safety]") {
     {
         Database database(databasePath, Database::OPEN_CREATE | Database::OPEN_READ_WRITE);
         // A database with only one of the four tables is not one this tool knows how
-        // to prune, and the refusal has to say which table is missing.
+        // to compact, and the refusal has to say which table is missing.
         database.execute("CREATE TABLE session (id TEXT PRIMARY KEY, time_created INTEGER)");
     }
     Database database(databasePath, Database::OPEN_READ_ONLY);
-    const SafetyCheckResult result=SafetyChecks::verifySchemaSupportsPruning(database);
+    const SafetyCheckResult result=SafetyChecks::verifySchemaSupportsCompaction(database);
     REQUIRE_FALSE(result.passed());
     // The message names the table, so a user can see why the tool stopped.
     REQUIRE(result.explanation().find("message")!=string::npos);
