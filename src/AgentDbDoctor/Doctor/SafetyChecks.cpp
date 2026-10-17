@@ -93,11 +93,11 @@ SafetyCheckResult SafetyChecks::verifyMessageContentPersistsOutsideEventTable(Da
     if (!StatisticsReader::tableExists(database, "part")) {
         return SafetyCheckResult::failed(
             "This database has no part table, which is where message content is kept. "
-            "The prune command cannot confirm that anything would survive, so nothing was changed."
+            "The compact command cannot confirm that anything would survive, so nothing was changed."
         );
     }
     // The oldest session is the right one to test, because it is the one a previous
-    // prune would have damaged first. A database with no sessions cannot be harmed
+    // compaction would have damaged first. A database with no sessions cannot be harmed
     // by deleting rows, so it passes.
     Statement oldestSessionStatement(
         database.rawHandle(),
@@ -114,7 +114,7 @@ SafetyCheckResult SafetyChecks::verifyMessageContentPersistsOutsideEventTable(Da
     if (!oldestSessionStatement.step()) {
         return SafetyCheckResult(string(
             "The database contains no sessions, so there is nothing to lose. "
-            "The prune command would not have anything to delete."
+            "The compact command would not have anything to delete."
         ));
     }
     const string oldestSessionIdentifier=oldestSessionStatement.columnText(0);
@@ -239,8 +239,8 @@ SafetyCheckResult SafetyChecks::verifyDatabaseIsNotDamaged(Database& database) {
     }
     return SafetyCheckResult(string("The integrity check found no problems."));
 }
-SafetyCheckResult SafetyChecks::verifySchemaSupportsPruning(Database& database) {
-    // Every table and column the prune query touches is tested before it is used.
+SafetyCheckResult SafetyChecks::verifySchemaSupportsCompaction(Database& database) {
+    // Every table and column the compaction query touches is tested before it is used.
     // An agent release that stores a different shape would otherwise produce a
     // query error in the middle of a deletion, which is the worst possible moment.
     const vector<string> requiredTables={"session", "message", "part", "event"};
@@ -255,7 +255,11 @@ SafetyCheckResult SafetyChecks::verifySchemaSupportsPruning(Database& database) 
     const vector<pair<string, string>> requiredColumns={
         pair<string, string>("message", "session_id"),
         pair<string, string>("part", "message_id"),
-        pair<string, string>("event", "type")
+        pair<string, string>("event", "type"),
+        // The event table names the session it belongs to through `aggregate_id`.
+        // A layout without it cannot be compacted, because the keep boundary has
+        // nothing to match against.
+        pair<string, string>("event", "aggregate_id")
     };
     for (const auto& requiredColumn : requiredColumns) {
         if (!StatisticsReader::columnExists(database, requiredColumn.first, requiredColumn.second)) {
@@ -279,7 +283,7 @@ vector<SafetyCheckResult> SafetyChecks::runAllPreFlightChecks(
     results.push_back(verifyNoInterruptedWriteIsPending(databaseFilePath));
     const FileMetadata fileMetadata=PlatformMetadata::readFileMetadata(databaseFilePath);
     results.push_back(verifySufficientFreeSpaceForBackup(databaseFilePath, fileMetadata.logicalSizeBytes));
-    results.push_back(verifySchemaSupportsPruning(database));
+    results.push_back(verifySchemaSupportsCompaction(database));
     results.push_back(verifyMessageContentPersistsOutsideEventTable(database));
     results.push_back(verifyDatabaseIsNotDamaged(database));
     return results;
