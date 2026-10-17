@@ -65,7 +65,7 @@ SchemaGeneration SchemaVersionDetector::detect(Database& database) {
     // No rows of either generation. Rows of some other kind are content no
     // version of this tool knows, and refusing them is the whole point of the
     // `Unknown` answer. An empty event table on an otherwise well formed schema
-    // is simply a fresh or fully pruned database.
+    // is simply a fresh or fully compacted database.
     const bool eventTableHasAnyRows=StatisticsReader::tableExists(database, "event")
         && rowExists(database, ANY_EVENT_ROW_PROBE, "any event row at all");
     if (eventTableHasAnyRows) {
