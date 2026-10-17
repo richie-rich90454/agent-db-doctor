@@ -3,7 +3,10 @@
 // The header read here is the only place the tool reads bytes from a database
 // outside SQLite itself, and it reads exactly one hundred of them. Everything
 // else about a database's size is answered from the file system's own metadata.
-#include <cstdio>
+// The standard input stream is used rather than the C `fopen`, because the C
+// function is flagged as deprecated by some Windows compilers and the stream
+// does the same job with the same binary semantics.
+#include <fstream>
 // Provides `from_chars`, the standard library integer parser that allocates
 // nothing, and `errc`, the error code it reports.
 #include <charconv>
@@ -53,21 +56,20 @@ SqliteHeaderFields StatisticsReader::readHeaderFields(const string& databaseFile
     SqliteHeaderFields headerFields;
     // The file is opened in binary read mode. On Windows the text mode would
     // rewrite line endings, which would corrupt the bytes being measured.
-    FILE* databaseFile=fopen(databaseFilePath.c_str(), "rb");
-    if (databaseFile==nullptr) {
+    ifstream databaseFile(databaseFilePath, ios::binary);
+    if (!databaseFile.is_open()) {
         return headerFields;
     }
     // The buffer is a fixed size array on the stack, so no allocation happens.
     // Only the first hundred bytes are ever read, and the rest of the array is
     // never touched.
     unsigned char headerBytes[SQLITE_HEADER_BYTE_COUNT];
-    // The result of `fread` is the number of bytes actually read, which is less
-    // than requested when the file is shorter than the header. A short read is
-    // exactly the signal that the file is truncated.
-    const size_t bytesRead=fread(headerBytes, 1, SQLITE_HEADER_BYTE_COUNT, databaseFile);
-    // The handle is closed on every path, including the early return below, which
-    // is why the read and the checks are separated by a single close call.
-    fclose(databaseFile);
+    // The byte count actually read is less than requested when the file is
+    // shorter than the header. A short read is exactly the signal that the file
+    // is truncated. The handle is closed by the stream's destructor on every
+    // path, including the early returns below.
+    databaseFile.read(reinterpret_cast<char*>(headerBytes), static_cast<streamsize>(SQLITE_HEADER_BYTE_COUNT));
+    const size_t bytesRead=static_cast<size_t>(databaseFile.gcount());
     if (bytesRead<SQLITE_FILE_SIGNATURE_LENGTH) {
         return headerFields;
     }
@@ -117,7 +119,7 @@ SqliteHeaderFields StatisticsReader::readHeaderFields(const string& databaseFile
     headerFields.declaredFileSizeBytes=headerFields.pageCount * headerFields.pageSizeBytes;
     return headerFields;
 }
-optional<long> StatisticsReader::approximateRowCount(Database& database, string_view tableName) {
+optional<long long> StatisticsReader::approximateRowCount(Database& database, string_view tableName) {
     // `sqlite_stat1` exists only after an `ANALYZE` has been run. If it is absent
     // the prepare fails, which this method reports as "no answer available" rather
     // than as an error, because the caller has a documented fallback.
@@ -212,11 +214,11 @@ long long StatisticsReader::exactRowCount(Database& database, string_view tableN
     return countingStatement.columnInteger(0);
 }
 long long StatisticsReader::pageCountFromEngine(Database& database) {
-    const optional<long> reportedPageCount=database.queryPragmaInteger("PRAGMA page_count");
+    const optional<long long> reportedPageCount=database.queryPragmaInteger("PRAGMA page_count");
     return reportedPageCount.has_value() ? reportedPageCount.value() : 0LL;
 }
 long long StatisticsReader::freePageCountFromEngine(Database& database) {
-    const optional<long> reportedFreePageCount=database.queryPragmaInteger("PRAGMA freelist_count");
+    const optional<long long> reportedFreePageCount=database.queryPragmaInteger("PRAGMA freelist_count");
     return reportedFreePageCount.has_value() ? reportedFreePageCount.value() : 0LL;
 }
 long long StatisticsReader::reclaimableBytesFromFreeList(const SqliteHeaderFields& headerFields) {
