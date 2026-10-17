@@ -26,14 +26,14 @@ namespace AgentDbDoctor::Gui {
 enum class ActionKind {
     // Nothing running and nothing asked for.
     None,
-    // A prune that changes nothing, to learn the numbers for the confirmation.
-    PrunePreview,
-    // A prune that removes rows, after the typed confirmation.
-    PruneRun,
+    // A compaction that changes nothing, to learn the numbers for the confirmation.
+    CompactionPreview,
+    // A compaction that removes rows, after the typed confirmation.
+    CompactionRun,
     // A compaction that changes nothing, to learn the numbers.
-    CompactPreview,
+    VacuumPreview,
     // A compaction that rewrites the file, after the typed confirmation.
-    CompactRun,
+    VacuumRun,
     // A recovery plan that runs nothing.
     RecoverPlan,
     // A recovery rebuild, after the typed confirmation.
@@ -47,9 +47,9 @@ struct ActionRequest final {
     ActionKind kind=ActionKind::None;
     // The database file, always set explicitly by the interface.
     string databasePath;
-    // How many recent sessions a prune keeps. Zero means the tool's default.
+    // How many recent sessions a compaction keeps. Zero means the tool's default.
     int keepSessions=0;
-    // The largest share of the event table a prune may remove.
+    // The largest share of the event table a compaction may remove.
     double maximumFraction=0.5;
     // The service action, for `ActionKind::Service` only.
     string serviceAction;
