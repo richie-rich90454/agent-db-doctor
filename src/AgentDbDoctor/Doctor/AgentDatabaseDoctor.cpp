@@ -102,7 +102,7 @@ void AgentDatabaseDoctor::recordStorageMetrics(const string& databaseFilePath, D
             "text files in a folder, so this is not a fault and there is nothing here to "
             "check or repair."
         );
-        report.setPruningSupported(false);
+        report.setCompactionSupported(false);
         return;
     }
     const SqliteHeaderFields headerFields=StatisticsReader::readHeaderFields(databaseFilePath);
@@ -175,7 +175,7 @@ void AgentDatabaseDoctor::recordTableRowCounts(Database& database, DiagnosisRepo
     }
 }
 void AgentDatabaseDoctor::recordSchemaGeneration(Database& database, DiagnosisReport& report) {
-    if (!report.getPruningSupported()) {
+    if (!report.getCompactionSupported()) {
         return;
     }
     report.setSchemaGenerationDescription(
@@ -293,8 +293,8 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
         // never called, so every report carried an empty list and the duplicate
         // count below always read zero without saying so.
         const optional<AgentDescriptor> agentDescriptor=agentRegistry.findAgent(agentName);
-        if (agentDescriptor.has_value() && agentDescriptor->supportsPruning) {
-            report.setPruningSupported(true);
+        if (agentDescriptor.has_value() && agentDescriptor->supportsCompaction) {
+            report.setCompactionSupported(true);
             report.setRedundantEventTypes(agentDescriptor->redundantEventTypes);
         }
     }
@@ -340,7 +340,7 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
             if (!report.getAutoVacuumEnabled() && report.getFreePageCount()>0) {
                 report.addWarning(
                     "This database does not return unused space to the file system on its own. "
-                    "The compact command is what actually shrinks the file; the prune command only "
+                    "The vacuum command is what actually shrinks the file; the compact command only "
                     "marks the space as reusable."
                 );
             }
@@ -364,7 +364,7 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
     } else if (report.getIsDirectory()) {
         report.addSuggestedNextStep(
             "This is a folder of text files rather than a database, so there is nothing to check, "
-            "prune, compact, or repair here, and this tool will not change anything inside it. "
+            "compact, vacuum, or repair here, and this tool will not change anything inside it. "
             "The coding agent that owns this folder manages these files itself."
         );
     } else if (report.getIntegrityStatus()==IntegrityStatus::UNREADABLE) {
@@ -377,13 +377,13 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
         );
     } else if (report.getRedundantEventRowCount()>0) {
         report.addSuggestedNextStep(
-            string("Run the prune command to remove the ") + to_string(report.getRedundantEventRowCount())
-            + " duplicate rows, then the compact command to shrink the file."
+            string("Run the compact command to remove the ") + to_string(report.getRedundantEventRowCount())
+            + " redundant snapshots, then the vacuum command to give the space back to the drive."
         );
     } else if (report.getReclaimableBytes()>0) {
         report.addSuggestedNextStep(
-            "Run the compact command. There is already unused space inside the file that a "
-            "compaction would return to the drive."
+            "Run the vacuum command. There is already unused space inside the file that a "
+            "vacuum would return to the drive."
         );
     } else {
         report.addSuggestedNextStep("Nothing needs doing. The database is in good shape.");
