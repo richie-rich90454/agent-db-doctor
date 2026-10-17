@@ -287,14 +287,20 @@ bool PlatformMetadata::isStandardOutputATerminal() {
     return GetConsoleMode(standardOutputHandle, &consoleMode)!=FALSE;
 }
 bool PlatformMetadata::readEnvironmentVariable(const string& variableName, string& valueOut) {
-    // `getenv` reads the process environment, which is a copy made at start up.
-    // It allocates a copy of the value, which is why this is not used on the hot
-    // path. The hot path never reads the environment at all.
-    const char* rawValue=std::getenv(variableName.c_str());
-    if (rawValue==nullptr) {
+    // `_dupenv_s` reads the process environment, which is a copy made at start up.
+    // It is the secure form of `getenv`, which the Windows compilers flag as
+    // deprecated. It allocates one copy of the value, which the caller frees, so
+    // this is not used on the hot path; the hot path never reads the environment.
+    char* rawValuePointer=nullptr;
+    size_t rawValueLength=0;
+    if (_dupenv_s(&rawValuePointer, &rawValueLength, variableName.c_str())!=0) {
         return false;
     }
-    const string copiedValue(rawValue);
+    if (rawValuePointer==nullptr) {
+        return false;
+    }
+    const string copiedValue(rawValuePointer);
+    free(rawValuePointer);
     if (copiedValue.empty()) {
         return false;
     }
