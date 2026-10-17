@@ -7,7 +7,7 @@
 #include <string>
 // Provides the Catch2 test registration macros.
 #include <catch2/catch_test_macros.hpp>
-// Provides the catalogue and the twenty one agent classes.
+// Provides the catalogue and the sixty two agent classes.
 #include "AgentDbDoctor/Agents/AgentRegistry.hpp"
 #include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
 #include "AgentDbDoctor/Agents/CodexAgent.hpp"
@@ -134,6 +134,11 @@ TEST_CASE("Roo Code is reported but not pruned", "[agents]") {
     REQUIRE_FALSE(descriptor.supportsPruning);
     REQUIRE(agent.redundantEventTypes().empty());
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
+    // The Cline extension's storage folder must never appear here: it belongs to
+    // the Cline adapter, and listing it made Cline's data report as Roo Code.
+    for (const string& candidatePath : descriptor.candidatePaths) {
+        REQUIRE(candidatePath.find("claude-dev")==string::npos);
+    }
 }
 TEST_CASE("Reasonix is reported but not pruned", "[agents]") {
     const ReasonixAgent agent;
@@ -155,7 +160,7 @@ TEST_CASE("VS Code is reported but not pruned", "[agents]") {
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
 }
 TEST_CASE("the wider catalogue is reported but never pruned", "[agents]") {
-    // Eleven more tools, none verified to keep redundant snapshots, so every
+    // Fifty two more tools, none verified to keep redundant snapshots, so every
     // one is reported and left alone. Each must be findable by name and carry
     // a complete descriptor, or a report would show a blank section.
     const vector<string> expectedNames={
