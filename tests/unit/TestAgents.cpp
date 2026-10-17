@@ -75,8 +75,8 @@ TEST_CASE("the OpenCode agent names its redundant event types", "[agents]") {
     const AgentDescriptor descriptor=agent.describe();
     REQUIRE(descriptor.displayName=="OpenCode");
     REQUIRE(descriptor.usesSqliteDatabase);
-    REQUIRE(descriptor.supportsPruning);
-    // The three types are the whole basis of the prune command, so all three must be
+    REQUIRE(descriptor.supportsCompaction);
+    // The three types are the whole basis of the compact command, so all three must be
     // named or rows would be left behind.
     REQUIRE(descriptor.redundantEventTypes.size()==3);
     REQUIRE(descriptor.redundantEventTypes[0]=="message.updated.1");
@@ -86,52 +86,52 @@ TEST_CASE("the OpenCode agent names its redundant event types", "[agents]") {
     // discovery cost a fixed number of calls.
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
 }
-TEST_CASE("the text based agents offer nothing to prune", "[agents]") {
+TEST_CASE("the text based agents offer nothing to compact", "[agents]") {
     // These three keep one file per session with no duplicate snapshots, so the tool
-    // reports their size and leaves them alone. Offering to prune them would mean
+    // reports their size and leaves them alone. Offering to compact them would mean
     // deleting a user's only copy of a conversation.
     const CodexAgent codexAgent;
     REQUIRE(codexAgent.describe().usesSqliteDatabase==false);
-    REQUIRE(codexAgent.describe().supportsPruning==false);
+    REQUIRE(codexAgent.describe().supportsCompaction==false);
     REQUIRE(codexAgent.redundantEventTypes().empty());
     const ClaudeCodeAgent claudeAgent;
-    REQUIRE(claudeAgent.describe().supportsPruning==false);
+    REQUIRE(claudeAgent.describe().supportsCompaction==false);
     const AiderAgent aiderAgent;
-    REQUIRE(aiderAgent.describe().supportsPruning==false);
+    REQUIRE(aiderAgent.describe().supportsCompaction==false);
 }
-TEST_CASE("Cursor is reported but not pruned", "[agents]") {
+TEST_CASE("Cursor is reported but not compacted", "[agents]") {
     const CursorAgent agent;
     const AgentDescriptor descriptor=agent.describe();
-    // Cursor does use SQLite, but its tables are undocumented, so pruning would mean
+    // Cursor does use SQLite, but its tables are undocumented, so compaction would mean
     // guessing. The tool reports the size and says why it will not touch it.
     REQUIRE(descriptor.usesSqliteDatabase);
-    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE_FALSE(descriptor.supportsCompaction);
     REQUIRE(descriptor.redundantEventTypes.empty());
-    REQUIRE(descriptor.storageDescription.find("not prune")!=string::npos);
+    REQUIRE(descriptor.storageDescription.find("not compact")!=string::npos);
 }
-TEST_CASE("Continue is reported but not pruned", "[agents]") {
+TEST_CASE("Continue is reported but not compacted", "[agents]") {
     const ContinueAgent agent;
-    REQUIRE_FALSE(agent.describe().supportsPruning);
+    REQUIRE_FALSE(agent.describe().supportsCompaction);
     REQUIRE(agent.redundantEventTypes().empty());
 }
-TEST_CASE("Cline is reported but not pruned", "[agents]") {
+TEST_CASE("Cline is reported but not compacted", "[agents]") {
     const ClineAgent agent;
     const AgentDescriptor descriptor=agent.describe();
     // Cline's sessions database uses undocumented tables, so the tool reports
-    // the size and refuses to prune rather than guessing.
+    // the size and refuses to compact rather than guessing.
     REQUIRE(descriptor.displayName=="Cline");
     REQUIRE(descriptor.usesSqliteDatabase);
-    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE_FALSE(descriptor.supportsCompaction);
     REQUIRE(agent.redundantEventTypes().empty());
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
     REQUIRE(descriptor.candidatePaths.front().find("sessions.db")!=string::npos);
 }
-TEST_CASE("Roo Code is reported but not pruned", "[agents]") {
+TEST_CASE("Roo Code is reported but not compacted", "[agents]") {
     const RooCodeAgent agent;
     const AgentDescriptor descriptor=agent.describe();
     REQUIRE(descriptor.displayName=="Roo Code");
     REQUIRE_FALSE(descriptor.usesSqliteDatabase);
-    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE_FALSE(descriptor.supportsCompaction);
     REQUIRE(agent.redundantEventTypes().empty());
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
     // The Cline extension's storage folder must never appear here: it belongs to
@@ -140,26 +140,26 @@ TEST_CASE("Roo Code is reported but not pruned", "[agents]") {
         REQUIRE(candidatePath.find("claude-dev")==string::npos);
     }
 }
-TEST_CASE("Reasonix is reported but not pruned", "[agents]") {
+TEST_CASE("Reasonix is reported but not compacted", "[agents]") {
     const ReasonixAgent agent;
     const AgentDescriptor descriptor=agent.describe();
     REQUIRE(descriptor.displayName=="Reasonix");
     REQUIRE_FALSE(descriptor.usesSqliteDatabase);
-    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE_FALSE(descriptor.supportsCompaction);
     REQUIRE(agent.redundantEventTypes().empty());
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
 }
-TEST_CASE("VS Code is reported but not pruned", "[agents]") {
+TEST_CASE("VS Code is reported but not compacted", "[agents]") {
     const VscodeAgent agent;
     const AgentDescriptor descriptor=agent.describe();
     // The workspace state files hold editor state in undocumented tables.
     REQUIRE(descriptor.displayName=="VS Code");
     REQUIRE(descriptor.usesSqliteDatabase);
-    REQUIRE_FALSE(descriptor.supportsPruning);
+    REQUIRE_FALSE(descriptor.supportsCompaction);
     REQUIRE(agent.redundantEventTypes().empty());
     REQUIRE_FALSE(descriptor.candidatePaths.empty());
 }
-TEST_CASE("the wider catalogue is reported but never pruned", "[agents]") {
+TEST_CASE("the wider catalogue is reported but never compacted", "[agents]") {
     // Fifty two more tools, none verified to keep redundant snapshots, so every
     // one is reported and left alone. Each must be findable by name and carry
     // a complete descriptor, or a report would show a blank section.
@@ -225,7 +225,7 @@ TEST_CASE("the wider catalogue is reported but never pruned", "[agents]") {
         REQUIRE_FALSE(descriptor->candidatePaths.empty());
         REQUIRE_FALSE(descriptor->storageDescription.empty());
         REQUIRE(descriptor->redundantEventTypes.empty());
-        REQUIRE_FALSE(descriptor->supportsPruning);
+        REQUIRE_FALSE(descriptor->supportsCompaction);
     }
 }
 TEST_CASE("every supported agent is listed in a fixed order", "[agents]") {
@@ -249,10 +249,10 @@ TEST_CASE("the filtered lists hold only the agents that qualify", "[agents]") {
     for (const AgentDescriptor& descriptor : registry.sqliteAgents()) {
         REQUIRE(descriptor.usesSqliteDatabase);
     }
-    // Only OpenCode offers pruning, and only one agent should be in that list.
-    const vector<AgentDescriptor> prunable=registry.prunableAgents();
-    REQUIRE(prunable.size()==1);
-    REQUIRE(prunable.front().displayName=="OpenCode");
+    // Only OpenCode offers compaction, and only one agent should be in that list.
+    const vector<AgentDescriptor> compactable=registry.compactableAgents();
+    REQUIRE(compactable.size()==1);
+    REQUIRE(compactable.front().displayName=="OpenCode");
 }
 TEST_CASE("an agent is found by name with or without the right capitals", "[agents]") {
     const AgentRegistry registry;
