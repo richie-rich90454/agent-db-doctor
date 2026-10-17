@@ -5,7 +5,6 @@
 // permission, delete in batches, and then check the sample again. No step is
 // skipped for speed, and every one of them can stop the operation before the next
 // one begins.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -37,11 +36,6 @@ using namespace AgentDbDoctor::Doctor;
 using namespace AgentDbDoctor::FileSystem;
 using namespace AgentDbDoctor::Agents;
 namespace AgentDbDoctor::Command {
-// The query that finds the boundary between the sessions to keep and the ones to
-// prune. Ordering by the creation time and taking one row is an indexed read, so it
-// costs the same in a database of ten sessions and a database of a million.
-static constexpr const char* SESSION_BOUNDARY_QUERY=
-    "SELECT id FROM session ORDER BY time_created DESC LIMIT 1 OFFSET ?1";
 // The query that counts the event rows that are known duplicates, one event type at
 // a time. The `type` column is indexed, so the count is a lookup rather than a scan.
 static constexpr const char* REDUNDANT_ROW_COUNT_QUERY=
@@ -95,8 +89,6 @@ static constexpr const char* DELETE_BATCH_QUERY=
 // checkpoint is still a `TRUNCATE`, because by then the point is to hand back the
 // space rather than to keep going.
 static constexpr long long ROWS_PER_CHECKPOINT=250000;
-// The number of databases the command is prepared to handle in one run.
-static constexpr int MAXIMUM_REPORTED_DATABASES=200;
 PruneCommand::PruneCommand(bool isTerminalAttached)
     : reporter(isTerminalAttached) {
 }
@@ -499,22 +491,20 @@ int PruneCommand::execute(const CommandOptions& options) {
         writePurpose(options);
     }
     if (options.databaseFilePath.empty()) {
-        reporter.writeFailure(
-            string("This command needs to know which database to work on, because it changes one. "
-                "Tell it with --database, or run the diagnose command first to see where your "
-                "agent keeps it."),
-            string()
+        lastRunOutcome.summarySentence=string(
+            "This command needs to know which database to work on, because it changes one. "
+            "Tell it with --database, or run the diagnose command first to see where your "
+            "agent keeps it."
         );
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         reporter.writeLine("Nothing was changed.");
         return 1;
     }
     const FileMetadata fileStatus=PlatformMetadata::readFileMetadata(options.databaseFilePath);
     if (!fileStatus.exists) {
-        reporter.writeFailure(
-            string("There is no file at ") + options.databaseFilePath
-            + ". Nothing was changed.",
-            string()
-        );
+        lastRunOutcome.summarySentence=string("There is no file at ")
+            + options.databaseFilePath + ". Nothing was changed.";
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         return 1;
     }
     // The lock is checked before the copy, because copying a file that another
@@ -522,6 +512,7 @@ int PruneCommand::execute(const CommandOptions& options) {
     // copy that is not complete is worse than none.
     const SafetyCheckResult lockCheck=SafetyChecks::verifyDatabaseIsNotLocked(options.databaseFilePath);
     if (!lockCheck.passed()) {
+        lastRunOutcome.summarySentence=lockCheck.explanation() + "\n\nNothing was changed.";
         reporter.writeFailure(lockCheck.explanation(), string());
         reporter.writeLine("Nothing was changed.");
         return 1;
@@ -531,31 +522,40 @@ int PruneCommand::execute(const CommandOptions& options) {
     } catch (const PragmaException& pragmaFailure) {
         // A setting could not be applied, which stops the run rather than continuing
         // with settings the caller did not ask for.
+        lastRunOutcome.summarySentence=pragmaFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(pragmaFailure.message(), string());
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const InsufficientDiskSpaceException& spaceFailure) {
         // There was not enough room to do what was asked, which is the refusal the
         // specification requires rather than a failure.
+        lastRunOutcome.summarySentence=spaceFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(spaceFailure.message(), to_string(spaceFailure.requiredBytes()));
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const FileSystemException& fileFailure) {
+        lastRunOutcome.summarySentence=fileFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(fileFailure.message(), string());
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const ConfigurationException& configurationFailure) {
+        lastRunOutcome.summarySentence=configurationFailure.message();
         reporter.writeFailure(configurationFailure.message(), string());
         return 1;
     } catch (const AgentDatabaseMissingException& missingFailure) {
         // No supported agent could be found, which is a result rather than a fault.
+        lastRunOutcome.summarySentence=missingFailure.message();
         reporter.writeFailure(missingFailure.message(), string());
         return 1;
     } catch (const DatabaseOpenException& openFailure) {
+        lastRunOutcome.summarySentence=openFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(openFailure.message(), to_string(openFailure.openResultCode()));
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const DatabaseOperationException& operationFailure) {
+        // The run stopped partway, and the safety copy note below says what that
+        // means for the original, so the sentence is carried as it is.
+        lastRunOutcome.summarySentence=operationFailure.message();
         reporter.writeFailure(operationFailure.message(), string());
         reporter.writeLine("The command stopped. The safety copy made before this run is still where "
             "it was reported, and it is a complete copy of your database as it was before.");
