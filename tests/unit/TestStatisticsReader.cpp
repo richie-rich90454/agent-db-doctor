@@ -66,7 +66,7 @@ TEST_CASE("row counts come from the statistics table in constant time", "[statis
     // With the statistics table populated, the count is available without a scan.
     // This is the difference between a constant time answer and one that reads the
     // whole table.
-    const optional<long> approximateSessionCount=
+    const optional<long long> approximateSessionCount=
         StatisticsReader::approximateRowCount(database, "session");
     REQUIRE(approximateSessionCount.has_value());
     REQUIRE(approximateSessionCount.value()==20);
