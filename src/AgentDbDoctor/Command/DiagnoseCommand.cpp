@@ -2,7 +2,6 @@
 //
 // The command has one job and one rule: look, then explain. It never opens a
 // database for writing, never creates a file, and never leaves anything behind.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -66,14 +65,17 @@ vector<string> DiagnoseCommand::resolveDatabasePaths(
         return databasePaths;
     }
     // The user named no file, so every supported agent is asked where its data is.
-    // The registry performs the discovery, and each candidate path costs one
-    // metadata call rather than a directory walk.
+    // The discovery runs once and the results are then grouped by agent name, in
+    // the fixed agent order. Asking the registry once per agent re-ran the whole
+    // discovery sixty two times, which on a machine with many databases meant
+    // thousands of unnecessary directory listings.
     const AgentRegistry registry;
+    const vector<DiscoveredDatabase> discoveredDatabases=registry.discoverAllDatabases();
     for (const AgentDescriptor& descriptor : registry.allAgents()) {
         if (!options.agentName.empty() && descriptor.displayName!=options.agentName) {
             continue;
         }
-        for (const DiscoveredDatabase& discovered : registry.discoverAllDatabases()) {
+        for (const DiscoveredDatabase& discovered : discoveredDatabases) {
             if (discovered.agentName!=descriptor.displayName) {
                 continue;
             }
