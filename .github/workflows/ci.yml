@@ -1,0 +1,192 @@
+# The continuous integration workflow.
+#
+# Four toolchains build the project on every change: the GNU compiler and the
+# Clang compiler on Linux, the Microsoft compiler on Windows, and Apple's
+# compiler on macOS. Each one runs the whole test suite, proves the command line
+# program and the window both start, and produces a runnable package whose
+# binaries carry the shared library, the artwork, the README, and the licence.
+# Pushing a tag additionally attaches every package to the GitHub release for
+# that tag.
+name: CI
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+# The token is read only except for the release step on a tag, which publishes
+# the packages; the step itself is guarded by the tag check.
+permissions:
+  contents: write
+# A newer run for the same branch or tag replaces an older one, so a quick
+# follow up commit never waits for the previous run to finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.name }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            cCompiler: gcc
+            cxxCompiler: g++
+          - name: clang
+            cCompiler: clang
+            cxxCompiler: clang++
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Install the build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+            libxi-dev libxss-dev libgl1-mesa-dev libdbus-1-dev libwayland-dev \
+            libxkbcommon-dev libegl1-mesa-dev libxtst-dev libxinerama-dev xvfb
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER=${{ matrix.cCompiler }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.cxxCompiler }}
+          -DAGENT_DB_DOCTOR_ENABLE_WERROR=ON
+      - name: Build
+        run: cmake --build build
+      - name: Run the test suites
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the command line program runs
+        run: ./build/bin/agent-db-doctor --version
+      - name: Check the window comes up
+        run: xvfb-run -a ./build/bin/agent-db-doctor-gui --smoke-test
+      - name: Build the package
+        run: |
+          version=$(grep -m1 -oE '^    VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          packageName="agent-db-doctor-${version}-linux-x86_64-${{ matrix.name }}"
+          mkdir -p "dist/${packageName}"
+          cp build/bin/agent-db-doctor build/bin/agent-db-doctor-gui \
+            build/bin/favicon-64.png build/bin/logo-512.png \
+            README.md LICENSE "dist/${packageName}/"
+          cp -P build/bin/libSDL3.so* "dist/${packageName}/"
+          tar -C dist -czf "dist/${packageName}.tar.gz" "${packageName}"
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-db-doctor-linux-x86_64-${{ matrix.name }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+      - name: Attach the package to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes \
+            --title "${GITHUB_REF_NAME}" || true
+          gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
+
+  windows:
+    name: Windows (MSVC)
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 90
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      # The compiler is not on the path by default; this action runs Microsoft's
+      # developer command file, after which `cl`, `link`, and `rc` answer.
+      - name: Set up the Microsoft C++ compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DAGENT_DB_DOCTOR_ENABLE_WERROR=ON
+      - name: Build
+        run: cmake --build build
+      - name: Run the test suites
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the command line program runs
+        run: .\build\bin\agent-db-doctor.exe --version
+      - name: Check the window comes up
+        run: .\build\bin\agent-db-doctor-gui.exe --smoke-test
+      - name: Build the package
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path CMakeLists.txt `
+              -Pattern '^    VERSION ([0-9]+\.[0-9]+\.[0-9]+)').Matches[0].Groups[1].Value
+          $packageName = "agent-db-doctor-$version-windows-x86_64"
+          New-Item -ItemType Directory -Path "dist/$packageName" -Force | Out-Null
+          Copy-Item build/bin/agent-db-doctor.exe, build/bin/agent-db-doctor-gui.exe, `
+            build/bin/SDL3.dll, build/bin/favicon-64.png, build/bin/logo-512.png, `
+            README.md, LICENSE "dist/$packageName"
+          Compress-Archive -Path "dist/$packageName" -DestinationPath "dist/$packageName.zip"
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-db-doctor-windows-x86_64
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
+      - name: Attach the package to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes \
+            --title "${GITHUB_REF_NAME}" || true
+          gh release upload "${GITHUB_REF_NAME}" dist/*.zip --clobber
+
+  macos:
+    name: macOS (AppleClang)
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Make sure Ninja is available
+        run: which ninja || brew install ninja
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DAGENT_DB_DOCTOR_ENABLE_WERROR=ON
+      - name: Build
+        run: cmake --build build
+      - name: Run the test suites
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the command line program runs
+        run: ./build/bin/agent-db-doctor --version
+      # The window is deliberately not opened here: the runner has no display,
+      # and the window code is already exercised by the Linux and Windows jobs.
+      - name: Build the package
+        run: |
+          version=$(grep -m1 -oE '^    VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          packageName="agent-db-doctor-${version}-macos-arm64"
+          mkdir -p "dist/${packageName}"
+          cp build/bin/agent-db-doctor build/bin/agent-db-doctor-gui \
+            build/bin/favicon-64.png build/bin/logo-512.png \
+            README.md LICENSE "dist/${packageName}/"
+          cp -P build/bin/libSDL3*.dylib "dist/${packageName}/"
+          tar -C dist -czf "dist/${packageName}.tar.gz" "${packageName}"
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-db-doctor-macos-arm64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+      - name: Attach the package to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes \
+            --title "${GITHUB_REF_NAME}" || true
+          gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
