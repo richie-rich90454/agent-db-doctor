@@ -133,17 +133,17 @@ struct AgentDescriptor final {
     vector<string> candidatePaths;
     // The event type names that mark a row as a redundant snapshot. This is empty
     // for agents that store sessions as plain text files, because there is
-    // nothing to prune.
+    // nothing to compact.
     vector<string> redundantEventTypes;
     // The names of the programs most likely to be holding the database open, used
     // to tell the user what to close.
     vector<string> likelyProcessNames;
     // True when this agent keeps its history in a SQLite database, which is the
-    // only case where the prune and compact commands apply.
+    // only case where the compact and vacuum commands apply.
     bool usesSqliteDatabase=false;
     // True when this agent's data can be reduced without losing conversation
     // content. Only true for agents that store redundant snapshots.
-    bool supportsPruning=false;
+    bool supportsCompaction=false;
     // A sentence saying where this agent's data is, for the report.
     string storageDescription;
 };
@@ -183,10 +183,10 @@ public:
     // change between runs, so that reports are comparable.
     vector<AgentDescriptor> allAgents() const;
     // The descriptors for the agents that keep their history in a SQLite
-    // database, which are the only ones the prune and compact commands act on.
+    // database, which are the only ones the compact and vacuum commands act on.
     vector<AgentDescriptor> sqliteAgents() const;
-    // The descriptors for the agents that can be pruned.
-    vector<AgentDescriptor> prunableAgents() const;
+    // The descriptors for the agents whose event log can be compacted.
+    vector<AgentDescriptor> compactableAgents() const;
     // The descriptor for the agent with the given name, or `nullopt` when no such
     // agent is supported. The comparison ignores case, because a user typing a
     // name on a command line should not have to match capitalisation.
