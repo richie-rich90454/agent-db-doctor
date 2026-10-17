@@ -5,7 +5,6 @@
 // and the detail view for the selected database with its session browser.
 // The console log runs along the bottom. The screen never opens a database:
 // the background scan already did, and this file only reads its snapshot.
-#include <algorithm>
 // Provides `sort`, which orders the session browser.
 #include <algorithm>
 // Provides `string`, which owns and stores a sequence of characters.

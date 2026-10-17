@@ -5,7 +5,6 @@
 // means it was not. Failing closed is what makes an empty or half migrated
 // database answer "first generation, nothing in it" rather than "unknown",
 // which is the truthful answer for a file whose schema the tool supports.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides the SchemaVersionDetector class declaration.

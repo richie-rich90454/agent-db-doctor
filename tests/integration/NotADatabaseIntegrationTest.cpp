@@ -6,7 +6,6 @@
 // wrong answers here are not crashes but misleading sentences: a folder described as a
 // healthy database whose pages had all checked out, and a text file described as
 // damaged, when neither statement was true.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides the directory and file operations the tests need to make their own inputs.

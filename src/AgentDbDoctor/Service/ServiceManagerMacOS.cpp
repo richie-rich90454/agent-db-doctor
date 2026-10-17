@@ -12,13 +12,10 @@
 // machine that is not a Mac.
 #include <mach-o/dyld.h>
 #endif
-#include <cstdio>
 // Provides `popen` and `pclose`, which run a command and read its output.
 #include <cstdio>
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
-#include <fstream>
 // Provides `ofstream`, which writes the property list file.
 #include <fstream>
 #include <vector>

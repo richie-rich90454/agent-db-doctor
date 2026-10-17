@@ -4,7 +4,6 @@
 // and checks the detector names it. The point of the suite is the contract:
 // rows decide, never the file name, and unrecognised rows refuse rather than
 // pass as something they are not.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides the Catch2 test macros.

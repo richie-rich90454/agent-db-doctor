@@ -3,10 +3,8 @@
 // The command never installs anything without printing first what it is about to
 // do and where the files will go, and it never starts a service that is already
 // running, because both surprises are the kind this tool is meant to avoid.
-#include <iostream>
 // Provides `cin` and `getline`, which read the confirmation from standard input.
 #include <iostream>
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.

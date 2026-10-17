@@ -5,7 +5,6 @@
 // with a filler column so that a small number of rows can occupy a large file,
 // which is how the performance tests get a hundred gigabyte database without
 // spending a hundred gigabytes of disk.
-#include <filesystem>
 // Provides `create_directories`, `remove`, and `path`, which set up and clear the
 // temporary folder.
 #include <filesystem>

@@ -3,7 +3,6 @@
 // These two are the last line of defence before the tool writes to a disk. The
 // tests are about the answers being safe: a requirement that is too small, or a
 // lock check that says a free file is busy, are both ways to lose a user's data.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, the growable array the lock status returns.

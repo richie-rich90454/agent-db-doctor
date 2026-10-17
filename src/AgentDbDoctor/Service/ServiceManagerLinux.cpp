@@ -5,17 +5,13 @@
 // that file and asking systemd to load it; starting, stopping, and querying all go
 // through the `systemctl` program, which is the supported interface rather than
 // talking to the daemon over its socket.
-#include <unistd.h>
 // Provides `readlink`, which reads the symbolic link the kernel maintains pointing
 // at the running program.
 #include <unistd.h>
-#include <cstdio>
 // Provides `popen` and `pclose`, which run a command and read its output.
 #include <cstdio>
-#include <fstream>
 // Provides `ofstream`, which writes the unit file.
 #include <fstream>
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.

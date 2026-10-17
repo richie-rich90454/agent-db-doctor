@@ -4,7 +4,6 @@
 // failure as the dangerous answer. A check that cannot prove something is safe
 // reports that it is not safe, because the tool is about to delete rows from a
 // file the user cannot afford to lose.
-#include <optional>
 // Provides `optional`, a container that may or may not hold a value.
 #include <optional>
 // Provides `pair`, which holds two values of different types.

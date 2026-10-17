@@ -6,7 +6,6 @@
 // one where a locale-aware formatter would produce a comma in some regions and a
 // full stop in others. A file size written "1,024" is confusing to a reader who
 // expects "1.024".
-#include <cstdio>
 // Provides `snprintf`, which writes formatted text into a fixed size buffer.
 #include <cstdio>
 // Provides `string`, which owns and stores a sequence of characters.

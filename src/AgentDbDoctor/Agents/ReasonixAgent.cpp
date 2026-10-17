@@ -1,5 +1,4 @@
 // The implementation of the ReasonixAgent class.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.

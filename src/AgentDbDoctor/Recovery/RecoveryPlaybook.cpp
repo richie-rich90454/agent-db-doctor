@@ -4,7 +4,6 @@
 // someone whose drive is full. That is not a stylistic choice; it is the reason
 // this class exists. No step assumes knowledge of SQLite, and no step asks the user
 // to decide something they have no information to decide.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.

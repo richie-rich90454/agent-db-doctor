@@ -4,7 +4,6 @@
 // here. It is shown because the specification requires it for any operation over
 // two hundred milliseconds, and the copy is usually the slowest thing a user waits
 // for.
-#include <filesystem>
 // Provides `copy_file`, `file_size`, and `path`, which do the copying and the
 // measuring without ever reading the file's contents into memory.
 #include <filesystem>
@@ -12,7 +11,6 @@
 // Provides `cin` and `getline`, which read the answer from standard input.
 #include <cctype>
 // Provides `tolower`, which lowercases one character.
-#include <ctime>
 // Provides `time`, `localtime_r`, `localtime_s`, and `strftime`, which turn the
 // current clock reading into the timestamp in a backup name.
 #include <ctime>
