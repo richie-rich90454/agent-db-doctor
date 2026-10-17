@@ -50,8 +50,8 @@ public:
         const DiagnosisReport& report
     );
     // Builds the plan for a healthy database that is simply too large. The
-    // suggestion is the prune and compact pair, in that order, because pruning
-    // without compacting would leave the file the same size on disk.
+    // suggestion is the compact and vacuum pair, in that order, because compacting
+    // without vacuuming would leave the file the same size on disk.
     static vector<RecoveryRecommendation> buildPlanForOversizedDatabase(
         const DiagnosisReport& report
     );
