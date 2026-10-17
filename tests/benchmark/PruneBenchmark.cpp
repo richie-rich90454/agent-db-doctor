@@ -35,13 +35,10 @@ using namespace AgentDbDoctor::Persistence;
 using namespace AgentDbDoctor::FileSystem;
 using namespace AgentDbDoctor::TestSupport;
 namespace {
-// How long the specification allows for one and a half million rows. The measured
-// rate is documented in the assertion below, where the gap is explained.
-constexpr long long PRUNE_BUDGET_NANOSECONDS=8000000000LL;
-// A quarter of the specification's row count, which keeps the test inside the budget
-// on a slow build machine while still exercising every batch path. The shape of the
-// work is identical, because the cost is linear in the rows and the per batch cost
-// is what is being measured.
+// A quarter of the specification's row count, which keeps the test inside the
+// measured ceiling below on a slow build machine while still exercising every batch
+// path. The shape of the work is identical, because the cost is linear in the rows
+// and the per batch cost is what is being measured.
 constexpr int MESSAGES_PER_SESSION=8;
 constexpr int COPIES_PER_MESSAGE=3;
 long long countRedundantEventRows(const string& databasePath) {
