@@ -92,7 +92,7 @@ public:
     // table is missing, or the named table is not in it, this returns `nullopt`
     // and the caller falls back to an exact count. The fallback is slower but is
     // only ever used for small tables, never for the event table.
-    static optional<long> approximateRowCount(Database& database, string_view tableName);
+    static optional<long long> approximateRowCount(Database& database, string_view tableName);
     // True when a table with the given name exists. The answer comes from
     // SQLite's own schema table, so it costs one indexed lookup.
     static bool tableExists(Database& database, string_view tableName);
