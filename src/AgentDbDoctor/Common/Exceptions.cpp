@@ -17,8 +17,6 @@ namespace AgentDbDoctor::Common {
 // https://www.sqlite.org/rescode.html and are repeated here as named constants
 // so that this file does not depend on the exact SQLite header layout.
 namespace SqliteCode {
-    // The primary result code occupies the low eight bits.
-    constexpr int CODE_MASK=0xFF;
     // Extended codes add `value * 256` to the primary code.
     constexpr int EXTENDED_SHIFT=8;
     // SQLITE_IOERR_READ is the code the specification calls out: the operating
