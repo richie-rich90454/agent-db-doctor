@@ -37,7 +37,7 @@ optional<string> ZedAgent::findDatabasePath() const {
 vector<string> ZedAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and Zed's tables are undocumented. Returning an
-    // empty list is what makes the prune command refuse rather than guess.
+    // empty list is what makes the compact command refuse rather than guess.
     return vector<string>();
 }
 vector<string> ZedAgent::likelyProcessNames() const {
@@ -50,10 +50,12 @@ AgentDescriptor ZedAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=true;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Zed keeps its database and extensions under the platform user-data dir. "
-        "The tool reports their sizes. It never prunes them, because the schema is undocumented."
+        "The tool reports their sizes. It never compacts them, because the schema is "
+        "undocumented. The vacuum command is always available for them: it hands unused space "
+        "back to the drive and changes nothing the database holds."
     );
     return descriptor;
 }
