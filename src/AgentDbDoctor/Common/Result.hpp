@@ -34,7 +34,7 @@ public:
     }
     // Creates a failed status carrying a complete sentence.
     static Status failure(string explanation) {
-        return Status(false, move(explanation));
+        return Status(false, std::move(explanation));
     }
     // `const` here is a compile time promise that this method does not modify
     // the object it is called on.
@@ -52,7 +52,7 @@ public:
     }
 private:
     Status(bool succeeded, string explanation)
-        : succeededFlag(succeeded), explanationText(move(explanation)) {
+        : succeededFlag(succeeded), explanationText(std::move(explanation)) {
     }
     bool succeededFlag=true;
     string explanationText;
@@ -74,14 +74,14 @@ public:
     static Result succeeded(T value) {
         Result builtResult;
         builtResult.isSuccessFlag=true;
-        builtResult.heldValue=move(value);
+        builtResult.heldValue=std::move(value);
         return builtResult;
     }
     // Creates a failed result carrying a complete sentence.
     static Result failure(string explanation) {
         Result builtResult;
         builtResult.isSuccessFlag=false;
-        builtResult.failureText=move(explanation);
+        builtResult.failureText=std::move(explanation);
         return builtResult;
     }
     // `const` here is a compile time promise that this method does not modify the
