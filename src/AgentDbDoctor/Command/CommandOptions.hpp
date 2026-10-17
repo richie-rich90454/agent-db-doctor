@@ -60,7 +60,7 @@ struct CommandOptions final {
     // value the specification names: large enough that the flush cost is amortised,
     // small enough that the undo log stays small.
     int deletionBatchSize=10000;
-    // The highest fraction of the database a single prune run is allowed to remove.
+    // The highest fraction of the database a single compaction run is allowed to remove.
     // The tool refuses rather than making a change this large without a human
     // deciding, which protects against a misread row count.
     double maximumFractionToRemove=0.5;
