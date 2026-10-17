@@ -90,7 +90,7 @@ TEST_CASE("a prepared statement is run many times with new values", "[statement]
     database.execute("CREATE TABLE numbers (value INTEGER)");
     // The point of a prepared statement is that the SQL is parsed once. It is
     // prepared once here and stepped five times, which is exactly the pattern the
-    // prune command uses for its batches.
+    // compact command uses for its batches.
     Statement insertStatement(
         database.rawHandle(),
         "INSERT INTO numbers (value) VALUES (?1)",
