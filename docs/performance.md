@@ -14,7 +14,7 @@ what was measured, and where the implementation falls short.
 | Diagnostic pass on a 100 GB database | < 500 ms |
 | System calls per diagnostic pass | < 20 |
 | Bytes read per diagnostic pass | < 64 KB |
-| Prune of 1.5 M redundant rows | < 8 s |
+| Compaction of 1.5 M redundant snapshots | < 8 s |
 | Startup, command line tool | < 30 ms |
 | Startup, service | < 100 ms |
 | Allocations on the hot path | Zero |
@@ -35,7 +35,7 @@ Numbers come from the machine described in `benchmarks/results.md`, tool built a
 | Memory growth over 1000 idle ticks | ~0 | **< 1 MB** | `WatchdogBenchmark` |
 | Peak resident memory, full diagnostic | < 40 MB | **7.1 MB** | process working set |
 | Startup, command line tool | < 30 ms | **28.3 ms** | 5 runs of `--version` |
-| Marginal cost of removing one row | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `PruneBenchmark` |
+| Marginal cost of removing one row | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `CompactBenchmark` |
 
 The 100 GB database used for the measurement is a real SQLite file grown to that
 size with a sparse region. The pass therefore had a genuine hundred gigabyte file
@@ -125,16 +125,16 @@ performance principles. The ones with teeth, and where they live:
 | Row counts come from `sqlite_stat1`, never `COUNT(*)` on events | `StatisticsReader::approximateRowCount` | `TestStatisticsReader` |
 | One system call per watchdog tick per database | `ServiceManager::runOneWatchdogPass` | `WatchdogBenchmark` |
 | Memory mapped I/O for large sequential reads | not used, and documented below | |
-| Batched transactions | `PruneCommand`, one per batch | `PruneBenchmark` |
-| Forward rowid cursor, never `OFFSET` | `REDUNDANT_BATCH_QUERY` | `PruneBenchmark` |
+| Batched transactions | `CompactCommand`, one per batch | `CompactBenchmark` |
+| Forward rowid cursor, never `OFFSET` | `REDUNDANT_BATCH_QUERY` | `CompactBenchmark` |
 | A direct write for service logs | `Logger` | `ServiceIntegrationTest` |
 | Never read a file to find its size | `PlatformMetadata` | `TestPlatformMetadata` |
 | Prepared statements reused, never reparsed in a loop | `Statement` | `TestStatement` |
 | Skip SQLite entirely for pure metadata | `PlatformMetadata` | `TestPlatformMetadata` |
 | Cache the connection across a workflow | `CommandOptions`, one open per run | `EndToEndIntegrationTest` |
-| `synchronous = NORMAL` during bulk writes | `PruneCommand` | `PruneIntegrationTest` |
-| `wal_autocheckpoint` disabled during bulk work | `PruneCommand` | `PruneIntegrationTest` |
-| `journal_size_limit` bounds the log | `PruneCommand` | `PruneIntegrationTest` |
+| `synchronous = NORMAL` during bulk writes | `CompactCommand` | `CompactIntegrationTest` |
+| `wal_autocheckpoint` disabled during bulk work | `CompactCommand` | `CompactIntegrationTest` |
+| `journal_size_limit` bounds the log | `CompactCommand` | `CompactIntegrationTest` |
 | `posix_fadvise` and `madvise` on Linux | not used, and documented below | |
 | Overlapped I/O on Windows for compaction | not used, and documented below | |
 | Never walk a directory tree | `AgentRegistry::directoryEntryNames` | `TestAgents` |
