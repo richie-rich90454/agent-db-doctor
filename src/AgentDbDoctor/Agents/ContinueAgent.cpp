@@ -1,5 +1,4 @@
 // The implementation of the ContinueAgent class.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -13,9 +12,6 @@ using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::FileSystem;
 using namespace AgentDbDoctor::Agents;
 namespace AgentDbDoctor::Agents {
-// How many entries are listed inside the configuration folder. The bound keeps the
-// number of system calls fixed.
-static constexpr int MAXIMUM_LISTED_INDEX_FILES=2000;
 ContinueAgent::ContinueAgent()
     : databaseLocator(buildCandidatePaths()) {
 }
