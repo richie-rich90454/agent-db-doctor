@@ -31,7 +31,7 @@ hierarchy, so these exceptions are standalone classes that do *not* derive from
 `std::exception`. Each one holds an `AgentDbDoctorException` value as a private
 field and forwards `what()` and `message()` to it. The consequence is real: no
 single `catch` clause covers them, so every command names each type it can be
-handed. `PruneCommand::execute` has five catch clauses where a Java developer would
+handed. `CompactCommand::execute` has eight catch clauses where a Java developer would
 write one. That verbosity is the price of the rule, and it is paid deliberately.
 
 **`Result<T>` cannot use a `variant`.** The natural implementation holds either a
@@ -125,7 +125,7 @@ once beats repeating:
 - `Command/CommandOptions.hpp` holds the settings all five commands read. Written
   five times, twenty fields would have drifted apart between commands.
 - `Command/DestructiveOperationGuard.hpp` holds the copy-then-ask-then-verify
-  rules used by prune, compact, and recover. Written three times, the safety rules
+  rules used by compact, vacuum, and recover. Written three times, the safety rules
   would have drifted apart, and those are the rules that must not drift.
 
 ## The data path of one diagnostic pass
@@ -165,6 +165,6 @@ the four tables a real agent uses, and can write several hundred thousand
 duplicated event rows in a few seconds.
 
 The most important test in the suite is
-`PruneIntegrationTest.cpp`, because the prune command is the only one that deletes
+`CompactIntegrationTest.cpp`, because the compact command is the only one that deletes
 rows. Its first case measures every readable character of the conversation before
 and after, and requires the two to be equal.
