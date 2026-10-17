@@ -7,11 +7,12 @@ Trademark note: every product name below belongs to its owner and is used here
 only to say where that program keeps its data. No affiliation, no endorsement,
 no other use.
 
-The short version: **only OpenCode stores redundant snapshots**, so only OpenCode
-is pruned. The other sixty one are reported and left alone. That is a deliberate choice,
+The short version: **only OpenCode stores redundant snapshots**, so only OpenCode's
+event log is compacted. Every SQLite based storage can still be vacuumed, and the
+text based agents are reported and left alone. That is a deliberate choice,
 not an omission.
 
-## Why only one agent is pruned
+## Why only one agent's event log is compacted
 
 A duplicate snapshot is a row that records an *older version* of something the
 agent has since changed, and whose content is therefore still present somewhere
@@ -24,7 +25,7 @@ decision for you.
 
 | Agent | Storage | Duplicates? | What the tool does |
 |---|---|---|---|
-| OpenCode | One SQLite database | Yes | Diagnose, prune, compact |
+| OpenCode | One SQLite database | Yes | Diagnose, compact, vacuum |
 | Cursor | One SQLite file per workspace | Unknown, undocumented | Diagnose only |
 | VS Code | One `state.vscdb` per workspace | Unknown, undocumented | Diagnose only |
 | Cline | One SQLite `sessions.db` | Unknown, undocumented | Diagnose only |
@@ -100,20 +101,20 @@ yet; if one of them is wrong on your system, pass the real location with
 
 ## The schema the tool depends on
 
-The prune command depends on four tables and five columns. It checks for all of
+The compact command depends on four tables and six columns. It checks for all of
 them before deleting anything, and refuses with a sentence naming whichever is
 missing.
 
 | Table | Columns the tool uses | Why |
 |---|---|---|
-| `session` | `id`, `time_created` | The boundary: which sessions are old enough to prune |
+| `session` | `id`, `time_created` | The boundary: which sessions are old enough to compact |
 | `message` | `id`, `session_id` | Joining a session to its messages |
 | `part` | `id`, `message_id`, `data` | **Where the conversation text actually lives** |
-| `event` | `type`, `session_id` | The rows to remove |
+| `event` | `type`, `aggregate_id` | The rows to remove; `aggregate_id` is the session the event belongs to |
 
 The `part.data` column holds a JSON object. The safety check reads two fields from
 it: `$.type`, which is `text` for a written message, and `$.text`, whose length
-decides whether the part counts as readable. **This is the check that makes pruning
+decides whether the part counts as readable. **This is the check that makes compaction
 safe.** If the text lived only in the `event` rows, the check fails and nothing is
 deleted.
 
@@ -126,12 +127,12 @@ Newer releases dual write a second generation alongside the first: the
 first generation tables keep their names and columns, so every query above stays
 valid.
 
-Pruning still removes only the first generation `*.updated.1` rows. The second
+Compaction still removes only the first generation `*.updated.1` rows. The second
 generation rows are each unique current state, not superseded snapshots, so
 there is nothing safe to remove from them and the tool never touches those
 tables. `SchemaVersionDetector` names the generation from the rows it finds
 (`Version1`, `Version1And2`, `Version2Only`, or `Unknown`), the diagnose report
-prints it, and prune refuses a database whose event content belongs to neither
+prints it, and compact refuses a database whose event content belongs to neither
 generation rather than reporting "nothing to do" over rows it cannot read.
 
 ## The three event types
@@ -235,7 +236,7 @@ private:
 
 `redundantEventTypes()` returns an empty vector unless you have **verified** that
 the agent writes snapshots of state it has elsewhere. Returning an empty vector
-means the agent is reported and never pruned, which is the safe default and the
+means the agent is reported and never compacted, which is the safe default and the
 right answer for every agent except OpenCode.
 
 **2. Implement it**, in `src/AgentDbDoctor/Agents/YourAgent.cpp`. Build the
@@ -262,7 +263,7 @@ per entry.
 ### What not to do
 
 - **Do not reverse engineer an undocumented schema.** Cursor's tables are
-  undocumented, so the tool reports their sizes and refuses to prune them. A guess
+  undocumented, so the tool reports their sizes and refuses to compact them. A guess
   that deletes the wrong rows loses editor state.
 - **Do not walk a directory tree.** If a folder name is unpredictable, use one
   bounded level and a documented cap.
