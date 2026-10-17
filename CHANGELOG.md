@@ -39,6 +39,14 @@ activity bar fed by the same progress numbers as the console bar.
 renders at every size, a multi-size Windows icon stamped into both binaries
 with version information.
 
+### Added
+
+- A continuous integration workflow builds and tests every change with GCC and
+  Clang on Linux, MSVC on Windows, and AppleClang on macOS, starts both the
+  command line program and the window on each platform, and packages a runnable
+  copy of the tool for every system. Pushing a tag attaches the packages to the
+  release.
+
 ### Fixed
 
 - The OpenCode location now follows the vendor's own resolution (`OPENCODE_DB`,
@@ -46,7 +54,25 @@ with version information.
   with a size over zero byte placeholders.
 - `diagnose` reports duplicate counts again (the redundant types were never
   wired into the report).
-- `README.md` links its license files, which now exist.
+- Roo Code no longer claims the Cline extension's storage folder, which made
+  Cline's data appear in reports under Roo Code's name.
+- Continue is discovered again, and the large files inside its folder are
+  listed as the adapter documentation has always described.
+- The graphical interface no longer offers the service body (`run`), which
+  never returns; the whole program used to wedge on that one button.
+- A failure inside the action worker can no longer end the process: the worker
+  catches everything, and `recover --rebuild` now catches its own failure
+  types like the other commands.
+- Prune, compact, and recover fill the refusal explanation into their result
+  objects, so the interface's dialogues show why something did not run instead
+  of an empty window.
+- The interface's activity bar returns to idle when the work finishes.
+- Rescanning while a scan is already running is ignored instead of freezing
+  the window.
+- The diagnostics discovery runs once instead of once per agent.
+- The window is paced by the display refresh rate instead of redrawing as
+  fast as the processor allows.
+- The README points at the one license file the project ships.
 
 ## [1.0.0] - 2026-09-30
 
