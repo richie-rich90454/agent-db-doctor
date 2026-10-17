@@ -39,7 +39,7 @@ struct ActionUiState final {
     bool hasLastRequest=false;
     // The last finished result, for the result dialogue.
     ActionResult lastResult;
-    // The prune keep count and fraction inputs.
+    // The compaction keep count and fraction inputs.
     int keepSessionsInput=0;
     double maximumFractionInput=0.5;
 };
