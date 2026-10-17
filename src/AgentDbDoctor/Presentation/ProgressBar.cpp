@@ -39,7 +39,7 @@ ProgressBar::ProgressBar(
     long long totalUnits,
     bool isTerminalAttached
 )
-    : taskDescription(move(taskDescription)),
+    : taskDescription(std::move(taskDescription)),
       totalUnits(totalUnits),
       completedUnits(0),
       // The clock is read once, at construction, and used for every estimate after
@@ -56,19 +56,19 @@ ProgressBar::~ProgressBar() {
 bool ProgressBar::isActive() const {
     return !isFinished;
 }
-void ProgressBar::setTotalUnits(long long totalUnits) {
-    this->totalUnits=totalUnits;
+void ProgressBar::setTotalUnits(long long totalUnitCount) {
+    totalUnits=totalUnitCount;
     redraw();
 }
-void ProgressBar::setTaskDescription(string taskDescription) {
-    this->taskDescription=move(taskDescription);
+void ProgressBar::setTaskDescription(string taskDescriptionText) {
+    taskDescription=std::move(taskDescriptionText);
     // The description changed, so the next line will look different even if the
     // percentage has not moved. Forcing the redraw is what makes that visible.
     lastDrawnPercentage=-1;
     redraw();
 }
 void ProgressBar::setSink(ProgressSink sink) {
-    progressSink=move(sink);
+    progressSink=std::move(sink);
 }
 void ProgressBar::advance(long long unitsCompleted) {
     completedUnits+=unitsCompleted;
