@@ -68,7 +68,7 @@ keep their defaults.
   "warningThresholdBytes": 53687091200,
   "criticalThresholdBytes": 107374182400,
   "checkIntervalSeconds": 3600,
-  "allowAutomaticPruning": false
+  "allowAutomaticCompaction": false
 }
 ```
 
@@ -78,9 +78,9 @@ keep their defaults.
 | `warningThresholdBytes` | `53687091200` (50 GB) | A line is logged above this size. |
 | `criticalThresholdBytes` | `107374182400` (100 GB) | The line says it is urgent above this. |
 | `checkIntervalSeconds` | `3600` | How long to wait between ticks. |
-| `allowAutomaticPruning` | `false` | Whether the service may delete rows on its own. |
+| `allowAutomaticCompaction` | `false` | Whether the service may delete rows on its own. |
 
-**`allowAutomaticPruning` is off by default and should stay off.** A tool that
+**`allowAutomaticCompaction` is off by default and should stay off.** A tool that
 changes a database while nobody is watching is a tool nobody trusts, and the
 service is the last place safety can be taken on faith. Leaving it off means the
 service tells you and you decide.
