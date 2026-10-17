@@ -4,7 +4,6 @@
 // progress sink. These tests drive it headlessly against a synthetic database:
 // a preview must finish with numbers and change nothing, and a finished run
 // must hand its result over exactly once.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides the Catch2 test registration macros.
@@ -39,6 +38,23 @@ TEST_CASE("a prune preview finishes with numbers and changes nothing", "[actions
     // A second take finds nothing: each result is seen exactly once.
     ActionResult noResult;
     REQUIRE_FALSE(runner.takeResult(noResult));
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("a refused action still carries its explanation", "[actions]") {
+    // The result dialogue shows `summary` as its body, so a command that refuses
+    // to run must fill it, or the user sees an empty window with no reason.
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("ActionRefusal");
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    ActionRunner runner;
+    ActionRequest request;
+    request.kind=ActionKind::PrunePreview;
+    request.databasePath=databasePath;
+    runner.start(request);
+    runner.join();
+    ActionResult result;
+    REQUIRE(runner.takeResult(result));
+    REQUIRE(result.exitCode!=0);
+    REQUIRE_FALSE(result.summary.empty());
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
 TEST_CASE("the progress numbers move while the worker runs", "[actions]") {
