@@ -299,10 +299,10 @@ vector<AgentDescriptor> AgentRegistry::sqliteAgents() const {
     }
     return filtered;
 }
-vector<AgentDescriptor> AgentRegistry::prunableAgents() const {
+vector<AgentDescriptor> AgentRegistry::compactableAgents() const {
     vector<AgentDescriptor> filtered;
     for (const AgentDescriptor& currentDescriptor : allAgents()) {
-        if (currentDescriptor.supportsPruning) {
+        if (currentDescriptor.supportsCompaction) {
             filtered.push_back(currentDescriptor);
         }
     }
