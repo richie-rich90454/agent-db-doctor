@@ -35,7 +35,7 @@ struct SessionRow final {
 };
 // One scanned database: what was found, what the diagnosis said, and the
 // newest sessions for the browser. SQLite databases that are not the
-// prunable agent's carry an empty session list, because their tables are
+// compactable agent's carry an empty session list, because their tables are
 // undocumented and guessing column names would be exactly that.
 struct ScannedDatabase final {
     // Where the data was found and which agent owns it.
