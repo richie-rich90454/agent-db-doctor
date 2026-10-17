@@ -5,10 +5,17 @@
 # separate executables so that a crash in a benchmark cannot hide a unit test
 # failure, and so that the fast suite can be run on its own during development.
 find_package(Threads REQUIRED)
+# Catch2's headers are third party code written for every compiler, and one of
+# its macros expands to `__COUNTER__`, which the newest Clang versions flag as
+# an extension under the project's own strict warning set. The include folder is
+# therefore marked as a system folder for every test target, so the strict
+# warnings stay aimed at this repository.
+get_target_property(AGENT_DB_DOCTOR_CATCH2_INCLUDE_FOLDERS Catch2::Catch2 INTERFACE_INCLUDE_DIRECTORIES)
 # The Catch2 main object is compiled once and linked into every test binary. It
 # provides the `main` function that Catch2 expects a test program to have.
 add_library(agent_db_doctor_catch_main STATIC CatchMain.cpp)
 target_link_libraries(agent_db_doctor_catch_main PUBLIC agent_db_doctor_core Catch2::Catch2WithMain)
+target_include_directories(agent_db_doctor_catch_main SYSTEM PRIVATE ${AGENT_DB_DOCTOR_CATCH2_INCLUDE_FOLDERS})
 target_compile_options(agent_db_doctor_catch_main PRIVATE ${AGENT_DB_DOCTOR_WARNINGS})
 # The synthetic database builder creates a real SQLite database with the schema
 # an AI coding agent uses. Both the integration suite and the unit suite need it,
@@ -23,6 +30,7 @@ function(agent_db_doctor_add_test target_name)
     target_link_libraries(${target_name}
         PRIVATE agent_db_doctor_core agent_db_doctor_test_support
                 agent_db_doctor_catch_main Catch2::Catch2)
+    target_include_directories(${target_name} SYSTEM PRIVATE ${AGENT_DB_DOCTOR_CATCH2_INCLUDE_FOLDERS})
     target_compile_options(${target_name} PRIVATE ${AGENT_DB_DOCTOR_WARNINGS})
     if(NOT MSVC)
         target_compile_options(${target_name} PRIVATE -fno-rtti)
