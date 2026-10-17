@@ -4,7 +4,6 @@
 // two patterns is reported as the more specific one. The order matters: the
 // interrupted compression case also looks like an unreadable file, and the user
 // needs to hear about the compression.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -52,10 +51,10 @@ FailureMatch KnownFailurePatterns::buildMatch(
     bool isUnrecoverable
 ) {
     FailureMatch match;
-    match.patternName=move(patternName);
+    match.patternName=std::move(patternName);
     match.matched=true;
     match.severity=severity;
-    match.plainExplanation=move(plainExplanation);
+    match.plainExplanation=std::move(plainExplanation);
     match.recoverableByThisTool=isRecoverable;
     match.dataIsUnrecoverable=isUnrecoverable;
     return match;
