@@ -3,7 +3,6 @@
 // The order in this file is the order a person needs the information in: what
 // happened, what it means, what will not work, and only then what to do. The tool
 // never runs a repair step on its own, and it never runs one on the original file.
-#include <filesystem>
 // Provides `remove`, which cleans up a file that was never finished.
 #include <filesystem>
 // Provides `string`, which owns and stores a sequence of characters.
@@ -16,6 +15,9 @@
 #include "AgentDbDoctor/Recovery/KnownFailurePatterns.hpp"
 // Provides RecoveryPlaybook, which turns the finding into ordered steps.
 #include "AgentDbDoctor/Recovery/RecoveryPlaybook.hpp"
+// Provides the exception types the rebuild step can raise, which are caught and
+// turned into sentences rather than allowed to escape.
+#include "AgentDbDoctor/Common/Exceptions.hpp"
 // Provides the AgentDatabaseDoctor, which gathers the facts about the file.
 #include "AgentDbDoctor/Doctor/AgentDatabaseDoctor.hpp"
 // Provides StatisticsReader, used to read the row counts from the damaged file.
@@ -50,8 +52,6 @@ static constexpr const char* REBUILD_PART_TABLE=
 // The suffix given to a database built by this command, so it is never mistaken for
 // the original.
 static constexpr const char* REBUILT_FILE_SUFFIX=".rebuilt";
-// The pragma that rebuilds every index in a database.
-static constexpr const char* REINDEX_PRAGMA="PRAGMA integrity_check";
 RecoverCommand::RecoverCommand(bool isTerminalAttached)
     : reporter(isTerminalAttached) {
 }
@@ -274,31 +274,29 @@ int RecoverCommand::execute(const CommandOptions& options) {
         }
     }
     if (options.databaseFilePath.empty()) {
-        reporter.writeFailure(
-            string("This command needs to know which file to look at. Tell it with --database, and "
-                "give it the full path to the file that will not open."),
-            string()
+        lastRunOutcome.summarySentence=string(
+            "This command needs to know which file to look at. Tell it with --database, and "
+            "give it the full path to the file that will not open."
         );
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         return 1;
     }
     const FileMetadata fileMetadata=PlatformMetadata::readFileMetadata(options.databaseFilePath);
     if (!fileMetadata.exists) {
-        reporter.writeFailure(
-            string("There is no file at ") + options.databaseFilePath + ".\n\n"
-            + "If you expected one there, check the path. The diagnose command shows where each "
-            + "supported agent keeps its data.",
-            string()
-        );
+        lastRunOutcome.summarySentence=string("There is no file at ") + options.databaseFilePath
+            + ".\n\nIf you expected one there, check the path. The diagnose command shows where "
+            "each supported agent keeps its data.";
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         return 1;
     }
     if (fileMetadata.isDirectory) {
-        reporter.writeFailure(
-            string("That path is a folder, not a database file, so there is nothing to recover.\n\n")
-            + "Several supported coding agents keep their history as plain text files in a "
-            + "folder rather than in a SQLite database. Nothing was damaged and nothing was "
-            + "changed.\n\nNothing was changed.",
-            string()
+        lastRunOutcome.summarySentence=string(
+            "That path is a folder, not a database file, so there is nothing to recover.\n\n"
+            "Several supported coding agents keep their history as plain text files in a "
+            "folder rather than in a SQLite database. Nothing was damaged and nothing was "
+            "changed.\n\nNothing was changed."
         );
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         return 1;
     }
     // The facts are gathered with the same tools the diagnose command uses, so the
@@ -401,7 +399,11 @@ int RecoverCommand::execute(const CommandOptions& options) {
         return 0;
     }
     if (options.rebuildWorkingCopy) {
-        {
+        // The rebuild reads a damaged file and writes a new one, so it is the one
+        // part of this command that can fail in ways the diagnosis did not see.
+        // Each failure type is caught and turned into a sentence; without this,
+        // a failure here escaped as an uncaught exception and ended the process.
+        try {
             RecoverOutcome rebuildOutcome;
             if (lastRunOutcome.dataIsUnrecoverable) {
                 rebuildOutcome=rebuildFromDump(options, options.databaseFilePath);
@@ -419,6 +421,40 @@ int RecoverCommand::execute(const CommandOptions& options) {
                     "yourself once you have checked it, keeping the original with a different name."
                 );
             }
+        } catch (const PragmaException& pragmaFailure) {
+            lastRunOutcome.summarySentence=pragmaFailure.message()
+                + "\n\nYour original file was not modified.";
+            reporter.writeFailure(pragmaFailure.message(), string());
+            reporter.writeLine("Your original file was not modified.");
+            return 1;
+        } catch (const InsufficientDiskSpaceException& spaceFailure) {
+            lastRunOutcome.summarySentence=spaceFailure.message()
+                + "\n\nYour original file was not modified.";
+            reporter.writeFailure(spaceFailure.message(), to_string(spaceFailure.requiredBytes()));
+            reporter.writeLine("Your original file was not modified.");
+            return 1;
+        } catch (const FileSystemException& fileFailure) {
+            lastRunOutcome.summarySentence=fileFailure.message()
+                + "\n\nYour original file was not modified.";
+            reporter.writeFailure(fileFailure.message(), string());
+            reporter.writeLine("Your original file was not modified.");
+            return 1;
+        } catch (const DatabaseOpenException& openFailure) {
+            lastRunOutcome.summarySentence=openFailure.message()
+                + "\n\nYour original file was not modified.";
+            reporter.writeFailure(openFailure.message(), to_string(openFailure.openResultCode()));
+            reporter.writeLine("Your original file was not modified.");
+            return 1;
+        } catch (const DatabaseOperationException& operationFailure) {
+            lastRunOutcome.summarySentence=operationFailure.message()
+                + "\n\nThe rebuild stopped partway. Your original file was not modified; a "
+                "partly written working copy may be beside it and can be deleted.";
+            reporter.writeFailure(operationFailure.message(), string());
+            reporter.writeLine(
+                "The rebuild stopped partway. Your original file was not modified; a partly "
+                "written working copy may be beside it and can be deleted."
+            );
+            return 1;
         }
     } else if (report.getIntegrityStatus()==IntegrityStatus::IS_A_FOLDER) {
         // Nothing is offered here, deliberately. A working copy of a folder is not a
