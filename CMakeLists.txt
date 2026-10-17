@@ -482,10 +482,23 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
     )
     add_executable(agent-db-doctor-gui ${AGENT_DB_DOCTOR_GUI_SOURCES})
     target_link_libraries(agent-db-doctor-gui PRIVATE agent_db_doctor_core imgui_lib stb_image SDL3::SDL3)
+    # SDL3's headers contain inline helpers whose style the tool's own strict
+    # warning set rejects on some compilers (an old style cast in one of the bit
+    # helpers, for example). The headers are third party code, so their folder is
+    # marked as a system folder and the strict warnings stay aimed at this
+    # repository, where they belong. SDL3 exposes the public header folder
+    # through its `SDL3::Headers` interface target rather than on the library
+    # target itself.
+    get_target_property(AGENT_DB_DOCTOR_SDL3_INCLUDE_FOLDERS SDL3::Headers INTERFACE_INCLUDE_DIRECTORIES)
+    target_include_directories(agent-db-doctor-gui SYSTEM PRIVATE ${AGENT_DB_DOCTOR_SDL3_INCLUDE_FOLDERS})
     target_compile_options(agent-db-doctor-gui PRIVATE ${AGENT_DB_DOCTOR_WARNINGS})
     if(NOT MSVC)
         target_compile_options(agent-db-doctor-gui PRIVATE -fno-rtti)
     endif()
+    # The compiled-in asset folder is only a fallback: at run time the window
+    # looks beside its own binary first, which is what makes a copied package
+    # work on a machine that never saw this build directory. The rest of the
+    # defines stamp the version and the platform the binary was built for.
     target_compile_definitions(agent-db-doctor-gui PRIVATE
         AGENT_DB_DOCTOR_VERSION="${PROJECT_VERSION}"
         AGENT_DB_DOCTOR_PLATFORM="${AGENT_DB_DOCTOR_PLATFORM_TAG}"
@@ -506,6 +519,25 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
             "$<TARGET_FILE:SDL3::SDL3-shared>"
             "$<TARGET_FILE_DIR:agent-db-doctor-gui>"
     )
+    if(NOT WIN32)
+        if(APPLE)
+            # A packaged copy keeps the dylib beside the binary, so the loader is
+            # told to look in the executable's own folder first. Without this the
+            # binary only ran inside the build tree on the machine that built it.
+            set_target_properties(agent-db-doctor-gui PROPERTIES BUILD_RPATH "@executable_path")
+        else()
+            # The same idea on Linux, where the marker is `$ORIGIN`.
+            set_target_properties(agent-db-doctor-gui PROPERTIES BUILD_RPATH "$ORIGIN")
+        endif()
+        # The copy above uses the file's real name, so a link under the name the
+        # binary actually asks for (the library's own soname, not a guess) is
+        # added beside it. Both the real file and the link travel in the package.
+        add_custom_command(TARGET agent-db-doctor-gui POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E create_symlink
+                "$<TARGET_FILE_NAME:SDL3::SDL3-shared>"
+                "$<TARGET_FILE_DIR:agent-db-doctor-gui>/$<TARGET_SONAME_FILE_NAME:SDL3::SDL3-shared>"
+        )
+    endif()
     if(WIN32)
         string(REPLACE "." "," AGENT_DB_DOCTOR_VERSION_COMMA "${PROJECT_VERSION}")
         set(APP_ICO_ABSOLUTE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.ico")
