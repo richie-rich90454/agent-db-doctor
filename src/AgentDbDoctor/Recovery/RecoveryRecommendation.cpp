@@ -2,7 +2,6 @@
 //
 // The class is small enough that its methods are defined here rather than in a
 // separate file, which keeps the value type and its behaviour together.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides the RecoveryRecommendation class and the SeverityLevel enumeration.
@@ -18,9 +17,9 @@ RecoveryRecommendation::RecoveryRecommendation(
     bool isDestructive
 )
     : severityLevel(severity),
-      titleText(move(titleText)),
-      explanationText(move(explanationText)),
-      commandText(move(commandText)),
+      titleText(std::move(titleText)),
+      explanationText(std::move(explanationText)),
+      commandText(std::move(commandText)),
       destructiveFlag(isDestructive) {
 }
 SeverityLevel RecoveryRecommendation::severity() const {
