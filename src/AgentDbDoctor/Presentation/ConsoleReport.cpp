@@ -116,11 +116,11 @@ void ConsoleReport::writeDiagnosisReport(const DiagnosisReport& report) const {
     }
     writeLine("Returns unused space itself: " + string(report.getAutoVacuumEnabled()
         ? "yes"
-        : "no, so the compact command is what shrinks the file"));
+        : "no, so the vacuum command is what hands the space back to the drive"));
     if (!report.getSchemaGenerationDescription().empty()) {
         writeLine("Schema layout:           " + report.getSchemaGenerationDescription());
     }
-    if (report.getPruningSupported()) {
+    if (report.getCompactionSupported()) {
         for (const string& tableName : report.countedTableNames()) {
             const string approximateLabel=report.isRowCountApproximate(tableName)
                 ? string(" (approximate)")
@@ -138,7 +138,7 @@ void ConsoleReport::writeDiagnosisReport(const DiagnosisReport& report) const {
                 }
                 joinedTypes+=report.getRedundantEventTypes()[typeIndex];
             }
-            writeLine("Older copies of changed messages: "
+            writeLine("Redundant snapshots in the event log: "
                 + HumanReadableFormatting::formatCount(report.getRedundantEventRowCount())
                 + " (of type " + joinedTypes + ")");
         }
