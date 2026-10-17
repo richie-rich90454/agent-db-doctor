@@ -49,7 +49,7 @@ optional<string> VscodeAgent::findDatabasePath() const {
 vector<string> VscodeAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and the editor state tables are undocumented.
-    // Returning an empty list is what makes the prune command refuse rather
+    // Returning an empty list is what makes the compact command refuse rather
     // than guess.
     return vector<string>();
 }
@@ -95,13 +95,15 @@ AgentDescriptor VscodeAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=true;
-    // Pruning is not offered. The tables are undocumented, so deleting anything
+    // Compaction is not offered. The tables are undocumented, so deleting anything
     // from them would be guessing, and the specification forbids that.
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "VS Code keeps one state.vscdb per workspace, in a folder named after a hash of the "
-        "workspace path. The tool reports their sizes. It does not prune them, because they hold "
-        "editor state in undocumented tables and deleting rows on a guess could lose it."
+        "workspace path. The tool reports their sizes. It does not compact them, because they hold "
+        "editor state in undocumented tables and deleting rows on a guess could lose it. The "
+        "vacuum command is always available for them: it hands unused space back to the drive "
+        "and changes nothing the databases hold."
     );
     return descriptor;
 }
