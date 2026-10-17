@@ -3,7 +3,6 @@
 // Every method is a trivial field access, which is exactly what a Java getter
 // looks like. Keeping them out of the header means the compiler compiles them
 // once into the library rather than in every file that includes the header.
-#include <map>
 // Provides `map`, an ordered dictionary keyed by a string.
 #include <map>
 // Provides `string`, which owns and stores a sequence of characters.
@@ -16,13 +15,13 @@ using namespace std;
 using namespace AgentDbDoctor;
 namespace AgentDbDoctor::Doctor {
 DiagnosisReport::DiagnosisReport(string databaseFilePath)
-    : databaseFilePath(move(databaseFilePath)) {
+    : databaseFilePath(std::move(databaseFilePath)) {
 }
 const string& DiagnosisReport::getDatabaseFilePath() const {
     return databaseFilePath;
 }
-void DiagnosisReport::setAgentName(string agentName) {
-    this->agentName=move(agentName);
+void DiagnosisReport::setAgentName(string agentNameText) {
+    agentName=std::move(agentNameText);
 }
 string DiagnosisReport::getAgentName() const {
     return agentName;
@@ -94,7 +93,7 @@ long long DiagnosisReport::getReclaimableBytes() const {
     return reclaimableBytes;
 }
 void DiagnosisReport::setJournalMode(string mode) {
-    journalMode=move(mode);
+    journalMode=std::move(mode);
 }
 string DiagnosisReport::getJournalMode() const {
     return journalMode;
@@ -147,13 +146,13 @@ long long DiagnosisReport::getRedundantEventRowCount() const {
     return redundantEventRowCount;
 }
 void DiagnosisReport::setRedundantEventTypes(vector<string> typeNames) {
-    redundantTypeNames=move(typeNames);
+    redundantTypeNames=std::move(typeNames);
 }
 vector<string> DiagnosisReport::getRedundantEventTypes() const {
     return redundantTypeNames;
 }
 void DiagnosisReport::setSchemaGenerationDescription(string description) {
-    schemaGenerationDescription=move(description);
+    schemaGenerationDescription=std::move(description);
 }
 string DiagnosisReport::getSchemaGenerationDescription() const {
     return schemaGenerationDescription;
@@ -171,7 +170,7 @@ IntegrityStatus DiagnosisReport::getIntegrityStatus() const {
     return integrityStatus;
 }
 void DiagnosisReport::setIntegrityMessage(string message) {
-    integrityMessage=move(message);
+    integrityMessage=std::move(message);
 }
 string DiagnosisReport::getIntegrityMessage() const {
     return integrityMessage;
@@ -183,13 +182,13 @@ int DiagnosisReport::getOpenFailureCode() const {
     return openFailureCode;
 }
 void DiagnosisReport::addWarning(string warning) {
-    warningMessages.push_back(move(warning));
+    warningMessages.push_back(std::move(warning));
 }
 vector<string> DiagnosisReport::getWarnings() const {
     return warningMessages;
 }
 void DiagnosisReport::addSuggestedNextStep(string suggestedStep) {
-    nextStepMessages.push_back(move(suggestedStep));
+    nextStepMessages.push_back(std::move(suggestedStep));
 }
 vector<string> DiagnosisReport::getSuggestedNextSteps() const {
     return nextStepMessages;
