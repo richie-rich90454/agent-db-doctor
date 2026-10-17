@@ -38,7 +38,7 @@ enum class ActionKind {
     RecoverPlan,
     // A recovery rebuild, after the typed confirmation.
     RecoverRebuild,
-    // One service action: install, uninstall, start, stop, status, or run.
+    // One service action: install, uninstall, start, stop, or status.
     Service
 };
 // One request to the worker: the kind, the database, and the settings.
