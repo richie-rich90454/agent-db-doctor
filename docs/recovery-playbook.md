@@ -191,7 +191,7 @@ database that fills the disk mid write is how structurally damaged databases
 happen.
 
 **What to do:** free space before doing anything else with the database, and check
-the drive is healthy. Then `diagnose`, then `prune`, then `compact`.
+the drive is healthy. Then `diagnose`, then `compact`, then `vacuum`.
 
 ## Pattern: another program has it open
 
