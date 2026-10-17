@@ -42,8 +42,8 @@ TEST_CASE("a database with both generations is version one and two", "[schema]")
     writer.execute("CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT)");
     writer.execute("INSERT INTO session_message (id, session_id) VALUES ('msg-next-1', 'ses-1')");
     writer.execute(
-        "INSERT INTO event (id, type, session_id, time_created, filler) "
-        "VALUES ('evt-next-1', 'session.next.prompted', 'ses-1', 1, 'x')");
+        "INSERT INTO event (id, aggregate_id, seq, type, time_created, data, filler) "
+        "VALUES ('evt-next-1', 'ses-1', 1, 'session.next.prompted', 1, '{}', 'x')");
     Database database(databasePath, Database::OPEN_READ_ONLY);
     REQUIRE(SchemaVersionDetector::detect(database)==SchemaGeneration::Version1And2);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
@@ -89,8 +89,8 @@ TEST_CASE("event rows of no known generation are unknown", "[schema]") {
     Database writer(databasePath, Database::OPEN_READ_WRITE);
     writer.execute("DELETE FROM event");
     writer.execute(
-        "INSERT INTO event (id, type, session_id, time_created, filler) "
-        "VALUES ('evt-future-1', 'session.future.something', 'ses-1', 1, 'x')");
+        "INSERT INTO event (id, aggregate_id, seq, type, time_created, data, filler) "
+        "VALUES ('evt-future-1', 'ses-1', 1, 'session.future.something', 1, '{}', 'x')");
     Database database(databasePath, Database::OPEN_READ_ONLY);
     REQUIRE(SchemaVersionDetector::detect(database)==SchemaGeneration::Unknown);
     REQUIRE_FALSE(SchemaVersionDetector::describe(SchemaGeneration::Unknown).empty());
