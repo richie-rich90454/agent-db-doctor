@@ -56,7 +56,7 @@ optional<string> CursorAgent::findDatabasePath() const {
 vector<string> CursorAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and Cursor's tables are undocumented. Returning an
-    // empty list is what makes the prune command refuse rather than guess.
+    // empty list is what makes the compact command refuse rather than guess.
     return vector<string>();
 }
 vector<string> CursorAgent::likelyProcessNames() const {
@@ -101,13 +101,15 @@ AgentDescriptor CursorAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=true;
-    // Pruning is not offered. The tables are undocumented, so deleting anything
+    // Compaction is not offered. The tables are undocumented, so deleting anything
     // from them would be guessing, and the specification forbids that.
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Cursor keeps one SQLite database per workspace, in a folder named after a hash of the "
-        "workspace path. The tool reports their sizes. It does not prune them, because their tables "
-        "are not documented and deleting rows on a guess could lose editor state."
+        "workspace path. The tool reports their sizes. It does not compact them, because their tables "
+        "are not documented and deleting rows on a guess could lose editor state. The vacuum "
+        "command is always available for them: it hands unused space back to the drive and "
+        "changes nothing the databases hold."
     );
     return descriptor;
 }
