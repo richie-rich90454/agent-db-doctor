@@ -11,8 +11,8 @@
 #include <catch2/catch_test_macros.hpp>
 // Provides the three commands in the order a user would run them.
 #include "AgentDbDoctor/Command/DiagnoseCommand.hpp"
-#include "AgentDbDoctor/Command/PruneCommand.hpp"
 #include "AgentDbDoctor/Command/CompactCommand.hpp"
+#include "AgentDbDoctor/Command/VacuumCommand.hpp"
 // Provides the shared options type.
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
 // Provides the database wrapper, so the test can check the result itself.
@@ -56,7 +56,7 @@ long long readSessionCount(const string& databasePath) {
     return database.querySingleInteger("SELECT COUNT(*) FROM session").value_or(0);
 }
 }
-TEST_CASE("diagnose then prune then compact leaves the conversation intact", "[integration][endtoend]") {
+TEST_CASE("diagnose then compact then vacuum leaves the conversation intact", "[integration][endtoend]") {
     const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("EndToEndFlow");
     SyntheticDatabaseBuilder::Options options;
     options.sessionCount=20;
@@ -87,22 +87,22 @@ TEST_CASE("diagnose then prune then compact leaves the conversation intact", "[i
     diagnoseOptions.quiet=true;
     DiagnoseCommand diagnoseCommand(false);
     REQUIRE(diagnoseCommand.execute(diagnoseOptions)==0);
-    CommandOptions pruneOptions;
-    pruneOptions.databaseFilePath=databasePath;
-    pruneOptions.answerYesToEverything=true;
-    pruneOptions.quiet=true;
-    pruneOptions.backupFilePath=databasePath+".flow-backup";
-    PruneCommand pruneCommand(false);
-    REQUIRE(pruneCommand.execute(pruneOptions)==0);
-    REQUIRE(pruneCommand.lastOutcome().anythingWasRemoved);
+    CommandOptions compactionOptions;
+    compactionOptions.databaseFilePath=databasePath;
+    compactionOptions.answerYesToEverything=true;
+    compactionOptions.quiet=true;
+    compactionOptions.backupFilePath=databasePath+".flow-backup";
+    CompactCommand compactionCommand(false);
+    REQUIRE(compactionCommand.execute(compactionOptions)==0);
+    REQUIRE(compactionCommand.lastOutcome().anythingWasRemoved);
     CommandOptions compactOptions;
     compactOptions.databaseFilePath=databasePath;
     compactOptions.answerYesToEverything=true;
     compactOptions.quiet=true;
     compactOptions.backupFilePath=databasePath+".flow-backup-compact";
-    CompactCommand compactCommand(false);
-    REQUIRE(compactCommand.execute(compactOptions)==0);
-    REQUIRE(compactCommand.lastOutcome().wasCompacted);
+    VacuumCommand vacuumCommand(false);
+    REQUIRE(vacuumCommand.execute(compactOptions)==0);
+    REQUIRE(vacuumCommand.lastOutcome().wasCompacted);
     // Every session survived both operations.
     REQUIRE(readSessionCount(databasePath)==sessionsBefore);
     // And not one character of the conversation was lost by either one.
@@ -115,7 +115,7 @@ TEST_CASE("diagnose then prune then compact leaves the conversation intact", "[i
     const auto integrityCheck=finalDatabase.querySingleText("PRAGMA quick_check");
     REQUIRE(integrityCheck.has_value());
     REQUIRE(integrityCheck.value()=="ok");
-    std::filesystem::remove(pruneOptions.backupFilePath);
+    std::filesystem::remove(compactionOptions.backupFilePath);
     std::filesystem::remove(compactOptions.backupFilePath);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
@@ -128,25 +128,25 @@ TEST_CASE("running the flow twice in a row is safe", "[integration][endtoend]") 
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, options);
     const long long contentBefore=readEveryMessageBody(databasePath);
-    CommandOptions pruneOptions;
-    pruneOptions.databaseFilePath=databasePath;
-    pruneOptions.answerYesToEverything=true;
-    pruneOptions.quiet=true;
-    pruneOptions.backupFilePath=databasePath+".twice-backup";
-    PruneCommand firstRun(false);
-    firstRun.execute(pruneOptions);
-    PruneCommand secondRun(false);
-    secondRun.execute(pruneOptions);
+    CommandOptions compactionOptions;
+    compactionOptions.databaseFilePath=databasePath;
+    compactionOptions.answerYesToEverything=true;
+    compactionOptions.quiet=true;
+    compactionOptions.backupFilePath=databasePath+".twice-backup";
+    CompactCommand firstRun(false);
+    firstRun.execute(compactionOptions);
+    CompactCommand secondRun(false);
+    secondRun.execute(compactionOptions);
     // The second run has nothing left to remove, and a tool that kept going anyway
     // would be a tool doing pointless work on a large file.
     REQUIRE_FALSE(secondRun.lastOutcome().anythingWasRemoved);
     // Running a command twice must never cost content, which is the property a user
     // needs when they are not sure whether it already ran.
     REQUIRE(readEveryMessageBody(databasePath)==contentBefore);
-    std::filesystem::remove(pruneOptions.backupFilePath);
+    std::filesystem::remove(compactionOptions.backupFilePath);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
-TEST_CASE("a refused prune leaves the database ready for the next run", "[integration][endtoend]") {
+TEST_CASE("a refused compaction leaves the database ready for the next run", "[integration][endtoend]") {
     const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("EndToEndRefused");
     SyntheticDatabaseBuilder::Options options;
     options.sessionCount=10;
@@ -155,14 +155,14 @@ TEST_CASE("a refused prune leaves the database ready for the next run", "[integr
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
     SyntheticDatabaseBuilder::build(databasePath, options);
     const long long contentBefore=readEveryMessageBody(databasePath);
-    CommandOptions pruneOptions;
-    pruneOptions.databaseFilePath=databasePath;
+    CommandOptions compactionOptions;
+    compactionOptions.databaseFilePath=databasePath;
     // A limit of zero is impossible, so the command has to refuse before it starts.
-    pruneOptions.maximumFractionToRemove=0.0;
-    pruneOptions.answerYesToEverything=true;
-    pruneOptions.quiet=true;
-    PruneCommand command(false);
-    command.execute(pruneOptions);
+    compactionOptions.maximumFractionToRemove=0.0;
+    compactionOptions.answerYesToEverything=true;
+    compactionOptions.quiet=true;
+    CompactCommand command(false);
+    command.execute(compactionOptions);
     REQUIRE_FALSE(command.lastOutcome().anythingWasRemoved);
     REQUIRE(readEveryMessageBody(databasePath)==contentBefore);
     // No copy was made either, because nothing was attempted.
