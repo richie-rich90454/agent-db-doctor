@@ -14,6 +14,10 @@
 #endif
 // Provides `popen` and `pclose`, which run a command and read its output.
 #include <cstdio>
+// Provides `uint32_t`, the type the dynamic loader's path query uses on Apple
+// platforms. It is included unconditionally so that the include itself is compiled
+// on every build machine, not only on a Mac.
+#include <cstdint>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `ofstream`, which writes the property list file.
