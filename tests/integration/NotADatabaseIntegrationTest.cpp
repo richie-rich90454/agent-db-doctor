@@ -17,8 +17,8 @@
 // Provides the commands under test.
 #include "AgentDbDoctor/Command/DiagnoseCommand.hpp"
 #include "AgentDbDoctor/Command/RecoverCommand.hpp"
+#include "AgentDbDoctor/Command/VacuumCommand.hpp"
 #include "AgentDbDoctor/Command/CompactCommand.hpp"
-#include "AgentDbDoctor/Command/PruneCommand.hpp"
 // Provides the options the commands read.
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
 // Provides the diagnostic report, whose status is what the tests assert on.
@@ -77,7 +77,7 @@ void requireIsReportedAsAFolder(const string& path) {
     REQUIRE(report.getIsDirectory());
     REQUIRE(report.getIntegrityStatus()==IntegrityStatus::IS_A_FOLDER);
     // A folder has no redundant snapshots to remove, whatever its size.
-    REQUIRE_FALSE(report.getPruningSupported());
+    REQUIRE_FALSE(report.getCompactionSupported());
     // Nothing was lost and nothing is damaged, so the report must not claim otherwise.
     REQUIRE_FALSE(report.isHealthy());
 }
@@ -133,7 +133,7 @@ TEST_CASE("compact refuses a folder without copying it", "[integration][notadata
     commandOptions.databaseFilePath=folder.path;
     commandOptions.quiet=true;
     commandOptions.answerYesToEverything=true;
-    CompactCommand command(false);
+    VacuumCommand command(false);
     // A refusal, so a non zero exit code: the command was asked to do something it
     // cannot and should not quietly report success.
     REQUIRE(command.execute(commandOptions)!=0);
@@ -142,15 +142,15 @@ TEST_CASE("compact refuses a folder without copying it", "[integration][notadata
     REQUIRE(folderStatus.exists);
     REQUIRE(folderStatus.isDirectory);
 }
-TEST_CASE("prune refuses a folder without opening it", "[integration][notadatabase]") {
-    const TemporaryFolder folder("NotADatabasePruneFolder");
+TEST_CASE("compaction refuses a folder without opening it", "[integration][notadatabase]") {
+    const TemporaryFolder folder("NotADatabaseCompactFolder");
     CommandOptions commandOptions;
     commandOptions.databaseFilePath=folder.path;
     commandOptions.quiet=true;
     commandOptions.answerYesToEverything=true;
-    PruneCommand command(false);
+    CompactCommand command(false);
     command.execute(commandOptions);
-    const PruneOutcome outcome=command.lastOutcome();
+    const EventLogCompactionReport outcome=command.lastOutcome();
     REQUIRE_FALSE(outcome.anythingWasRemoved);
     REQUIRE(outcome.removedRowCount==0);
 }
@@ -161,21 +161,21 @@ TEST_CASE("a text file is refused by compact in plain language", "[integration][
     commandOptions.databaseFilePath=textFile.path;
     commandOptions.quiet=true;
     commandOptions.answerYesToEverything=true;
-    CompactCommand command(false);
+    VacuumCommand command(false);
     REQUIRE(command.execute(commandOptions)!=0);
     // The refusal happens before any work, so the file is untouched. Compacting a text
     // file used to copy it, then rewrite it, then report that the database was damaged.
     const FileMetadata after=PlatformMetadata::readFileMetadata(textFile.path);
     REQUIRE(after.logicalSizeBytes==before.logicalSizeBytes);
 }
-TEST_CASE("a text file is refused by prune in plain language", "[integration][notadatabase]") {
-    const TemporaryTextFile textFile("NotADatabasePruneText");
+TEST_CASE("a text file is refused by compaction in plain language", "[integration][notadatabase]") {
+    const TemporaryTextFile textFile("NotADatabaseCompactText");
     const FileMetadata before=PlatformMetadata::readFileMetadata(textFile.path);
     CommandOptions commandOptions;
     commandOptions.databaseFilePath=textFile.path;
     commandOptions.quiet=true;
     commandOptions.answerYesToEverything=true;
-    PruneCommand command(false);
+    CompactCommand command(false);
     command.execute(commandOptions);
     REQUIRE(command.lastOutcome().removedRowCount==0);
     const FileMetadata after=PlatformMetadata::readFileMetadata(textFile.path);
