@@ -1,7 +1,7 @@
 // The MarsCodeAgent class, which knows where MarsCode keeps its data.
 //
 // MarsCode stores session state in a folder in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because session state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_MARSCODEAGENT_HPP

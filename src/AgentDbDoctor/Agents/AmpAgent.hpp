@@ -1,7 +1,7 @@
 // The AmpAgent class, which knows where Amp keeps its session state.
 //
 // Amp stores CLI session state in a folder in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because session history can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_AMPAGENT_HPP

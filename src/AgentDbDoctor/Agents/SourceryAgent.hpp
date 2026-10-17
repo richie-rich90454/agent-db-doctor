@@ -1,7 +1,7 @@
 // The SourceryAgent class, which knows where Sourcery keeps its data.
 //
 // Sourcery stores review state in editor extension storage.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because review state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_SOURCERYAGENT_HPP

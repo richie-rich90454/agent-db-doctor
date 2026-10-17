@@ -47,7 +47,7 @@ AgentDescriptor KiloCodeAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Kilo Code keeps task state in its own folder plus VS Code extension storage. "
         "The layout is reported, never changed."

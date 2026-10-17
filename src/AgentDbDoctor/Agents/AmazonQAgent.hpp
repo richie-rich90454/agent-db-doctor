@@ -1,7 +1,7 @@
 // The AmazonQAgent class, which knows where Amazon Q keeps its data.
 //
 // Amazon Q stores CLI session state under its home folder. There is no session
-// database to scan, so the prune command does not apply. The tool still reports
+// database to scan, so the compact command does not apply. The tool still reports
 // the folder size, because session state can quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_AMAZONQAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_AMAZONQAGENT_HPP

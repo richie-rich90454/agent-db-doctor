@@ -60,7 +60,7 @@ AgentDescriptor AiderAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Aider writes a Markdown transcript of the conversation into the project directory. "
         "The tool reports its size. Nothing is removed, because a transcript is the only copy of "

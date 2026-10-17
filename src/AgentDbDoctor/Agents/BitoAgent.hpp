@@ -1,7 +1,7 @@
 // The BitoAgent class, which knows where Bito keeps its state.
 //
 // Bito keeps assistant state in editor extension storage. There is no SQLite
-// database with a documented schema, so the prune command does not apply. The
+// database with a documented schema, so the compact command does not apply. The
 // tool reports the folders and never changes them.
 #ifndef AGENT_DB_DOCTOR_AGENTS_BITOAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_BITOAGENT_HPP

@@ -1,7 +1,7 @@
 // The IntelliCodeAgent class, which knows where IntelliCode keeps its data.
 //
 // IntelliCode stores completion models and state in editor extension storage.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because models and state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_INTELLICODEAGENT_HPP

@@ -1,7 +1,7 @@
 // The VoidAgent class, which knows where Void keeps its data.
 //
 // Void stores session and workspace state in a data directory in the home
-// directory. There is no session database to scan, so the prune command does
+// directory. There is no session database to scan, so the compact command does
 // not apply. The tool still reports the folder size, because session and
 // workspace state can quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_VOIDAGENT_HPP

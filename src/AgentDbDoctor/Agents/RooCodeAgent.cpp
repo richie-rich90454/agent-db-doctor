@@ -43,7 +43,7 @@ optional<string> RooCodeAgent::findDatabasePath() const {
 vector<string> RooCodeAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and Roo Code's storage is undocumented. Returning
-    // an empty list is what makes the prune command refuse rather than guess.
+    // an empty list is what makes the compact command refuse rather than guess.
     return vector<string>();
 }
 vector<string> RooCodeAgent::likelyProcessNames() const {
@@ -56,7 +56,7 @@ AgentDescriptor RooCodeAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Roo Code keeps task state in its own folder plus VS Code extension storage. "
         "The tool reports the folders and never changes them."

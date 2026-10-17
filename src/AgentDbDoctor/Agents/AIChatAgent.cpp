@@ -47,7 +47,7 @@ AgentDescriptor AIChatAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "AIChat keeps terminal session state under its config folder. "
         "The layout is reported, never changed."

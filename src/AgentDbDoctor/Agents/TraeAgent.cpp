@@ -47,7 +47,7 @@ AgentDescriptor TraeAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Trae is a VS Code fork; it keeps session and workspace state under its data dir. "
         "The layout is reported, never changed."

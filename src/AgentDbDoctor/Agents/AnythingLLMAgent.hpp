@@ -1,7 +1,7 @@
 // The AnythingLLMAgent class, which knows where AnythingLLM keeps its data.
 //
 // AnythingLLM stores local chat and document state in a folder in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because chat and document state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_ANYTHINGLLMAGENT_HPP

@@ -1,7 +1,7 @@
 // The PhindAgent class, which knows where Phind keeps its data.
 //
 // Phind stores assistant state in editor extension storage in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because extension state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_PHINDAGENT_HPP

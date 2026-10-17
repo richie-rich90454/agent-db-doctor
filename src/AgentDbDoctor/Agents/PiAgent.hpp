@@ -1,7 +1,7 @@
 // The PiAgent class, which knows where Pi keeps its data.
 //
 // Pi stores CLI session state in a folder in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because session state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_PIAGENT_HPP

@@ -94,10 +94,10 @@ AgentDescriptor ContinueAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Continue keeps a configuration folder that can include a code index. The index can grow to "
-        "gigabytes, so the tool reports its size. The tool does not prune it, because an index is "
+        "gigabytes, so the tool reports its size. The tool does not compact it, because an index is "
         "rebuildable but its exact contents are not the tool's to decide."
     );
     return descriptor;

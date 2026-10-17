@@ -2,7 +2,7 @@
 //
 // The Gemini CLI keeps per-project session history under `~/.gemini/tmp/` in
 // folders named after a hash of the project path. There is no snapshot
-// duplication to remove, so the prune command does not apply. The tool still
+// duplication to remove, so the compact command does not apply. The tool still
 // reports the size, because the CLI deletes chats older than 30 days itself
 // and anything else is left alone.
 #ifndef AGENT_DB_DOCTOR_AGENTS_GEMINIAGENT_HPP

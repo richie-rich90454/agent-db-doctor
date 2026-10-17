@@ -1,7 +1,7 @@
 // The PiecesAgent class, which knows where Pieces keeps its data.
 //
 // Pieces stores saved snippets and assistant state under its home folder.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because snippets and state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_PIECESAGENT_HPP

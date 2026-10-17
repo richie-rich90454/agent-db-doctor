@@ -1,7 +1,7 @@
 // The AugmentAgent class, which knows where Augment keeps its assistant state.
 //
 // Augment stores assistant state in VS Code extension storage. The layout is
-// not a documented database, so the prune command does not apply. The tool
+// not a documented database, so the compact command does not apply. The tool
 // still reports the size, because cached assistant state can grow quietly.
 #ifndef AGENT_DB_DOCTOR_AGENTS_AUGMENTAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_AUGMENTAGENT_HPP

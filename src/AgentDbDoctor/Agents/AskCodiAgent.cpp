@@ -49,7 +49,7 @@ AgentDescriptor AskCodiAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "AskCodi keeps assistant state in editor extension storage. "
         "The tool reports the folders and never changes them."

@@ -48,7 +48,7 @@ AgentDescriptor GitLabDuoAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "GitLab Duo keeps assistant state in editor extension storage. "
         "There are no duplicate snapshots to remove, so the tool reports the size and leaves the "

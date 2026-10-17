@@ -1,7 +1,7 @@
 // The GPT4AllAgent class, which knows where GPT4All keeps its data.
 //
 // GPT4All stores local chat history in a data directory in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because chat history can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_GPT4ALLAGENT_HPP

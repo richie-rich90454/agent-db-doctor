@@ -1,7 +1,7 @@
 // The GitLabDuoAgent class, which knows where GitLab Duo keeps its data.
 //
 // GitLab Duo stores assistant state in editor extension storage.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because extension state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_GITLABDUOAGENT_HPP

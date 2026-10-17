@@ -1,7 +1,7 @@
 // The SnykAgent class, which knows where Snyk keeps its data.
 //
 // Snyk stores scan state in editor extension storage.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because scan state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_SNYKAGENT_HPP

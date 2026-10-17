@@ -53,7 +53,7 @@ AgentDescriptor CodexAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "The Codex CLI writes one text file per session, with one JSON object on every line. "
         "There are no duplicate snapshots to remove, so the tool reports the size and leaves the "

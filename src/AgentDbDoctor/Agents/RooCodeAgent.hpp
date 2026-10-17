@@ -2,7 +2,7 @@
 //
 // Roo Code keeps task state in its own folder plus VS Code extension storage,
 // under two published extension ids. There is no SQLite database with a
-// documented schema, so the prune command does not apply. The tool reports the
+// documented schema, so the compact command does not apply. The tool reports the
 // folders and never changes them.
 #ifndef AGENT_DB_DOCTOR_AGENTS_ROOCODEAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_ROOCODEAGENT_HPP

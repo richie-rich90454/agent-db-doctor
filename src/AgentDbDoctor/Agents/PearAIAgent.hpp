@@ -1,7 +1,7 @@
 // The PearAIAgent class, which knows where PearAI keeps its session state.
 //
 // PearAI is a VS Code fork, so it keeps session and workspace state under its
-// own data dir. The layout is not a documented database, so the prune command
+// own data dir. The layout is not a documented database, so the compact command
 // does not apply. The tool still reports the size, because workspace history
 // can grow quietly over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_PEARAIAGENT_HPP

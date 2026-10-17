@@ -38,7 +38,7 @@ optional<string> CodeiumAgent::findDatabasePath() const {
 vector<string> CodeiumAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and the assistant storage format is undocumented.
-    // Returning an empty list is what makes the prune command refuse rather
+    // Returning an empty list is what makes the compact command refuse rather
     // than guess.
     return vector<string>();
 }
@@ -52,7 +52,7 @@ AgentDescriptor CodeiumAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Codeium keeps assistant state in its home folder plus editor extension storage. "
         "The tool reports the size and leaves the files alone."

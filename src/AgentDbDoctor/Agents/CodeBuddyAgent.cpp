@@ -47,7 +47,7 @@ AgentDescriptor CodeBuddyAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "CodeBuddy is a Tencent IDE and CLI agent that keeps task state in a home folder. "
         "There are no duplicate snapshots to remove, so the tool reports the size and leaves the "

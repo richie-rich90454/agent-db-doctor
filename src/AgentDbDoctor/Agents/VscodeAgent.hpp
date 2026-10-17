@@ -38,7 +38,7 @@ public:
     optional<string> findDatabasePath() const;
     // The event type names that mark a row as a redundant snapshot. VS Code
     // writes its own editor state, and the specification does not document its
-    // tables, so this is empty and the prune command refuses to run on it.
+    // tables, so this is empty and the compact command refuses to run on it.
     vector<string> redundantEventTypes() const;
     // The programs most likely to have the workspace folder open.
     vector<string> likelyProcessNames() const;

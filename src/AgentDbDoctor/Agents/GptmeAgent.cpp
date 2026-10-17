@@ -47,7 +47,7 @@ AgentDescriptor GptmeAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "gptme keeps conversation logs under its config folder. "
         "The layout is reported, never changed."

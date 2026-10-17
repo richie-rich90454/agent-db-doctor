@@ -2,7 +2,7 @@
 //
 // Windsurf descends from the VS Code family, so it keeps workspace state in
 // hash-named folders under a platform application support directory. There is
-// no snapshot duplication to remove, so the prune command does not apply. The
+// no snapshot duplication to remove, so the compact command does not apply. The
 // tool still reports the size, because a long editing history can quietly grow.
 #ifndef AGENT_DB_DOCTOR_AGENTS_WINDSURFAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_WINDSURFAGENT_HPP
@@ -37,7 +37,7 @@ public:
     // run here.
     optional<string> findDatabasePath() const;
     // The event type names that mark a row as a redundant snapshot. Windsurf
-    // keeps no prunable database, so this is always empty.
+    // keeps no compactable database, so this is always empty.
     vector<string> redundantEventTypes() const;
     // The programs most likely to have the state folder open.
     vector<string> likelyProcessNames() const;

@@ -49,7 +49,7 @@ AgentDescriptor GPT4AllAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "GPT4All keeps local chat history under its data dir. "
         "There are no duplicate snapshots to remove, so the tool reports the size and leaves the "

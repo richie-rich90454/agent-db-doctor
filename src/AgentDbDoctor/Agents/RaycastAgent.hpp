@@ -1,7 +1,7 @@
 // The RaycastAgent class, which knows where Raycast keeps its data.
 //
 // Raycast stores launcher and AI extension state as files under its data dir.
-// The layout is not a documented database, so the prune command does not
+// The layout is not a documented database, so the compact command does not
 // apply. The tool still reports the size, because extension state can grow
 // without bound.
 #ifndef AGENT_DB_DOCTOR_AGENTS_RAYCASTAGENT_HPP

@@ -47,7 +47,7 @@ AgentDescriptor AugmentAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Augment keeps assistant state in VS Code extension storage. "
         "The layout is reported, never changed."

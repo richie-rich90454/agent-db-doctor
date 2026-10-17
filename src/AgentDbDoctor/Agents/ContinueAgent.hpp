@@ -3,7 +3,7 @@
 //
 // Continue is a code assistant that stores a configuration folder per project and
 // can keep a vector index of the codebase. Neither is a redundant snapshot
-// database, so the tool reports their sizes and does not prune them.
+// database, so the tool reports their sizes and does not compact them.
 #ifndef AGENT_DB_DOCTOR_AGENTS_CONTINUEAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_CONTINUEAGENT_HPP
 // Provides `optional`, a container that may or may not hold a value.
@@ -45,7 +45,7 @@ public:
     AgentDescriptor describe() const;
     // The large files inside the configuration folder, found with a bounded one
     // level listing. A vector index can reach gigabytes, so reporting it matters
-    // even though nothing can be pruned.
+    // even though nothing can be compacted.
     vector<DiscoveredDatabase> findLargeIndexFiles(int maximumFileCount, long long minimumSizeBytes) const;
 private:
     // Builds the candidate list for this platform.

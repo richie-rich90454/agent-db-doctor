@@ -2,7 +2,7 @@
 //
 // Copilot stores chat and session state inside the VS Code extension storage
 // folder for github.copilot-chat. There is no snapshot duplication to remove,
-// so the prune command does not apply. The tool still reports the size,
+// so the compact command does not apply. The tool still reports the size,
 // because long chat histories can quietly occupy disk.
 #ifndef AGENT_DB_DOCTOR_AGENTS_COPILOTAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_COPILOTAGENT_HPP
@@ -37,7 +37,7 @@ public:
     // extension has never run here.
     optional<string> findDatabasePath() const;
     // The event type names that mark a row as a redundant snapshot. Copilot
-    // keeps no prunable database, so this is always empty.
+    // keeps no compactable database, so this is always empty.
     vector<string> redundantEventTypes() const;
     // The programs most likely to have the storage folder open.
     vector<string> likelyProcessNames() const;

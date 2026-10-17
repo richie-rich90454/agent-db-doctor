@@ -1,7 +1,7 @@
 // The CodeiumAgent class, which knows where Codeium keeps its data.
 //
 // Codeium stores assistant state in a home folder plus editor extension
-// storage. There is no session database to scan, so the prune command does
+// storage. There is no session database to scan, so the compact command does
 // not apply. The tool still reports the folder size, because assistant state
 // can quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_CODEIUMAGENT_HPP

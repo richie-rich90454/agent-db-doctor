@@ -1,7 +1,7 @@
 // The WarpAgent class, which knows where Warp keeps its terminal state.
 //
 // Warp stores terminal sessions and agent state as files under its data dir.
-// The layout is not a documented database, so the prune command does not
+// The layout is not a documented database, so the compact command does not
 // apply. The tool still reports the size, because session history can grow
 // without bound.
 #ifndef AGENT_DB_DOCTOR_AGENTS_WARPAGENT_HPP

@@ -1,7 +1,7 @@
 // The AskCodiAgent class, which knows where AskCodi keeps its state.
 //
 // AskCodi keeps assistant state in editor extension storage. There is no
-// SQLite database with a documented schema, so the prune command does not
+// SQLite database with a documented schema, so the compact command does not
 // apply. The tool reports the folders and never changes them.
 #ifndef AGENT_DB_DOCTOR_AGENTS_ASKCODIAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_ASKCODIAGENT_HPP

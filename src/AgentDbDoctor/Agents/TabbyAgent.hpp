@@ -1,7 +1,7 @@
 // The TabbyAgent class, which knows where Tabby keeps its data.
 //
 // Tabby stores self-hosted assistant state in its home folder plus editor
-// extension storage. There is no session database to scan, so the prune
+// extension storage. There is no session database to scan, so the compact
 // command does not apply. The tool still reports the folder size, because
 // assistant state can quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_TABBYAGENT_HPP

@@ -1,7 +1,7 @@
 // The LMStudioAgent class, which knows where LM Studio keeps its data.
 //
 // LM Studio stores local chat history in a folder in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because chat history can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_LMSTUDIOAGENT_HPP

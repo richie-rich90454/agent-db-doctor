@@ -1,7 +1,7 @@
 // The ZedAgent class, which knows where the Zed editor keeps its user data.
 //
 // Zed keeps its database and extensions under the platform user-data directory.
-// Its tables are undocumented, so the prune command does not apply. The tool
+// Its tables are undocumented, so the compact command does not apply. The tool
 // still reports the size, because the database and its extensions can quietly
 // grow over a long editing history.
 #ifndef AGENT_DB_DOCTOR_AGENTS_ZEDAGENT_HPP

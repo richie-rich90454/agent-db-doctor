@@ -1,7 +1,7 @@
 // The GptmeAgent class, which knows where gptme keeps its data.
 //
 // gptme stores conversation logs as files under its config folder.
-// There is no documented database, so the prune command does not apply.
+// There is no documented database, so the compact command does not apply.
 // The tool still reports the size, because conversation history can grow
 // without bound.
 #ifndef AGENT_DB_DOCTOR_AGENTS_GPTMEAGENT_HPP

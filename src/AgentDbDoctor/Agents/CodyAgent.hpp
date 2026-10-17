@@ -1,7 +1,7 @@
 // The CodyAgent class, which knows where Cody keeps its data.
 //
 // Cody stores chat state in a home folder plus editor extension storage.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because chat state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_CODYAGENT_HPP

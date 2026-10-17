@@ -1,7 +1,7 @@
 // The QoderAgent class, which knows where Qoder keeps its data.
 //
 // Qoder stores session and workspace state in a data directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because session state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_QODERAGENT_HPP

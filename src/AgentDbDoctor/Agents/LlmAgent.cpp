@@ -47,7 +47,7 @@ AgentDescriptor LlmAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "LLM keeps logged prompts and responses under its home folder. "
         "The layout is reported, never changed."

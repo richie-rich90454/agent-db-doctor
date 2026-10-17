@@ -1,7 +1,7 @@
 // The ClineAgent class, which knows where the Cline extension keeps its sessions.
 //
 // Cline keeps its sessions in a SQLite database with undocumented tables. There
-// is no documented snapshot duplication to remove, so the prune command does
+// is no documented snapshot duplication to remove, so the compact command does
 // not apply. The tool still reports the size, because the sessions database
 // grows with every task.
 #ifndef AGENT_DB_DOCTOR_AGENTS_CLINEAGENT_HPP

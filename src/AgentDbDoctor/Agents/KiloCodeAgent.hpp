@@ -1,7 +1,7 @@
 // The KiloCodeAgent class, which knows where Kilo Code keeps its task state.
 //
 // Kilo Code stores task state in its own folder plus VS Code extension storage.
-// The layout is not a documented database, so the prune command does not
+// The layout is not a documented database, so the compact command does not
 // apply. The tool still reports the size, because accumulated task state can
 // grow quietly over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_KILOCODEAGENT_HPP

@@ -1,7 +1,7 @@
 // The LlmAgent class, which knows where LLM keeps its data.
 //
 // LLM stores logged prompts and responses as files under its home folder.
-// There is no documented database, so the prune command does not apply.
+// There is no documented database, so the compact command does not apply.
 // The tool still reports the size, because logged history can grow
 // without bound.
 #ifndef AGENT_DB_DOCTOR_AGENTS_LLMAGENT_HPP

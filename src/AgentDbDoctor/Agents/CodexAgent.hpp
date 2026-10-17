@@ -1,7 +1,7 @@
 // The CodexAgent class, which knows where the Codex CLI keeps its sessions.
 //
 // The Codex CLI stores each session as a plain text file where every line is one
-// JSON object. There is no snapshot duplication to remove, so the prune command
+// JSON object. There is no snapshot duplication to remove, so the compact command
 // does not apply. The tool still reports the size, because a year of sessions
 // can quietly occupy tens of gigabytes of plain text.
 #ifndef AGENT_DB_DOCTOR_AGENTS_CODEXAGENT_HPP

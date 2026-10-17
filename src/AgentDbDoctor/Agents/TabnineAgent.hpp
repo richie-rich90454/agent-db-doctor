@@ -1,7 +1,7 @@
 // The TabnineAgent class, which knows where Tabnine keeps its data.
 //
 // Tabnine stores completion and chat state in a home folder plus editor
-// extension storage. There is no session database to scan, so the prune
+// extension storage. There is no session database to scan, so the compact
 // command does not apply. The tool still reports the folder size, because
 // completion and chat state can quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_TABNINEAGENT_HPP

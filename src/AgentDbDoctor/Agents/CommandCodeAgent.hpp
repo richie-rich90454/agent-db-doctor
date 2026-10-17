@@ -1,7 +1,7 @@
 // The CommandCodeAgent class, which knows where CommandCode keeps its session state.
 //
 // CommandCode stores session state in a folder in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because session history can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_COMMANDCODEAGENT_HPP

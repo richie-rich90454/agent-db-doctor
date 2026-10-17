@@ -1,7 +1,7 @@
 // The KimiAgent class, which knows where Kimi keeps its data.
 //
 // Kimi stores session data in a data root in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because per-work-directory sessions
 // can quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_KIMIAGENT_HPP

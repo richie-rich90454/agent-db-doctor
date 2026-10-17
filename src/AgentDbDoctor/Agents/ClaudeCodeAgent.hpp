@@ -2,7 +2,7 @@
 //
 // Claude Code stores each conversation as a JSONL file, one JSON object per line,
 // under a folder named after the project it was working on. Like the Codex CLI it
-// writes no duplicate snapshots, so the tool reports the size and does not prune.
+// writes no duplicate snapshots, so the tool reports the size and does not compact.
 #ifndef AGENT_DB_DOCTOR_AGENTS_CLAUDECODEAGENT_HPP
 #define AGENT_DB_DOCTOR_AGENTS_CLAUDECODEAGENT_HPP
 // Provides `optional`, a container that may or may not hold a value.

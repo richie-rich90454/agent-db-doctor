@@ -1,7 +1,7 @@
 // The CodeBuddyAgent class, which knows where CodeBuddy keeps its data.
 //
 // CodeBuddy stores IDE and CLI task state in a folder in the home directory.
-// There is no session database to scan, so the prune command does not apply.
+// There is no session database to scan, so the compact command does not apply.
 // The tool still reports the folder size, because task state can
 // quietly accumulate over time.
 #ifndef AGENT_DB_DOCTOR_AGENTS_CODEBUDDYAGENT_HPP

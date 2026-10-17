@@ -1,7 +1,7 @@
 // The AIChatAgent class, which knows where AIChat keeps its data.
 //
 // AIChat stores terminal session state as files under its config folder.
-// There is no documented database, so the prune command does not apply.
+// There is no documented database, so the compact command does not apply.
 // The tool still reports the size, because session history can grow
 // without bound.
 #ifndef AGENT_DB_DOCTOR_AGENTS_AICHATAGENT_HPP

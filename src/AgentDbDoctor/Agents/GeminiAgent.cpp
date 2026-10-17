@@ -34,7 +34,7 @@ optional<string> GeminiAgent::findDatabasePath() const {
 vector<string> GeminiAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and the chat files are plain session history with
-    // no redundant snapshots. Returning an empty list is what makes the prune
+    // no redundant snapshots. Returning an empty list is what makes the compact
     // command refuse rather than guess.
     return vector<string>();
 }
@@ -48,7 +48,7 @@ AgentDescriptor GeminiAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "The Gemini CLI keeps per-project session history under `~/.gemini/tmp/<project-hash>/chats/`, "
         "with a 30-day retention policy. The tool reports the size and leaves the files alone."

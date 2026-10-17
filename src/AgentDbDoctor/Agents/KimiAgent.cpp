@@ -53,7 +53,7 @@ AgentDescriptor KimiAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=false;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Kimi keeps session data under its data root with per-work-directory sessions. "
         "There are no duplicate snapshots to remove, so the tool reports the size and leaves the "
