@@ -185,30 +185,31 @@ vector<RecoveryRecommendation> RecoveryPlaybook::buildPlanForOversizedDatabase(
     if (duplicateRows>0) {
         plan.push_back(RecoveryRecommendation(
             SeverityLevel::ATTENTION,
-            string("Remove the duplicate rows."),
+            string("Compact the event log."),
             string("This database holds " + to_string(duplicateRows)
-                + " rows that are older copies of messages that have since been changed. Each one is a "
-                  "complete copy of a state the conversation has already moved past, so the current text "
-                  "is stored elsewhere and nothing is lost by removing them.\n\n"
+                + " redundant snapshots: rows that are older copies of messages that have since been "
+                  "changed. Each one is a complete copy of a state the conversation has already moved "
+                  "past, so the current text is stored elsewhere and nothing is lost by removing them, "
+                  "which is what compaction does.\n\n"
                 + "The tool makes a copy of the file first and tells you where it put it."
             ),
-            string("agent-db-doctor prune --database \"") + report.getDatabaseFilePath() + "\"",
+            string("agent-db-doctor compact --database \"") + report.getDatabaseFilePath() + "\"",
             true
         ));
     }
     if (reclaimableBytes>0) {
         plan.push_back(RecoveryRecommendation(
             SeverityLevel::ATTENTION,
-            string("Shrink the file."),
+            string("Vacuum the file."),
             string(
-                "After the duplicates are gone, SQLite still holds the pages they used. The file "
+                "After the redundant snapshots are gone, SQLite still holds the pages they used. The file "
                 "stays the same size on disk until those pages are handed back, which is what "
-                "compaction does.\n\n"
+                "vacuuming does.\n\n"
             ) + "There are " + to_string(reclaimableBytes)
-            + " bytes of unused space inside the file right now. Compaction needs free disk space "
+            + " bytes of unused space inside the file right now. The vacuum needs free disk space "
             + "equal to the whole file while it works, because it writes a new file before it "
             + "replaces the old one.",
-            string("agent-db-doctor compact --database \"") + report.getDatabaseFilePath() + "\"",
+            string("agent-db-doctor vacuum --database \"") + report.getDatabaseFilePath() + "\"",
             true
         ));
     }
