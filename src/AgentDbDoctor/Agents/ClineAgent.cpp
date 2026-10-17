@@ -34,7 +34,7 @@ optional<string> ClineAgent::findDatabasePath() const {
 vector<string> ClineAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and Cline's tables are undocumented. Returning an
-    // empty list is what makes the prune command refuse rather than guess.
+    // empty list is what makes the compact command refuse rather than guess.
     return vector<string>();
 }
 vector<string> ClineAgent::likelyProcessNames() const {
@@ -47,11 +47,13 @@ AgentDescriptor ClineAgent::describe() const {
     descriptor.redundantEventTypes=redundantEventTypes();
     descriptor.likelyProcessNames=likelyProcessNames();
     descriptor.usesSqliteDatabase=true;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Cline keeps its sessions in a SQLite sessions database with undocumented tables. "
-        "The tool reports its size. It does not prune it, because the tables are not "
-        "documented and deleting rows on a guess could lose task state."
+        "The tool reports its size. It does not compact it, because the tables are not "
+        "documented and deleting rows on a guess could lose task state. The vacuum command is "
+        "always available for it: it hands unused space back to the drive and changes nothing "
+        "the database holds."
     );
     return descriptor;
 }
