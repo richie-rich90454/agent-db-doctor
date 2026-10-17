@@ -1,5 +1,4 @@
 // The implementation of the VscodeAgent class.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -13,10 +12,6 @@ using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::FileSystem;
 using namespace AgentDbDoctor::Agents;
 namespace AgentDbDoctor::Agents {
-// How many workspace folders are inspected. The bound keeps the number of system
-// calls fixed, so a machine with five hundred stored workspaces costs the same as
-// one with five.
-static constexpr int MAXIMUM_LISTED_WORKSPACES=500;
 // The name of the SQLite file VS Code writes inside each workspace folder.
 static constexpr const char* WORKSPACE_STATE_FILE="state.vscdb";
 VscodeAgent::VscodeAgent()
