@@ -183,6 +183,13 @@ private:
         heapBlock=replacement;
         ownedBlockByteSize=newSize;
     }
+    // The inline block. Because `array` stores its elements inside the object,
+    // no allocation is needed to create it. It is declared before `heapBlock`
+    // because members initialize in declaration order: `heapBlock` starts out
+    // pointing at this block, and taking the address of a member that has not
+    // been constructed yet is undefined behaviour, even when the address would
+    // be the same.
+    array<unsigned char, INLINE_BLOCK_SIZE> inlineBlock;
     // The block currently in use. It starts out pointing at `inlineBlock`, so a
     // default constructed arena performs no allocation at all. The pointer is
     // therefore non owning in that case, which is why `release()` and `growTo()`
@@ -192,9 +199,6 @@ private:
     size_t usedByteCount=0;
     // The total size of `heapBlock`. It starts out equal to the inline size.
     size_t ownedBlockByteSize=INLINE_BLOCK_SIZE;
-    // The inline block. Because `array` stores its elements inside the object,
-    // no allocation is needed to create it.
-    array<unsigned char, INLINE_BLOCK_SIZE> inlineBlock;
 };
 }
 #endif
