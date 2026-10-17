@@ -157,11 +157,11 @@ void DiagnosisReport::setSchemaGenerationDescription(string description) {
 string DiagnosisReport::getSchemaGenerationDescription() const {
     return schemaGenerationDescription;
 }
-void DiagnosisReport::setPruningSupported(bool isSupported) {
-    pruningSupported=isSupported;
+void DiagnosisReport::setCompactionSupported(bool isSupported) {
+    compactionSupported=isSupported;
 }
-bool DiagnosisReport::getPruningSupported() const {
-    return pruningSupported;
+bool DiagnosisReport::getCompactionSupported() const {
+    return compactionSupported;
 }
 void DiagnosisReport::setIntegrityStatus(IntegrityStatus status) {
     integrityStatus=status;
