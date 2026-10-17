@@ -3,7 +3,6 @@
 // Every method here is the body of a method declared in Database.hpp. The
 // separation is deliberate: it keeps SQLite's C style error handling out of the
 // header, so a reader browsing the class interface sees only plain C++ types.
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides the Database class declaration.
@@ -79,7 +78,7 @@ void Database::applyPragma(const char* pragmaStatement) const {
     // On success SQLite may still set the message pointer, so it is always freed.
     sqlite3_free(errorMessage);
 }
-optional<long> Database::queryPragmaInteger(const char* pragmaStatement) const {
+optional<long long> Database::queryPragmaInteger(const char* pragmaStatement) const {
     Statement integerStatement(databaseHandle.get(), pragmaStatement, string("the pragma ") + pragmaStatement);
     if (!integerStatement.isValid() || !integerStatement.step()) {
         return nullopt;
@@ -115,7 +114,7 @@ void Database::execute(const string& sqlStatement) const {
     }
     sqlite3_free(errorMessage);
 }
-optional<long> Database::querySingleInteger(const string& sqlStatement) const {
+optional<long long> Database::querySingleInteger(const string& sqlStatement) const {
     Statement countingStatement(databaseHandle.get(), sqlStatement, string("the query ") + sqlStatement);
     if (!countingStatement.isValid() || !countingStatement.step()) {
         return nullopt;
