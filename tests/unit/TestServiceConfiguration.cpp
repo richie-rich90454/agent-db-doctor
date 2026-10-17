@@ -32,7 +32,7 @@ TEST_CASE("a configuration round trips through a file", "[configuration]") {
     configuration.warningThresholdBytes=12345678901LL;
     configuration.criticalThresholdBytes=98765432109LL;
     configuration.checkIntervalSeconds=1800;
-    configuration.allowAutomaticPruning=true;
+    configuration.allowAutomaticCompaction=true;
     configuration.watchedDatabasePaths.push_back("/home/ann/.local/share/opencode/opencode.db");
     ConfigurationFile::write(configuration, configurationPath);
     const optional<ServiceConfiguration> readBack=ConfigurationFile::read(configurationPath);
@@ -42,7 +42,7 @@ TEST_CASE("a configuration round trips through a file", "[configuration]") {
     REQUIRE(readBack->warningThresholdBytes==12345678901LL);
     REQUIRE(readBack->criticalThresholdBytes==98765432109LL);
     REQUIRE(readBack->checkIntervalSeconds==1800);
-    REQUIRE(readBack->allowAutomaticPruning);
+    REQUIRE(readBack->allowAutomaticCompaction);
     REQUIRE(readBack->watchedDatabasePaths.size()==1);
     REQUIRE(readBack->watchedDatabasePaths.front()
         =="/home/ann/.local/share/opencode/opencode.db");
@@ -141,7 +141,7 @@ TEST_CASE("the default configuration watches everything", "[configuration]") {
     REQUIRE(configuration.watchedDatabasePaths.empty());
     REQUIRE_FALSE(configuration.configurationFilePath.empty());
     REQUIRE_FALSE(configuration.logFilePath.empty());
-    // Automatic pruning is off, because a tool that changes a database while nobody
+    // Automatic compaction is off, because a tool that changes a database while nobody
     // is watching is a tool nobody trusts.
-    REQUIRE_FALSE(configuration.allowAutomaticPruning);
+    REQUIRE_FALSE(configuration.allowAutomaticCompaction);
 }
