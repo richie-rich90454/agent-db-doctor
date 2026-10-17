@@ -107,7 +107,7 @@ FileLockStatus FileLockDetector::checkLockStatus(const string& databaseFilePath)
     //
     // `flock` is deliberately not used. On Linux the `flock` and `fcntl` lock
     // spaces are independent, so a `flock` test would succeed even while SQLite
-    // held the file, and the tool would happily prune a database the coding agent
+    // held the file, and the tool would happily compact a database the coding agent
     // was writing to.
     //
     // The descriptor is opened without `O_CREAT`, because this probe must never
