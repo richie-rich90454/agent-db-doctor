@@ -4,13 +4,10 @@
 // be are declared in the header and defined once each in
 // ServiceManagerWindows.cpp, ServiceManagerLinux.cpp, and ServiceManagerMacOS.cpp,
 // so the calling code never contains an operating system conditional.
-#include <map>
 // Provides `map`, the ordered dictionary the previous sizes are kept in.
 #include <map>
-#include <fstream>
 // Provides `ifstream` and `getline`, which read the last line of the log.
 #include <fstream>
-#include <string>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -37,19 +34,11 @@ namespace AgentDbDoctor::Service {
 // The name the operating system knows the service by. It is a constant so that the
 // three platform implementations and the status message cannot disagree about it.
 static constexpr const char* SERVICE_NAME="agent-db-doctor";
-// The argument the service process is started with. The operating system runs the
-// executable with this, and the main program recognises it and enters the loop
-// rather than printing a help message.
-static constexpr const char* SERVICE_RUN_ARGUMENT="service run";
-// How many times the loop checks whether it has been asked to stop before it sleeps
-// again. A short sleep in a loop rather than one long sleep means a stop request is
-// acted on within a fraction of a second instead of at the end of the interval.
-static constexpr int STOP_CHECKS_PER_SLEEP=1;
 // The length of one sleep between stop checks. It is short enough to feel immediate
 // and long enough not to spin.
 static constexpr int SLEEP_SLICE_MILLISECONDS=200;
 ServiceManager::ServiceManager(ServiceConfiguration configuration)
-    : serviceConfiguration(move(configuration)) {
+    : serviceConfiguration(std::move(configuration)) {
 }
 const ServiceConfiguration& ServiceManager::configuration() const {
     return serviceConfiguration;
@@ -144,7 +133,7 @@ WatchdogRunSummary ServiceManager::runOneWatchdogPass() {
                 + HumanReadableFormatting::formatBytes(sample.currentSizeBytes) + " in the last hour."
             );
         }
-        summary.samples.push_back(move(sample));
+        summary.samples.push_back(std::move(sample));
     }
     const long long endNanoseconds=PlatformMetadata::monotonicNanoseconds();
     summary.totalMetadataCallCount=static_cast<int>(PlatformMetadata::metadataCallCount()-callsBeforePass);
