@@ -24,13 +24,13 @@ class SafetyCheckResult final {
 public:
     // Builds a passing result with the sentence that says what was confirmed.
     explicit SafetyCheckResult(string explanationOfPass)
-        : passedFlag(true), explanationText(move(explanationOfPass)) {
+        : passedFlag(true), explanationText(std::move(explanationOfPass)) {
     }
     // Builds a failing result. The sentence must say what is wrong and what the
     // user can do about it, because the specification requires every error to
     // suggest a next step.
     static SafetyCheckResult failed(string explanationOfFailure) {
-        return SafetyCheckResult(false, move(explanationOfFailure));
+        return SafetyCheckResult(false, std::move(explanationOfFailure));
     }
     // True when the check passed and the operation may continue.
     bool passed() const {
@@ -52,7 +52,7 @@ public:
     }
 private:
     SafetyCheckResult(bool passed, string explanation)
-        : passedFlag(passed), explanationText(move(explanation)) {
+        : passedFlag(passed), explanationText(std::move(explanation)) {
     }
     bool passedFlag=false;
     string explanationText;
