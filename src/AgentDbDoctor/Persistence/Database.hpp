@@ -77,7 +77,7 @@ public:
     // Applies a PRAGMA and reads back the single integer it returns, for example
     // `PRAGMA page_size`. Returns `nullopt` when the pragma cannot be run,
     // because a caller can usually live without the value.
-    optional<long> queryPragmaInteger(const char* pragmaStatement) const;
+    optional<long long> queryPragmaInteger(const char* pragmaStatement) const;
     // Applies a PRAGMA and reads back the single text value it returns, for
     // example `PRAGMA journal_mode`. Returns `nullopt` when it cannot be run.
     optional<string> queryPragmaText(const char* pragmaStatement) const;
@@ -87,7 +87,7 @@ public:
     // Runs a query and returns the first column of the first row, or `nullopt`
     // when the query fails or returns no rows. Used for the constant time lookups
     // the tool performs, such as reading the schema version.
-    optional<long> querySingleInteger(const string& sqlStatement) const;
+    optional<long long> querySingleInteger(const string& sqlStatement) const;
     // Runs a query and returns the first column of the first row as text, or
     // `nullopt` when the query fails or returns no rows.
     optional<string> querySingleText(const string& sqlStatement) const;
