@@ -41,7 +41,7 @@ optional<string> VoidAgent::findDatabasePath() const {
 vector<string> VoidAgent::redundantEventTypes() const {
     // The specification is explicit that this tool does not reverse engineer
     // undocumented schemas, and the session storage format is undocumented.
-    // Returning an empty list is what makes the prune command refuse rather
+    // Returning an empty list is what makes the compact command refuse rather
     // than guess.
     return vector<string>();
 }
@@ -59,11 +59,12 @@ AgentDescriptor VoidAgent::describe() const {
     // of the family. The tool still only reports, because the tables are
     // undocumented.
     descriptor.usesSqliteDatabase=true;
-    descriptor.supportsPruning=false;
+    descriptor.supportsCompaction=false;
     descriptor.storageDescription=string(
         "Void keeps session and workspace state in the editor's own SQLite state files "
         "under its data directory. The tool reports their sizes. It does not change them, "
-        "because the format is undocumented."
+        "because the format is undocumented. The vacuum command is always available for them: "
+        "it hands unused space back to the drive and changes nothing the files hold."
     );
     return descriptor;
 }
