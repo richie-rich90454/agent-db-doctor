@@ -1,13 +1,15 @@
 // The implementation of the SyntheticDatabaseBuilder class.
 //
 // The builder writes a real SQLite file through the same wrapper the tool uses, so
-// the tests exercise the same code paths as a real run. The event rows are padded
-// with a filler column so that a small number of rows can occupy a large file,
-// which is how the performance tests get a hundred gigabyte database without
-// spending a hundred gigabytes of disk.
+// the tests exercise the same code paths as a real run. The event rows carry a
+// filler column so a chosen number of rows occupies a chosen size, and the file can
+// be grown further with a sparse region, which is how the performance tests get a
+// hundred gigabyte database without spending a hundred gigabytes of disk.
 // Provides `create_directories`, `remove`, and `path`, which set up and clear the
 // temporary folder.
 #include <filesystem>
+// Provides `uintmax_t`, the type the file size conversion uses.
+#include <cstdint>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 #include <vector>
@@ -23,7 +25,78 @@ using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Persistence;
 using namespace AgentDbDoctor::Common;
+#if defined(_WIN32)
+// `WIN32_LEAN_AND_MEAN` keeps the RPC headers out, whose C `byte` typedef clashes
+// with `std::byte` in C++17 and later, and `NOMINMAX` keeps the `min` and `max`
+// macros out of the way of the standard library. Both are needed before the
+// header is included, and both are guarded, because a build system may define
+// them already.
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+// Provides `CreateFile`, `DeviceIoControl`, and the file APIs. This is the one
+// place in the tool that talks to the Windows API directly, and it is test
+// support rather than shipped code.
+#include <windows.h>
+// Provides `FSCTL_SET_SPARSE`, the control code that marks a file sparse.
+// windows.h leaves it out under WIN32_LEAN_AND_MEAN, and it is the whole point
+// of the code below.
+#include <winioctl.h>
+#endif
 namespace AgentDbDoctor::TestSupport {
+// Grows a file to a huge logical size with a sparse region, so the file system
+// reports the size while almost no disk space is occupied.
+//
+// On Linux and macOS `resize_file` leaves a hole and that is the whole job. On
+// Windows a file must be marked sparse first, or the same growth reserves the
+// whole size: on a build machine without a hundred gigabytes free, the growth
+// then fails and the test silently measures a small file instead of a huge one,
+// which is exactly what happened in continuous integration.
+static void growToSparseSize(const string& filePath, long long targetSizeBytes) {
+#if defined(_WIN32)
+    const HANDLE fileHandle=CreateFileA(
+        filePath.c_str(),
+        GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+    if (fileHandle==INVALID_HANDLE_VALUE) {
+        return;
+    }
+    DWORD bytesReturned=0;
+    // After this call the file reserves no space for regions that are never
+    // written, which is what the `seek` and `resize` calls below rely on.
+    DeviceIoControl(
+        fileHandle,
+        FSCTL_SET_SPARSE,
+        nullptr,
+        0,
+        nullptr,
+        0,
+        &bytesReturned,
+        nullptr
+    );
+    LARGE_INTEGER targetSize;
+    targetSize.QuadPart=targetSizeBytes;
+    if (SetFilePointerEx(fileHandle, targetSize, nullptr, FILE_BEGIN)) {
+        SetEndOfFile(fileHandle);
+    }
+    CloseHandle(fileHandle);
+#else
+    std::error_code ignoredError;
+    std::filesystem::resize_file(
+        filePath,
+        static_cast<std::uintmax_t>(targetSizeBytes),
+        ignoredError
+    );
+#endif
+}
 // The schema a real agent database uses.
 //
 // The four tables are the ones the tool cares about. A session holds a
@@ -215,11 +288,14 @@ long long SyntheticDatabaseBuilder::build(const string& databaseFilePath, const 
         database.execute("ANALYZE");
     }
     if (options.padToLargeSize) {
-        // The file is grown with a sparse region. A sparse file occupies no disk
-        // space for the region, so the test gets a file with a hundred gigabyte
-        // logical size at no cost, which is what proves the diagnostic pass reads
-        // the header rather than the file.
+        // The write ahead log is folded in first, so the growth happens on the
+        // database file itself rather than on the side file. Then the file is
+        // grown with a sparse region: it reports the padded size without occupying
+        // it, which is what proves the diagnostic pass answers from the header
+        // rather than by reading the file. The caller's assertion on the resulting
+        // size is what catches a growth that did not happen.
         database.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+        growToSparseSize(databaseFilePath, options.paddedSizeBytes);
     }
     return redundantRowCount;
 }
