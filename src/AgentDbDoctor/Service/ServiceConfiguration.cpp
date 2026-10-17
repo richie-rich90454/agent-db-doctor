@@ -6,7 +6,6 @@
 // numbers, strings, booleans, or arrays of strings. A dependency that can parse any
 // JSON would be several thousand lines to read six fields, and the specification
 // permits no JSON library.
-#include <fstream>
 // Provides `ifstream` and `ofstream`, which read and write text files.
 #include <fstream>
 // Provides `map`, the ordered dictionary the parsed object members go in.
@@ -193,7 +192,7 @@ JsonValue JsonParser::parseString() {
             collectedText.push_back(escapedCharacter);
         }
     }
-    value.text=move(collectedText);
+    value.text=std::move(collectedText);
     return value;
 }
 JsonValue JsonParser::parseBareWord() {
@@ -260,7 +259,7 @@ JsonValue JsonParser::parseObject() {
         take();
         skipWhitespace();
         const JsonValue memberValue=parseValue();
-        value.members[memberName.text]=move(memberValue);
+        value.members[memberName.text]=std::move(memberValue);
         skipWhitespace();
         if (matches(',')) {
             take();
