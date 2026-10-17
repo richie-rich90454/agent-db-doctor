@@ -13,8 +13,8 @@
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
 // Provides the five command classes.
 #include "AgentDbDoctor/Command/DiagnoseCommand.hpp"
-#include "AgentDbDoctor/Command/PruneCommand.hpp"
 #include "AgentDbDoctor/Command/CompactCommand.hpp"
+#include "AgentDbDoctor/Command/VacuumCommand.hpp"
 #include "AgentDbDoctor/Command/RecoverCommand.hpp"
 #include "AgentDbDoctor/Command/ServiceCommand.hpp"
 // Provides ConsoleReport, which prints every line the program writes.
@@ -70,17 +70,17 @@ void addSharedOptions(CLI::App& application, CommandOptions& options) {
     application.add_option(
         "-k,--keep",
         options.sessionsToKeep,
-        "How many of the most recent sessions to keep when pruning. Zero, the default, keeps the newest half."
+        "How many of the most recent sessions to keep when compacting. Zero, the default, keeps the newest half."
     );
     application.add_option(
         "--max-fraction",
         options.maximumFractionToRemove,
-        "Refuse to prune more than this share of the event table. The default is 0.5, or half."
+        "Refuse to compact more than this share of the event table. The default is 0.5, or half."
     );
     application.add_option(
         "--batch-size",
         options.deletionBatchSize,
-        "How many rows to remove in one transaction when pruning. The default is 10000."
+        "How many rows to remove in one transaction when compacting. The default is 10000."
     );
     application.add_option(
         "--backup-to",
@@ -121,7 +121,7 @@ int main(int argumentCount, char** argumentValues) {
     CommandOptions options;
     CLI::App application(
         "agent-db-doctor - a doctor for AI coding agent databases.\n"
-        "Diagnose, prune, compact, recover, and monitor the databases that AI coding agents use to "
+        "Diagnose, compact, vacuum, recover, and monitor the databases that AI coding agents use to "
         "remember your work."
     );
     application.require_subcommand(1);
@@ -135,16 +135,17 @@ int main(int argumentCount, char** argumentValues) {
         "Look at every supported database and report what is wrong. Changes nothing."
     );
     addSharedOptions(*diagnoseSubcommand, options);
-    CLI::App* pruneSubcommand=application.add_subcommand(
-        "prune",
-        "Remove older copies of changed messages, after copying your database and checking nothing was lost."
-    );
-    addSharedOptions(*pruneSubcommand, options);
     CLI::App* compactSubcommand=application.add_subcommand(
         "compact",
-        "Rewrite the database so it gives unused space back to the drive."
+        "Compact the event log: keep the newest snapshot of every message and remove the older "
+        "ones, after copying your database and checking nothing was lost."
     );
     addSharedOptions(*compactSubcommand, options);
+    CLI::App* vacuumSubcommand=application.add_subcommand(
+        "vacuum",
+        "Give unused space inside the database back to the drive by rewriting the file."
+    );
+    addSharedOptions(*vacuumSubcommand, options);
     CLI::App* recoverSubcommand=application.add_subcommand(
         "recover",
         "Work out what is wrong with a database that will not open, and say what can be fixed."
@@ -198,12 +199,12 @@ int main(int argumentCount, char** argumentValues) {
             DiagnoseCommand command(terminalIsAttached);
             return command.execute(options);
         }
-        if (chosenSubcommand=="prune") {
-            PruneCommand command(terminalIsAttached);
-            return command.execute(options);
-        }
         if (chosenSubcommand=="compact") {
             CompactCommand command(terminalIsAttached);
+            return command.execute(options);
+        }
+        if (chosenSubcommand=="vacuum") {
+            VacuumCommand command(terminalIsAttached);
             return command.execute(options);
         }
         if (chosenSubcommand=="recover") {
