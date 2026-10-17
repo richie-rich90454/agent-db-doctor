@@ -4,7 +4,6 @@
 // for writing, the new file is built beside it and only swapped in once it has been
 // verified, the free space needed is stated before the run starts, and no file
 // system compression is used at any point.
-#include <filesystem>
 // Provides `rename` and `remove`, which swap the new file into place and clear away
 // the old one.
 #include <filesystem>
@@ -324,47 +323,46 @@ int CompactCommand::execute(const CommandOptions& options) {
         writePurpose(options);
     }
     if (options.databaseFilePath.empty()) {
-        reporter.writeFailure(
-            string("This command needs to know which database to work on, because it replaces one. "
-                "Tell it with --database, or run the diagnose command first to see where your agent "
-                "keeps it."),
-            string()
+        lastRunOutcome.summarySentence=string(
+            "This command needs to know which database to work on, because it replaces one. "
+            "Tell it with --database, or run the diagnose command first to see where your agent "
+            "keeps it."
         );
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         reporter.writeLine("Nothing was changed.");
         return 1;
     }
     const FileMetadata fileStatus=PlatformMetadata::readFileMetadata(options.databaseFilePath);
     if (!fileStatus.exists) {
-        reporter.writeFailure(
-            string("There is no file at ") + options.databaseFilePath + ". Nothing was changed.",
-            string()
-        );
+        lastRunOutcome.summarySentence=string("There is no file at ")
+            + options.databaseFilePath + ". Nothing was changed.";
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         return 1;
     }
     if (fileStatus.isDirectory) {
-        reporter.writeFailure(
-            string("That path is a folder, not a database file, so there is nothing to compact.\n\n")
-            + "Several supported coding agents keep their history as plain text files in a "
-            + "folder rather than in a SQLite database. This tool does not change the files "
-            + "inside a folder.\n\nNothing was changed.",
-            string()
+        lastRunOutcome.summarySentence=string(
+            "That path is a folder, not a database file, so there is nothing to compact.\n\n"
+            "Several supported coding agents keep their history as plain text files in a "
+            "folder rather than in a SQLite database. This tool does not change the files "
+            "inside a folder.\n\nNothing was changed."
         );
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         return 1;
     }
     if (!StatisticsReader::readHeaderFields(options.databaseFilePath).isValidSqliteFile) {
-        reporter.writeFailure(
-            string("The file at ") + options.databaseFilePath + " is not a SQLite database, so there "
-            + "is nothing to compact.\n\nNothing was changed, and the file was not opened for "
-            + "writing. If you meant a different file, run the diagnose command to see where each "
-            + "supported agent keeps its database.",
-            string()
-        );
+        lastRunOutcome.summarySentence=string(
+            "The file at ") + options.databaseFilePath + " is not a SQLite database, so there "
+            "is nothing to compact.\n\nNothing was changed, and the file was not opened for "
+            "writing. If you meant a different file, run the diagnose command to see where each "
+            "supported agent keeps its database.";
+        reporter.writeFailure(lastRunOutcome.summarySentence, string());
         return 1;
     }
     // The lock is checked before anything is written, because a database that is
     // open cannot be replaced safely.
     const SafetyCheckResult lockCheck=SafetyChecks::verifyDatabaseIsNotLocked(options.databaseFilePath);
     if (!lockCheck.passed()) {
+        lastRunOutcome.summarySentence=lockCheck.explanation() + "\n\nNothing was changed.";
         reporter.writeFailure(lockCheck.explanation(), string());
         reporter.writeLine("Nothing was changed.");
         return 1;
@@ -374,31 +372,41 @@ int CompactCommand::execute(const CommandOptions& options) {
     } catch (const PragmaException& pragmaFailure) {
         // A setting could not be applied, which stops the run rather than continuing
         // with settings the caller did not ask for.
+        lastRunOutcome.summarySentence=pragmaFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(pragmaFailure.message(), string());
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const InsufficientDiskSpaceException& spaceFailure) {
         // There was not enough room to do what was asked, which is the refusal the
         // specification requires rather than a failure.
+        lastRunOutcome.summarySentence=spaceFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(spaceFailure.message(), to_string(spaceFailure.requiredBytes()));
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const FileSystemException& fileFailure) {
+        lastRunOutcome.summarySentence=fileFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(fileFailure.message(), string());
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const ConfigurationException& configurationFailure) {
+        lastRunOutcome.summarySentence=configurationFailure.message();
         reporter.writeFailure(configurationFailure.message(), string());
         return 1;
     } catch (const AgentDatabaseMissingException& missingFailure) {
         // No supported agent could be found, which is a result rather than a fault.
+        lastRunOutcome.summarySentence=missingFailure.message();
         reporter.writeFailure(missingFailure.message(), string());
         return 1;
     } catch (const DatabaseOpenException& openFailure) {
+        lastRunOutcome.summarySentence=openFailure.message() + "\n\nNothing was changed.";
         reporter.writeFailure(openFailure.message(), to_string(openFailure.openResultCode()));
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const DatabaseOperationException& operationFailure) {
+        // The original is replaced only by a finished, checked rewrite, so a stop
+        // partway means the original is still exactly where it was.
+        lastRunOutcome.summarySentence=operationFailure.message()
+            + "\n\nThe original file is still in place, exactly as it was.";
         reporter.writeFailure(operationFailure.message(), string());
         return 1;
     }
