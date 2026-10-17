@@ -57,14 +57,14 @@ public:
     SafetyChecks()=delete;
     // Verifies that message content survives outside the event table.
     //
-    // This is the most important check in the tool. The prune command deletes rows
+    // This is the most important check in the tool. The compact command deletes rows
     // from the event table, and if the conversation text lived only in those rows,
     // deleting them would destroy the user's history. So this check opens the
     // oldest session, counts how many readable text parts it has, and confirms
     // that the parts are stored in the `part` table rather than only in events.
     static SafetyCheckResult verifyMessageContentPersistsOutsideEventTable(Database& database);
     // Verifies that the oldest session still has readable content, which is the
-    // direct evidence that a previous prune did not destroy anything.
+    // direct evidence that a previous compaction did not destroy anything.
     static SafetyCheckResult verifyOldestSessionStillHasReadableContent(Database& database);
     // Verifies that no other program has the database open. A database in use can
     // be modified underneath the tool, and every guarantee the tool makes would
@@ -81,10 +81,10 @@ public:
     // Verifies that the database passed its quick integrity check, because
     // deleting rows from a damaged database makes the damage worse.
     static SafetyCheckResult verifyDatabaseIsNotDamaged(Database& database);
-    // Verifies that the agent's schema has the columns the prune query needs. An
+    // Verifies that the agent's schema has the columns the compaction query needs. An
     // older release of an agent may store a different shape, and querying a column
     // that does not exist is a programming error rather than a user error.
-    static SafetyCheckResult verifySchemaSupportsPruning(Database& database);
+    static SafetyCheckResult verifySchemaSupportsCompaction(Database& database);
     // Runs every check above and returns them all, in a fixed order, so the report
     // always reads the same way. The caller decides whether a single failure stops
     // the operation, which it always does.
@@ -98,7 +98,7 @@ public:
     static vector<SessionSnapshot> captureOldestSessions(Database& database, int sessionCountToCapture);
     // Re-reads the sessions captured before a deletion and confirms that every one
     // of them still holds the same readable content. This is the proof that a
-    // prune did not lose anything, and it is checked after the deletion rather
+    // compaction did not lose anything, and it is checked after the deletion rather
     // than assumed before it.
     static SafetyCheckResult verifySnapshotsSurvivedUnchanged(
         Database& database,
