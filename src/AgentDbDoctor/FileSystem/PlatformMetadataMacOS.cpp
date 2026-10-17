@@ -13,8 +13,8 @@
 #endif
 // Provides `kill`, which asks whether a process is still running.
 #include <signal.h>
-// Provides `HOST_NAME_MAX`, the size the C library reserves for a host name. It was
-// previously arriving by way of sys/sysctl.h, which nothing in this file uses.
+// Provides the size the C library reserves for a host name: `HOST_NAME_MAX` on
+// Linux, and `_POSIX_HOST_NAME_MAX`, the POSIX guarantee, on macOS.
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -159,9 +159,18 @@ bool PlatformMetadata::isProcessRunning(int processIdentifier) {
     return kill(static_cast<pid_t>(processIdentifier), 0)==0 || errno==EPERM;
 }
 string PlatformMetadata::hostName() {
-    // `HOST_NAME_MAX` is the size the C library reserves for a host name. The
-    // buffer is a fixed size array, so the read cannot allocate.
-    char hostBuffer[HOST_NAME_MAX + 1];
+    // `HOST_NAME_MAX` is a Linux extension: with glibc it is defined, but macOS
+    // defines only the POSIX guarantee `_POSIX_HOST_NAME_MAX`, and using the
+    // Linux name there is a compile error. The POSIX value is the smaller of the
+    // two, so a buffer of that size plus one is correct on every system this
+    // tool supports. The buffer is a fixed size array, so the read cannot
+    // allocate.
+#if defined(HOST_NAME_MAX)
+    constexpr size_t hostNameBufferSize=HOST_NAME_MAX + 1;
+#else
+    constexpr size_t hostNameBufferSize=_POSIX_HOST_NAME_MAX + 1;
+#endif
+    char hostBuffer[hostNameBufferSize];
     if (gethostname(hostBuffer, sizeof(hostBuffer))!=0) {
         return string("unknown-host");
     }
