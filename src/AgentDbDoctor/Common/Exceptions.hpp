@@ -32,13 +32,17 @@ public:
     // ends with a period, because every message the user ever sees follows that
     // rule.
     explicit AgentDbDoctorException(string explanation)
-        : explanationText(move(explanation)) {
+        : explanationText(std::move(explanation)) {
     }
     ~AgentDbDoctorException()=default;
-    // Copying is deleted because the class has no reason to be copied and a
-    // deleted copy makes accidental duplication a compile time error.
-    AgentDbDoctorException(const AgentDbDoctorException&)=delete;
-    AgentDbDoctorException& operator=(const AgentDbDoctorException&)=delete;
+    // Copying is allowed because the C++ language requires that the object of a
+    // thrown expression be copy-initializable: `throw DatabaseOpenException(...)`
+    // is only fully portable when that type can be copied, and compilers such as
+    // MSVC warn (and, with warnings as errors, refuse) when it cannot. The copy
+    // exists for the language, not for the design: nothing in this codebase
+    // copies an exception on purpose.
+    AgentDbDoctorException(const AgentDbDoctorException&)=default;
+    AgentDbDoctorException& operator=(const AgentDbDoctorException&)=default;
     // `what()` returns a pointer that stays valid for the lifetime of this
     // object. It is the same text as `message()`.
     const char* what() const {
@@ -92,7 +96,7 @@ private:
 class AgentDatabaseMissingException final {
 public:
     explicit AgentDatabaseMissingException(string explanation)
-        : baseException(move(explanation)) {
+        : baseException(std::move(explanation)) {
     }
     const char* what() const {
         return baseException.what();
@@ -109,7 +113,7 @@ public:
     // `databaseFilePath` is the path that failed. `sqliteResultCode` is the
     // value returned by `sqlite3_open_v2`. Both are translated into a sentence.
     DatabaseOpenException(string databaseFilePath, int sqliteResultCode, string explanation)
-        : baseException(buildExplanation(move(databaseFilePath), sqliteResultCode, move(explanation))),
+        : baseException(buildExplanation(std::move(databaseFilePath), sqliteResultCode, std::move(explanation))),
           sqliteResultCode(sqliteResultCode) {
     }
     const char* what() const {
@@ -139,7 +143,7 @@ private:
 class DatabaseOperationException final {
 public:
     DatabaseOperationException(string operationDescription, int sqliteResultCode, string explanation)
-        : baseException(buildExplanation(move(operationDescription), sqliteResultCode, move(explanation))),
+        : baseException(buildExplanation(std::move(operationDescription), sqliteResultCode, std::move(explanation))),
           sqliteResultCode(sqliteResultCode) {
     }
     // The raw SQLite result code, so a caller can branch on the specific failure
@@ -164,7 +168,7 @@ private:
 class PragmaException final {
 public:
     PragmaException(string pragmaStatement, string sqliteMessage)
-        : baseException(buildExplanation(move(pragmaStatement), move(sqliteMessage))) {
+        : baseException(buildExplanation(std::move(pragmaStatement), std::move(sqliteMessage))) {
     }
     const char* what() const {
         return baseException.what();
@@ -183,7 +187,7 @@ private:
 class FileSystemException final {
 public:
     FileSystemException(string operationDescription, string affectedPath, int operatingSystemErrorCode)
-        : baseException(buildExplanation(move(operationDescription), move(affectedPath), operatingSystemErrorCode)) {
+        : baseException(buildExplanation(std::move(operationDescription), std::move(affectedPath), operatingSystemErrorCode)) {
     }
     const char* what() const {
         return baseException.what();
@@ -203,7 +207,7 @@ private:
 class ConfigurationException final {
 public:
     explicit ConfigurationException(string explanation)
-        : baseException("The configuration is not usable. " + move(explanation)) {
+        : baseException("The configuration is not usable. " + std::move(explanation)) {
     }
     const char* what() const {
         return baseException.what();
@@ -219,7 +223,7 @@ private:
 class ServiceOperationException final {
 public:
     ServiceOperationException(string operationDescription, string explanation)
-        : baseException(move(operationDescription) + " failed. " + move(explanation)) {
+        : baseException(std::move(operationDescription) + " failed. " + std::move(explanation)) {
     }
     const char* what() const {
         return baseException.what();
@@ -236,7 +240,7 @@ private:
 class UserDeclinedException final {
 public:
     explicit UserDeclinedException(string explanation)
-        : baseException(move(explanation)) {
+        : baseException(std::move(explanation)) {
     }
     const char* what() const {
         return baseException.what();
@@ -252,7 +256,7 @@ private:
 class InsufficientDiskSpaceException final {
 public:
     InsufficientDiskSpaceException(string operationDescription, long long requiredBytes, long long availableBytes)
-        : baseException(buildExplanation(move(operationDescription), requiredBytes, availableBytes)) {
+        : baseException(buildExplanation(std::move(operationDescription), requiredBytes, availableBytes)) {
     }
     const char* what() const {
         return baseException.what();
