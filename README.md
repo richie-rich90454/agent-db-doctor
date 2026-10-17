@@ -423,10 +423,12 @@ written for. See `docs/recovery-playbook.md`.
 asks first, and it needs administrator rights, because only an administrator can write
 where a system service definition lives.
 
-**It has no continuous integration workflows.** The specification's file layout
-includes them. This repository is private and hosted runners cost money, so the suites
-run locally with `ctest --test-dir build`. Both the Windows and Linux builds are run
-by hand and both pass.
+**It is built and tested by a continuous integration workflow.** Every change is
+compiled by four toolchains: GCC and Clang on Linux, MSVC on Windows, and
+AppleClang on macOS. The whole test suite runs on each of them, both the command
+line program and the window are started to prove they come up, and each platform
+produces a runnable package. Pushing a tag attaches those packages to the release.
+The workflow is `.github/workflows/ci.yml`.
 
 ## Commands and flags
 
@@ -502,8 +504,8 @@ to, because a number that large usually means a miscount rather than a problem.
 See [CONTRIBUTING.md](CONTRIBUTING.md). The one rule that is not negotiable: nothing
 you add may destroy a user's session history without their explicit confirmation.
 
-This repository is private and is not configured for continuous integration,
-because a hosted runner costs money. The suites run locally with:
+Every change is built and tested by the workflow in `.github/workflows/ci.yml`.
+The same suites can be run locally with:
 
 ```bash
 cmake --build build
@@ -514,10 +516,7 @@ ctest --test-dir build --output-on-failure
 
 ## License
 
-Dual licensed, at your option:
-
-- [MIT](LICENSE-MIT)
-- [Apache-2.0](LICENSE-APACHE)
+[MIT](LICENSE)
 
 ## Acknowledgements
 
