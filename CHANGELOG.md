@@ -9,7 +9,8 @@ All notable changes to this project are documented here. The format follows
 Sixty two agents instead of six, OpenCode v1 and v2 schemas, and a graphical
 interface. The application version is unchanged: this is all new coverage in
 the same v1 tool, verified the same way (full suite green on Windows and
-Linux, real databases on the author's machine).
+Linux, and the compaction flow run end to end on a real 10.9 GB database, which
+gave 76% of its file back to the drive).
 
 ### Added
 
@@ -45,8 +46,47 @@ command line program and the window on each platform, and packages a runnable
 copy of the tool for every system. Pushing a tag attaches the packages to the
 release.
 
+**Vacuuming for every SQLite based database.** The vacuum command needs no
+knowledge of any schema, only of the SQLite file format, so it is now offered
+for every SQLite based agent (OpenCode, Cursor, VS Code, Cline, Windsurf, Zed,
+and Void) in the command line and in the interface, not only for OpenCode. The
+interface says plainly that compaction is only offered where the event log
+layout is documented.
+
+### Changed
+
+**The `prune` command is now `compact`.** Event log compaction is the precise
+name for the operation, the same term Kafka and other systems use: keep the
+newest copy of every message snapshot and remove the older copies, without
+changing the logical content of the log. The command, its classes
+(`EventLogCompactor`, `EventLogCompactionReport`, `EventLogCompactionPlan`),
+its messages, and the documentation all use that name now.
+
+**The old `compact` command is now `vacuum`.** Vacuuming rewrites the file at
+its smallest useful size, which is what hands space back to the drive; it is a
+separate operation from compaction and now has its own verb. The service
+configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
+
 ### Fixed
 
+- **Compaction did nothing on real OpenCode databases.** The deletion queries
+  matched an event column that the real schema does not have, so every run
+  reported "nothing needed doing" while hundreds of thousands of redundant
+  snapshots sat in the file. The queries now use the schema's own
+  `aggregate_id`, which carries the session each event belongs to, and the
+  synthetic test database has been migrated to the real table shape so the
+  tests guard the real thing.
+- **One compaction run now removes everything it promised.** The deletion loop
+  advanced a single row identifier cursor across all three event types, so on
+  real data it skipped most of the rows; measured on the real database, one run
+  removed 88,837 of the 415,856 rows it had counted. Each event type now keeps
+  its own forward cursor, and a run removes exactly the count the preview
+  showed.
+- **`--dry-run` and the interface's preview buttons no longer change
+  anything.** Both commands ignored the flag, so pressing "preview" in the
+  interface performed the real operation. A preview now reads, counts, and
+  stops before any copy, question, or deletion; the tests compare the row count
+  before and after a preview.
 - The OpenCode location now follows the vendor's own resolution (`OPENCODE_DB`,
   channel file names, the XDG-style path even on Windows) and prefers a file
   with a size over zero byte placeholders.
@@ -61,7 +101,7 @@ release.
 - A failure inside the action worker can no longer end the process: the worker
   catches everything, and `recover --rebuild` now catches its own failure
   types like the other commands.
-- Prune, compact, and recover fill the refusal explanation into their result
+- Compact, vacuum, and recover fill the refusal explanation into their result
   objects, so the interface's dialogues show why something did not run instead
   of an empty window.
 - The interface's activity bar returns to idle when the work finishes.
