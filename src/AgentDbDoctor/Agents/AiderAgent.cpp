@@ -1,5 +1,4 @@
 // The implementation of the AiderAgent class.
-#include <filesystem>
 // Provides `current_path`, which reports the process working directory.
 #include <filesystem>
 // Provides `string`, which owns and stores a sequence of characters.
@@ -18,10 +17,6 @@ namespace AgentDbDoctor::Agents {
 // The file Aider writes its Markdown transcript to. It is a dot file in the
 // project directory, so it is normally hidden from a plain file listing.
 static constexpr const char* HISTORY_FILE_NAME=".aider.chat.history.md";
-// The folder Aider writes its repository index into, named after the release
-// that produced it. The index is rebuilt automatically, so it is the one Aider
-// file the tool can honestly describe as disposable.
-static constexpr const char* INDEX_FOLDER_PREFIX=".aider.tags.cache.v";
 AiderAgent::AiderAgent()
     : databaseLocator(buildCandidatePaths(string())) {
 }
