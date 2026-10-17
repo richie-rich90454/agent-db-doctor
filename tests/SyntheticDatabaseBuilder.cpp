@@ -38,13 +38,19 @@ static constexpr const char* CREATE_MESSAGE_TABLE=
 // check reads to find readable text.
 static constexpr const char* CREATE_PART_TABLE=
     "CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, data TEXT)";
-// The event table. The `type` column is indexed, which is what makes counting the
-// duplicates an indexed lookup rather than a scan.
+// The event table. Its shape mirrors the real one: `aggregate_id` carries the
+// session the event belongs to, and `seq` numbers the events inside one aggregate.
+// The `time_created` and `filler` columns are test only extras, used to order
+// events and to grow the file; the tool itself never reads them.
 static constexpr const char* CREATE_EVENT_TABLE=
-    "CREATE TABLE event (id TEXT PRIMARY KEY, type TEXT, session_id TEXT, "
-    "time_created INTEGER, filler BLOB)";
+    "CREATE TABLE event (id TEXT PRIMARY KEY, aggregate_id TEXT, seq INTEGER, "
+    "type TEXT, time_created INTEGER, data TEXT, filler BLOB)";
 // The index that makes the duplicate count constant time.
 static constexpr const char* CREATE_EVENT_TYPE_INDEX="CREATE INDEX event_type_index ON event(type)";
+// The index the real schema has on the aggregate and the sequence, kept here so a
+// builder mistake that reuses a sequence number fails loudly.
+static constexpr const char* CREATE_EVENT_AGGREGATE_SEQUENCE_INDEX=
+    "CREATE UNIQUE INDEX event_aggregate_seq_index ON event(aggregate_id, seq)";
 // The three event types the tool recognises as older copies of a changed message.
 static constexpr const char* EVENT_TYPE_MESSAGE="message.updated.1";
 static constexpr const char* EVENT_TYPE_PART="message.part.updated.1";
@@ -93,6 +99,7 @@ long long SyntheticDatabaseBuilder::build(const string& databaseFilePath, const 
     database.execute(CREATE_PART_TABLE);
     database.execute(CREATE_EVENT_TABLE);
     database.execute(CREATE_EVENT_TYPE_INDEX);
+    database.execute(CREATE_EVENT_AGGREGATE_SEQUENCE_INDEX);
     // The filler text is built once and reused for every row, so building a large
     // database does not spend its time allocating a hundred thousand strings.
     const string fillerText=buildFillerText(options.bytesPerEventRow);
@@ -106,7 +113,7 @@ long long SyntheticDatabaseBuilder::build(const string& databaseFilePath, const 
         // matters when a test asserts on a particular session.
         const string sessionIdentifier="ses_test_" + to_string(sessionIndex);
         // The creation time increases with the index, so "newest" and "oldest" are
-        // well defined and the prune command's ordering has something to order by.
+        // well defined and the compact command's ordering has something to order by.
         const long long sessionCreatedAt=1700000000000LL + sessionIndex * 1000LL;
         Statement sessionWriter(
             database.rawHandle(),
@@ -157,33 +164,42 @@ long long SyntheticDatabaseBuilder::build(const string& databaseFilePath, const 
                     partWriter.run();
                 }
             }
-            // The duplicated rows are what the prune command removes. Three types
+            // The duplicated rows are what the compact command removes. Three types
             // are written, in the same proportions a real agent produces them, so
-            // the per type loop in the prune command is genuinely exercised.
+            // the per type loop in the compact command is genuinely exercised.
             for (int copyIndex=0; copyIndex<options.redundantCopiesPerMessage; ++copyIndex) {
                 const array<const char*, 3> eventTypes={
                     EVENT_TYPE_MESSAGE,
                     EVENT_TYPE_PART,
                     EVENT_TYPE_SESSION
                 };
-                for (const char* currentEventType : eventTypes) {
+                const string eventDataJson=string("{\"sessionID\":\"") + sessionIdentifier + "\"}";
+                for (size_t typeIndex=0; typeIndex<eventTypes.size(); ++typeIndex) {
+                    const char* currentEventType=eventTypes[typeIndex];
                     const string eventIdentifier="evt_" + to_string(sessionIndex) + "_"
                         + to_string(messageIndex) + "_" + to_string(copyIndex) + "_"
                         + currentEventType;
+                    // The sequence number is unique inside the aggregate, which is
+                    // what the real schema's unique index enforces too.
+                    const long long eventSequenceNumber=
+                        static_cast<long long>(messageIndex) * options.redundantCopiesPerMessage * 3
+                        + copyIndex * 3 + static_cast<long long>(typeIndex) + 1;
                     Statement eventWriter(
                         database.rawHandle(),
-                        "INSERT INTO event (id, type, session_id, time_created, filler) "
-                        "VALUES (?1, ?2, ?3, ?4, ?5)",
+                        "INSERT INTO event (id, aggregate_id, seq, type, time_created, data, filler) "
+                        "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                         "the writing of one duplicated event"
                     );
                     if (!eventWriter.isValid()) {
                         continue;
                     }
                     eventWriter.bindText(1, eventIdentifier);
-                    eventWriter.bindText(2, currentEventType);
-                    eventWriter.bindText(3, sessionIdentifier);
-                    eventWriter.bindInteger(4, sessionCreatedAt + messageIndex);
-                    eventWriter.bindText(5, fillerText);
+                    eventWriter.bindText(2, sessionIdentifier);
+                    eventWriter.bindInteger(3, eventSequenceNumber);
+                    eventWriter.bindText(4, currentEventType);
+                    eventWriter.bindInteger(5, sessionCreatedAt + messageIndex);
+                    eventWriter.bindText(6, eventDataJson);
+                    eventWriter.bindText(7, fillerText);
                     if (eventWriter.run()) {
                         redundantRowCount++;
                     }
