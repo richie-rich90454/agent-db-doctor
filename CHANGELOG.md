@@ -110,6 +110,8 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
 - The diagnostics discovery runs once instead of once per agent.
 - The window is paced by the display refresh rate instead of redrawing as
   fast as the processor allows.
+- The macOS build compiles: the host name buffer used a constant that only
+  Linux defines.
 - The README points at the one license file the project ships.
 
 ## [1.0.0] - 2026-09-30
