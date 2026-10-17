@@ -31,7 +31,7 @@ namespace {
 // How many sessions the browser keeps per database. Two hundred rows render
 // instantly and cover every realistic "find that conversation" scroll.
 constexpr int MAXIMUM_BROWSER_SESSIONS=200;
-// Reads the newest sessions of a prunable database. The column names are
+// Reads the newest sessions of a compactable database. The column names are
 // discovered from the table itself rather than assumed: the bundled test
 // schema has no title column, and a future schema may rename one. Anything
 // unexpected yields an empty list rather than an error, because the browser
@@ -135,7 +135,7 @@ void runScan(GuiState& state) {
         DiagnosisReport report=doctor.diagnoseDatabase(current.filePath, current.agentName, false);
         ScannedDatabase scanned(current);
         scanned.report=std::move(report);
-        if (current.isSqliteDatabase && report.getPruningSupported()) {
+        if (current.isSqliteDatabase && report.getCompactionSupported()) {
             scanned.newestSessions=readNewestSessions(current.filePath);
         }
         {
