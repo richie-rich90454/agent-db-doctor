@@ -1,6 +1,6 @@
 // The implementation of the action screens.
 //
-// The flow is the same for prune and compact: preview on the worker, numbers
+// The flow is the same for compaction and vacuum: preview on the worker, numbers
 // in a confirmation dialogue, the word `yes` typed by a human, then the run
 // on the worker, then the result dialogue. Recover shows its plan as a
 // dialogue first, because a plan is meant to be read, and rebuilds only from
@@ -80,39 +80,51 @@ void renderDatabaseActions(
     const ScannedDatabase& scanned,
     ActionRunner& runner,
     ActionUiState& ui) {
-    if (!scanned.found.isSqliteDatabase || !scanned.report.getPruningSupported()) {
+    if (!scanned.found.isSqliteDatabase) {
         ImGui::TextDisabled(
             "This data is reported, never changed. There is nothing to click here.");
         return;
     }
+    // Vacuuming rewrites any SQLite file and needs no knowledge of its schema, so
+    // it is offered for every agent whose data is one. Compaction needs to know
+    // which rows are redundant snapshots, which is only documented for one
+    // agent; for the rest the screen says why it is not offered rather than
+    // guessing at undocumented tables.
+    const bool compactionSupported=scanned.report.getCompactionSupported();
     const bool workerBusy=runner.isBusy();
     ImGui::BeginDisabled(workerBusy);
-    ImGui::TextUnformatted("Prune");
-    ImGui::InputInt("Keep sessions (0 keeps the newest half)", &ui.keepSessionsInput);
-    if (ui.keepSessionsInput<0) {
-        ui.keepSessionsInput=0;
+    if (compactionSupported) {
+        ImGui::TextUnformatted("Compaction (the event log)");
+        ImGui::InputInt("Keep sessions (0 keeps the newest half)", &ui.keepSessionsInput);
+        if (ui.keepSessionsInput<0) {
+            ui.keepSessionsInput=0;
+        }
+        ImGui::InputDouble("Remove at most this share", &ui.maximumFractionInput, 0.05, 0.1, "%.2f");
+        if (ui.maximumFractionInput<0.0) {
+            ui.maximumFractionInput=0.0;
+        }
+        if (ui.maximumFractionInput>1.0) {
+            ui.maximumFractionInput=1.0;
+        }
+        if (ImGui::Button("Preview compaction")) {
+            ActionRequest request;
+            request.kind=ActionKind::CompactionPreview;
+            request.databasePath=scanned.found.filePath;
+            request.keepSessions=ui.keepSessionsInput;
+            request.maximumFraction=ui.maximumFractionInput;
+            ui.lastRequest=request;
+            ui.hasLastRequest=true;
+            startWhenIdle(runner, request);
+        }
+        ImGui::SameLine();
+    } else {
+        ImGui::TextWrapped(
+            "Compaction is not offered for this agent yet: its event log layout is not "
+            "documented, so deleting rows would be a guess. The vacuum below is always safe.");
     }
-    ImGui::InputDouble("Remove at most this share", &ui.maximumFractionInput, 0.05, 0.1, "%.2f");
-    if (ui.maximumFractionInput<0.0) {
-        ui.maximumFractionInput=0.0;
-    }
-    if (ui.maximumFractionInput>1.0) {
-        ui.maximumFractionInput=1.0;
-    }
-    if (ImGui::Button("Preview prune")) {
+    if (ImGui::Button("Preview vacuum")) {
         ActionRequest request;
-        request.kind=ActionKind::PrunePreview;
-        request.databasePath=scanned.found.filePath;
-        request.keepSessions=ui.keepSessionsInput;
-        request.maximumFraction=ui.maximumFractionInput;
-        ui.lastRequest=request;
-        ui.hasLastRequest=true;
-        startWhenIdle(runner, request);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Preview compact")) {
-        ActionRequest request;
-        request.kind=ActionKind::CompactPreview;
+        request.kind=ActionKind::VacuumPreview;
         request.databasePath=scanned.found.filePath;
         ui.lastRequest=request;
         ui.hasLastRequest=true;
@@ -179,9 +191,9 @@ void pollActionResult(ActionRunner& runner, ActionUiState& ui) {
     // A clean preview leads to the confirmation, carrying the exact settings
     // the preview ran with. Anything else is a result dialogue: a refusal, a
     // finished run, or a service answer.
-    if (result.kind==ActionKind::PrunePreview && result.exitCode==0 && ui.hasLastRequest) {
+    if (result.kind==ActionKind::CompactionPreview && result.exitCode==0 && ui.hasLastRequest) {
         ActionRequest runRequest=ui.lastRequest;
-        runRequest.kind=ActionKind::PruneRun;
+        runRequest.kind=ActionKind::CompactionRun;
         askConfirmation(
             ui,
             runRequest,
@@ -190,9 +202,9 @@ void pollActionResult(ActionRunner& runner, ActionUiState& ui) {
                   "command line does. Type yes to run it for real.");
         return;
     }
-    if (result.kind==ActionKind::CompactPreview && result.exitCode==0 && ui.hasLastRequest) {
+    if (result.kind==ActionKind::VacuumPreview && result.exitCode==0 && ui.hasLastRequest) {
         ActionRequest runRequest=ui.lastRequest;
-        runRequest.kind=ActionKind::CompactRun;
+        runRequest.kind=ActionKind::VacuumRun;
         askConfirmation(
             ui,
             runRequest,
