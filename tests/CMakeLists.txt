@@ -74,8 +74,8 @@ target_sources(TestActionRunner PRIVATE "${CMAKE_SOURCE_DIR}/gui/ActionRunner.cp
 # system and exercise whole commands from end to end.
 set(AGENT_DB_DOCTOR_INTEGRATION_TESTS
     integration/DiagnoseIntegrationTest.cpp
-    integration/PruneIntegrationTest.cpp
     integration/CompactIntegrationTest.cpp
+    integration/VacuumIntegrationTest.cpp
     integration/RecoverIntegrationTest.cpp
     integration/ServiceIntegrationTest.cpp
     integration/CompressionCorruptionIntegrationTest.cpp
@@ -92,7 +92,7 @@ endforeach()
 # skip them.
 set(AGENT_DB_DOCTOR_BENCHMARK_TESTS
     benchmark/DiagnoseBenchmark.cpp
-    benchmark/PruneBenchmark.cpp
+    benchmark/CompactBenchmark.cpp
     benchmark/WatchdogBenchmark.cpp
 )
 foreach(test_source IN LISTS AGENT_DB_DOCTOR_BENCHMARK_TESTS)
