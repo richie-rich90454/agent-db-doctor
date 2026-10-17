@@ -6,7 +6,8 @@
 // keeps drawing at full frame rate. Long destructive work never runs here
 // either: it runs on a worker thread and publishes through the progress sink,
 // which the action screens of the next change read once per frame.
-#include <string>
+// Provides `uintptr_t`, the integer type an ImGui texture handle travels through.
+#include <cstdint>
 // Provides `string`, used for the asset paths beside the binary.
 #include <string>
 // Provides SDL3: window, renderer, events, and the system theme query.
@@ -43,11 +44,32 @@ enum class GuiView {
     Dashboard,
     Service
 };
+// The folder the artwork is found in: the folder holding the running binary,
+// which is where the build copies the PNGs and where a package keeps them
+// beside the program. The compiled-in location is only a fallback for the
+// case where the platform refuses to report the binary's folder, because a
+// path baked in at build time points at the builder's machine, not the
+// user's. SDL_GetBasePath returns a path that already ends with a separator,
+// and the buffer belongs to SDL, so it is copied and not freed.
+std::string artworkDirectoryPath() {
+    std::string basePath;
+    const char* reportedBasePath = SDL_GetBasePath();
+    if (reportedBasePath != nullptr) {
+        basePath = reportedBasePath;
+    }
+    if (basePath.empty()) {
+        basePath = AGENT_DB_DOCTOR_ASSET_DIR;
+        if (!basePath.empty() && basePath.back() != '/' && basePath.back() != '\\') {
+            basePath += "/";
+        }
+    }
+    return basePath;
+}
 // Loads a PNG beside the binary into an SDL texture, or null when it is
 // missing. Missing artwork is never an error: the interface simply shows one
 // fewer picture, because pictures must never stop the tool from working.
 SDL_Texture* loadArtworkTexture(SDL_Renderer* renderer, const char* fileName) {
-    const std::string artworkPath = std::string(AGENT_DB_DOCTOR_ASSET_DIR) + "/" + fileName;
+    const std::string artworkPath = artworkDirectoryPath() + fileName;
     int artworkWidth = 0;
     int artworkHeight = 0;
     int ignoredChannels = 0;
@@ -69,7 +91,7 @@ SDL_Texture* loadArtworkTexture(SDL_Renderer* renderer, const char* fileName) {
 }
 // Loads the window icon, or null when it is missing, for the same reason.
 SDL_Surface* loadWindowIcon() {
-    const std::string iconPath = std::string(AGENT_DB_DOCTOR_ASSET_DIR) + "/favicon-64.png";
+    const std::string iconPath = artworkDirectoryPath() + "favicon-64.png";
     int iconWidth = 0;
     int iconHeight = 0;
     int ignoredChannels = 0;
@@ -107,16 +129,31 @@ void applyTheme(bool useDarkTheme) {
 }
 // Loads a system font at a readable size, scaled for the display. The native
 // interface speaks the native typeface: Segoe UI on Windows, DejaVu on Linux,
-// San Francisco on macOS. When none of them is there the built in font is
-// kept, because a small font beats no interface.
+// San Francisco on macOS. The list is ordered so the typeface of the platform
+// the binary was built for is tried first, because trying a Windows path on
+// Linux (or the reverse) made ImGui print a load error for every wrong
+// candidate before finding the right one. Both known names of the Apple font
+// are listed because the newer systems ship `SFNS.ttf` and the older ones
+// `SFNSDisplay.ttf`. When none of them is there the built in font is kept,
+// because a small font beats no interface.
+#if defined(_WIN32)
+static constexpr int preferredSystemFont=0;
+#elif defined(__APPLE__)
+static constexpr int preferredSystemFont=2;
+#else
+static constexpr int preferredSystemFont=1;
+#endif
 void loadInterfaceFont(float displayScale) {
     static const char* systemFonts[] = {
         "C:/Windows/Fonts/segoeui.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/System/Library/Fonts/SFNS.ttf",
         "/System/Library/Fonts/SFNSDisplay.ttf",
         nullptr};
+    constexpr int systemFontCount=static_cast<int>(sizeof(systemFonts)/sizeof(systemFonts[0]))-1;
     ImGuiIO& interfaceInput = ImGui::GetIO();
-    for (int fontIndex = 0; systemFonts[fontIndex] != nullptr; ++fontIndex) {
+    for (int fontStep = 0; fontStep < systemFontCount; ++fontStep) {
+        const int fontIndex = (preferredSystemFont + fontStep) % systemFontCount;
         ImFont* interfaceFont = interfaceInput.Fonts->AddFontFromFileTTF(
             systemFonts[fontIndex], 18.0f * displayScale);
         if (interfaceFont != nullptr) {
@@ -125,7 +162,17 @@ void loadInterfaceFont(float displayScale) {
     }
 }
 } // namespace
-int main(int /*argumentCount*/, char** /*argumentValues*/) {
+int main(int argumentCount, char** argumentValues) {
+    // `--smoke-test` draws a fixed number of frames and exits, so every build can
+    // prove that the window, the renderer, and the drawing pipeline all come up.
+    // Continuous integration runs it under a virtual display on Linux and directly
+    // on Windows and macOS.
+    bool smokeTestMode=false;
+    for (int argumentIndex=1; argumentIndex<argumentCount; ++argumentIndex) {
+        if (std::string(argumentValues[argumentIndex])=="--smoke-test") {
+            smokeTestMode=true;
+        }
+    }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         return 1;
     }
@@ -141,6 +188,9 @@ int main(int /*argumentCount*/, char** /*argumentValues*/) {
         SDL_Quit();
         return 1;
     }
+    // The display's own refresh rate paces the loop, so a window nobody is
+    // touching does not burn a processor redrawing thousands of times a second.
+    SDL_SetRenderVSync(renderer, 1);
     if (SDL_Surface* windowIcon = loadWindowIcon()) {
         SDL_SetWindowIcon(window, windowIcon);
         SDL_DestroySurface(windowIcon);
@@ -164,6 +214,7 @@ int main(int /*argumentCount*/, char** /*argumentValues*/) {
     GuiView currentView = GuiView::Dashboard;
     bool isRunning = true;
     bool showAboutWindow = false;
+    int renderedFrameCount=0;
     while (isRunning) {
         SDL_Event currentEvent;
         while (SDL_PollEvent(&currentEvent)) {
@@ -184,7 +235,10 @@ int main(int /*argumentCount*/, char** /*argumentValues*/) {
                 | ImGuiWindowFlags_MenuBar);
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("File")) {
-                if (ImGui::MenuItem("Rescan databases")) {
+                // Disabled while a scan runs, because a second request would be
+                // dropped, and a menu entry that does nothing reads as broken.
+                if (ImGui::MenuItem(
+                        "Rescan databases", nullptr, false, !state.scanRunning.load())) {
                     requestBackgroundScan(state);
                 }
                 if (ImGui::MenuItem("Quit")) {
@@ -267,6 +321,15 @@ int main(int /*argumentCount*/, char** /*argumentValues*/) {
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
+        renderedFrameCount++;
+        if (smokeTestMode) {
+            // A fixed pace and a fixed frame count make the smoke run last about
+            // two seconds, which also gives the background worker time to start.
+            SDL_Delay(16);
+            if (renderedFrameCount>=120) {
+                isRunning = false;
+            }
+        }
     }
     joinBackgroundScan(state);
     if (aboutLogo != nullptr) {
