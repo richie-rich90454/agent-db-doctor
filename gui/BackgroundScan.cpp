@@ -4,7 +4,6 @@
 // never touches a database. Reports are moved into the snapshot under the
 // lock when each database finishes, which is what lets the dashboard fill in
 // progressively instead of appearing all at once.
-#include <string>
 // Provides `string`, used for the status and log lines.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -98,7 +97,7 @@ vector<SessionRow> readNewestSessions(const string& databaseFilePath) {
             if (hasTimeColumn) {
                 row.epochSeconds=sessions.columnInteger(hasTitleColumn ? 2 : 1);
             }
-            sessionRows.push_back(move(row));
+            sessionRows.push_back(std::move(row));
             if (static_cast<int>(sessionRows.size())>=MAXIMUM_BROWSER_SESSIONS) {
                 break;
             }
@@ -135,13 +134,13 @@ void runScan(GuiState& state) {
     for (const DiscoveredDatabase& current : found) {
         DiagnosisReport report=doctor.diagnoseDatabase(current.filePath, current.agentName, false);
         ScannedDatabase scanned(current);
-        scanned.report=move(report);
+        scanned.report=std::move(report);
         if (current.isSqliteDatabase && report.getPruningSupported()) {
             scanned.newestSessions=readNewestSessions(current.filePath);
         }
         {
             lock_guard<mutex> snapshotLock(state.snapshotMutex);
-            state.databases.push_back(move(scanned));
+            state.databases.push_back(std::move(scanned));
             state.scanStatus="Diagnosed " + to_string(databaseIndex + 1) + " of "
                 + to_string(found.size()) + ".";
         }
@@ -159,6 +158,12 @@ void runScan(GuiState& state) {
 }
 } // namespace
 void requestBackgroundScan(GuiState& state) {
+    // A request while a scan is already running is dropped rather than waited
+    // for. Waiting would block whichever thread asked, and that thread is the
+    // one drawing the window; the current scan reports the same data anyway.
+    if (state.scanRunning.load()) {
+        return;
+    }
     joinBackgroundScan(state);
     state.scanRunning=true;
     state.scanDone=false;
