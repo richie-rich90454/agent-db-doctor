@@ -14,8 +14,8 @@
 // Provides the action state this worker publishes to.
 #include "ActionState.hpp"
 // Provides the four command classes the worker runs.
-#include "AgentDbDoctor/Command/PruneCommand.hpp"
 #include "AgentDbDoctor/Command/CompactCommand.hpp"
+#include "AgentDbDoctor/Command/VacuumCommand.hpp"
 #include "AgentDbDoctor/Command/RecoverCommand.hpp"
 #include "AgentDbDoctor/Command/ServiceCommand.hpp"
 // Provides the command settings value type.
@@ -58,19 +58,19 @@ void nameTask(ActionRunner* runner, const string& taskDescription) {
     lock_guard<mutex> taskLock(runner->progress.taskMutex);
     runner->progress.taskDescription=taskDescription;
 }
-void runPrunePreview(ActionRunner* runner, ActionRequest request, ActionResult& result) {
-    nameTask(runner, "Previewing the prune");
+void runCompactionPreview(ActionRunner* runner, ActionRequest request, ActionResult& result) {
+    nameTask(runner, "Previewing the compaction");
     CommandOptions options=workerOptions(request, runner);
     options.dryRunOnly=true;
-    PruneCommand command(false);
+    CompactCommand command(false);
     result.exitCode=command.execute(options);
-    const PruneOutcome& outcome=command.lastOutcome();
-    result.kind=ActionKind::PrunePreview;
-    result.title="Prune preview";
+    const EventLogCompactionReport& outcome=command.lastOutcome();
+    result.kind=ActionKind::CompactionPreview;
+    result.title="Compaction preview";
     result.summary=outcome.summarySentence;
     if (outcome.reclaimableBytesNow>0) {
         result.detailLines.push_back(
-            string("Space the following compact would hand back: ")
+            string("Space the following vacuum would hand back: ")
             + HumanReadableFormatting::formatBytes(outcome.reclaimableBytesNow));
     }
     result.detailLines.push_back(
@@ -78,13 +78,13 @@ void runPrunePreview(ActionRunner* runner, ActionRequest request, ActionResult& 
     result.detailLines.push_back(
         string("Sessions checked afterwards: ") + to_string(outcome.verifiedSessionCount));
 }
-void runPrune(ActionRunner* runner, ActionRequest request, ActionResult& result) {
+void runCompactionRun(ActionRunner* runner, ActionRequest request, ActionResult& result) {
     CommandOptions options=workerOptions(request, runner);
-    PruneCommand command(false);
+    CompactCommand command(false);
     result.exitCode=command.execute(options);
-    const PruneOutcome& outcome=command.lastOutcome();
-    result.kind=ActionKind::PruneRun;
-    result.title="Prune finished";
+    const EventLogCompactionReport& outcome=command.lastOutcome();
+    result.kind=ActionKind::CompactionRun;
+    result.title="Compaction finished";
     result.summary=outcome.summarySentence;
     result.detailLines.push_back(
         string("Rows removed: ") + HumanReadableFormatting::formatCount(outcome.removedRowCount));
@@ -92,15 +92,15 @@ void runPrune(ActionRunner* runner, ActionRequest request, ActionResult& result)
         result.detailLines.push_back("The safety copy was put back: the check did not pass.");
     }
 }
-void runCompactPreview(ActionRunner* runner, ActionRequest request, ActionResult& result) {
-    nameTask(runner, "Previewing the compaction");
+void runVacuumPreview(ActionRunner* runner, ActionRequest request, ActionResult& result) {
+    nameTask(runner, "Previewing the vacuum");
     CommandOptions options=workerOptions(request, runner);
     options.dryRunOnly=true;
-    CompactCommand command(false);
+    VacuumCommand command(false);
     result.exitCode=command.execute(options);
-    const CompactOutcome& outcome=command.lastOutcome();
-    result.kind=ActionKind::CompactPreview;
-    result.title="Compact preview";
+    const VacuumOutcome& outcome=command.lastOutcome();
+    result.kind=ActionKind::VacuumPreview;
+    result.title="Vacuum preview";
     result.summary=outcome.summarySentence;
     result.detailLines.push_back(
         string("Size now: ") + HumanReadableFormatting::formatBytes(outcome.sizeBeforeBytes));
@@ -110,13 +110,13 @@ void runCompactPreview(ActionRunner* runner, ActionRequest request, ActionResult
             + HumanReadableFormatting::formatBytes(outcome.bytesReclaimed));
     }
 }
-void runCompact(ActionRunner* runner, ActionRequest request, ActionResult& result) {
+void runVacuumRun(ActionRunner* runner, ActionRequest request, ActionResult& result) {
     CommandOptions options=workerOptions(request, runner);
-    CompactCommand command(false);
+    VacuumCommand command(false);
     result.exitCode=command.execute(options);
-    const CompactOutcome& outcome=command.lastOutcome();
-    result.kind=ActionKind::CompactRun;
-    result.title="Compact finished";
+    const VacuumOutcome& outcome=command.lastOutcome();
+    result.kind=ActionKind::VacuumRun;
+    result.title="Vacuum finished";
     result.summary=outcome.summarySentence;
     result.detailLines.push_back(
         string("Size before: ") + HumanReadableFormatting::formatBytes(outcome.sizeBeforeBytes));
@@ -175,17 +175,17 @@ void runRequest(ActionRunner* runner, ActionRequest request) {
     result.kind=request.kind;
     try {
         switch (request.kind) {
-            case ActionKind::PrunePreview:
-                runPrunePreview(runner, request, result);
+            case ActionKind::CompactionPreview:
+                runCompactionPreview(runner, request, result);
                 break;
-            case ActionKind::PruneRun:
-                runPrune(runner, request, result);
+            case ActionKind::CompactionRun:
+                runCompactionRun(runner, request, result);
                 break;
-            case ActionKind::CompactPreview:
-                runCompactPreview(runner, request, result);
+            case ActionKind::VacuumPreview:
+                runVacuumPreview(runner, request, result);
                 break;
-            case ActionKind::CompactRun:
-                runCompact(runner, request, result);
+            case ActionKind::VacuumRun:
+                runVacuumRun(runner, request, result);
                 break;
             case ActionKind::RecoverPlan:
                 runRecoverPlan(runner, request, result);
