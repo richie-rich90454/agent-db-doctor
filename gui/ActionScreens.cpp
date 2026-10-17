@@ -4,8 +4,9 @@
 // in a confirmation dialogue, the word `yes` typed by a human, then the run
 // on the worker, then the result dialogue. Recover shows its plan as a
 // dialogue first, because a plan is meant to be read, and rebuilds only from
-// there. The service view is six buttons and a result line.
-#include <cstring>
+// there. The service view is five buttons and a result line.
+// Provides `snprintf`, used to format the activity counts.
+#include <cstdio>
 // Provides `strlen`, used to bound the confirmation input box.
 #include <cstring>
 // Provides `string`, which owns and stores a sequence of characters.
@@ -49,7 +50,10 @@ void renderActivityBar(ActionRunner& runner) {
         lock_guard<mutex> taskLock(runner.progress.taskMutex);
         taskDescription=runner.progress.taskDescription;
     }
-    if (!isRunning && taskDescription=="Idle") {
+    // The worker is the only writer of the task text, and stopping is the last
+    // thing it does, so an idle worker always means an idle bar: comparing the
+    // text against "Idle" left a finished task shown forever.
+    if (!isRunning) {
         ImGui::TextDisabled("Idle. Nothing is running.");
         return;
     }
@@ -129,7 +133,6 @@ void renderDatabaseActions(
     }
 }
 void renderServiceView(ActionRunner& runner, ActionUiState& ui) {
-    (void)ui;
     ImGui::TextUnformatted("Service");
     ImGui::Separator();
     ImGui::TextWrapped(
@@ -138,7 +141,11 @@ void renderServiceView(ActionRunner& runner, ActionUiState& ui) {
         "needs administrator rights.");
     const bool workerBusy=runner.isBusy();
     ImGui::BeginDisabled(workerBusy);
-    static const char* serviceActions[]={"status", "install", "uninstall", "start", "stop", "run"};
+    // The service body itself (`run`) is deliberately not offered here: it is the
+    // loop the operating system runs on the service's behalf, and it never
+    // returns, so a button for it would wedge the whole interface. Watching is
+    // what installing and starting means to a person using this screen.
+    static const char* serviceActions[]={"status", "install", "uninstall", "start", "stop"};
     for (const char* actionName : serviceActions) {
         if (ImGui::Button(actionName)) {
             if (string(actionName)=="install" || string(actionName)=="uninstall") {
@@ -164,7 +171,6 @@ void renderServiceView(ActionRunner& runner, ActionUiState& ui) {
     ImGui::EndDisabled();
 }
 void pollActionResult(ActionRunner& runner, ActionUiState& ui) {
-    (void)runner;
     ActionResult result;
     if (!runner.takeResult(result)) {
         return;
@@ -212,10 +218,14 @@ void renderActionDialogues(ActionRunner& runner, ActionUiState& ui) {
         ImGui::TextWrapped("%s", ui.confirmSentence.c_str());
         ImGui::TextUnformatted("Type yes to go ahead, or close this box to stop.");
         char confirmationBuffer[16]={0};
-        strncpy(
+        // `snprintf` is used rather than `strncpy` because the Windows compilers
+        // flag the C function as deprecated, and because it always terminates
+        // the text it writes, which is what the input field needs.
+        snprintf(
             confirmationBuffer,
-            ui.confirmText.c_str(),
-            sizeof(confirmationBuffer) - 1);
+            sizeof(confirmationBuffer),
+            "%s",
+            ui.confirmText.c_str());
         if (ImGui::InputText("Confirmation", confirmationBuffer, sizeof(confirmationBuffer))) {
             ui.confirmText=string(confirmationBuffer);
         }
