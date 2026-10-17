@@ -388,8 +388,8 @@ string ConfigurationFile::renderAsJson(const ServiceConfiguration& configuration
     text+="  \"warningThresholdBytes\": " + to_string(configuration.warningThresholdBytes) + ",\n";
     text+="  \"criticalThresholdBytes\": " + to_string(configuration.criticalThresholdBytes) + ",\n";
     text+="  \"checkIntervalSeconds\": " + to_string(configuration.checkIntervalSeconds) + ",\n";
-    text+="  \"allowAutomaticPruning\": ";
-    text+=configuration.allowAutomaticPruning ? "true" : "false";
+    text+="  \"allowAutomaticCompaction\": ";
+    text+=configuration.allowAutomaticCompaction ? "true" : "false";
     text+="\n}\n";
     return text;
 }
@@ -502,9 +502,9 @@ optional<ServiceConfiguration> ConfigurationFile::read(const string& filePath) {
             configuration.checkIntervalSeconds=static_cast<int>(parsedValue);
         }
     }
-    const JsonValue* allowPruning=findMember("allowAutomaticPruning");
-    if (allowPruning!=nullptr && allowPruning->kind=="boolean") {
-        configuration.allowAutomaticPruning=allowPruning->booleanValue;
+    const JsonValue* allowCompaction=findMember("allowAutomaticCompaction");
+    if (allowCompaction!=nullptr && allowCompaction->kind=="boolean") {
+        configuration.allowAutomaticCompaction=allowCompaction->booleanValue;
     }
     string validationExplanation;
     if (!configuration.isValid(validationExplanation)) {
