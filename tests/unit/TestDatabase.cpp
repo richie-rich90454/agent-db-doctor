@@ -102,7 +102,7 @@ TEST_CASE("a prepared statement is run many times with new values", "[statement]
         insertStatement.bindInteger(1, valueIndex);
         REQUIRE(insertStatement.run());
     }
-    const optional<long> rowCount=database.querySingleInteger("SELECT COUNT(*) FROM numbers");
+    const optional<long long> rowCount=database.querySingleInteger("SELECT COUNT(*) FROM numbers");
     REQUIRE(rowCount.has_value());
     REQUIRE(rowCount.value()==5);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
@@ -136,7 +136,7 @@ TEST_CASE("a pragma that returns a value is read back", "[database]") {
     Database database(databasePath, Database::OPEN_CREATE | Database::OPEN_READ_WRITE);
     // Every SQLite database has a page size, and the pragma reports it as a single
     // integer. This is one of the constant time reads the tool depends on.
-    const optional<long> reportedPageSize=database.queryPragmaInteger("PRAGMA page_size");
+    const optional<long long> reportedPageSize=database.queryPragmaInteger("PRAGMA page_size");
     REQUIRE(reportedPageSize.has_value());
     REQUIRE(reportedPageSize.value()>0);
     // A pragma that does not exist returns nothing rather than failing.
