@@ -66,6 +66,9 @@ void ConsoleReport::enableMachineReadableOutput() {
 bool ConsoleReport::isMachineReadable() const {
     return machineReadable;
 }
+bool ConsoleReport::isTerminalAttached() const {
+    return terminalIsAttached;
+}
 void ConsoleReport::writeJsonLine(const string& jsonText) const {
     fputs((jsonText + "\n").c_str(), stdout);
     // Every object is flushed as it is written, because the reader is usually a
