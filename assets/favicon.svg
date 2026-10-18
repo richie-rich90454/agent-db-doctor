@@ -1,7 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
-<rect x="1" y="1" width="62" height="62" rx="14" fill="#EEF2FF"/>
-<ellipse cx="29" cy="40" rx="22" ry="12" fill="none" stroke="#4F46E5" stroke-width="7" stroke-linecap="round"/>
-<polyline points="2,38 12,38 16,26 20,48 24,38 36,38 40,30 44,44 47,38 52,34" fill="none" stroke="#F59E0B" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
-<polygon points="56,24 61,30 56,36 51,30" fill="#F59E0B" stroke="#B45309" stroke-width="1.5" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Database rings and a heartbeat line">
+<title>agent-db-doctor</title>
+<desc>The mark simplified for small sizes: two rings and a shorter pulse.</desc>
+<!--
+  At sixteen pixels the full mark turns to mush, so this version is the same idea
+  with fewer and thicker shapes: two rings instead of three, a shorter pulse, and a
+  bigger spark.
+-->
+<g fill="none" stroke="#4F46E5" stroke-width="44" stroke-linecap="round">
+  <ellipse cx="256" cy="172" rx="156" ry="56"/>
+  <ellipse cx="256" cy="340" rx="156" ry="56"/>
+</g>
+<polyline
+  points="30,256 140,256 176,190 212,322 244,256 330,256 368,196 400,316 430,256 482,256"
+  fill="none" stroke="#F59E0B" stroke-width="40" stroke-linejoin="round" stroke-linecap="round"/>
+<polygon points="466,196 500,256 466,316 432,256" fill="#F59E0B"/>
 </svg>
