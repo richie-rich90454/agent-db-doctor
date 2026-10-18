@@ -129,12 +129,19 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
             string("If you know where the database is, pass it directly: agent-db-doctor diagnose --database /path/to/file")
         });
         if (options.traceReadCounts) {
-            reporter.writeDetailLine(
-                string("Reads: ") + HumanReadableFormatting::formatCount(ReadCountingVfs::countedBytes())
-                + " bytes in "
-                + HumanReadableFormatting::formatCount(ReadCountingVfs::countedReadCalls())
-                + " read calls, counted through SQLite's own file layer."
-            );
+            if (reporter.isMachineReadable()) {
+                reporter.writeReadTraceEvent(
+                    ReadCountingVfs::countedBytes(),
+                    ReadCountingVfs::countedReadCalls()
+                );
+            } else {
+                reporter.writeDetailLine(
+                    string("Reads: ") + HumanReadableFormatting::formatCount(ReadCountingVfs::countedBytes())
+                    + " bytes in "
+                    + HumanReadableFormatting::formatCount(ReadCountingVfs::countedReadCalls())
+                    + " read calls, counted through SQLite's own file layer."
+                );
+            }
         }
         return 0;
     }
@@ -194,12 +201,19 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     reporter.writeHeading("Summary");
     reporter.writeLine(summary);
     if (options.traceReadCounts) {
-        reporter.writeDetailLine(
-            string("Reads: ") + HumanReadableFormatting::formatCount(ReadCountingVfs::countedBytes())
-            + " bytes in "
-            + HumanReadableFormatting::formatCount(ReadCountingVfs::countedReadCalls())
-            + " read calls, counted through SQLite's own file layer."
-        );
+        if (reporter.isMachineReadable()) {
+            reporter.writeReadTraceEvent(
+                ReadCountingVfs::countedBytes(),
+                ReadCountingVfs::countedReadCalls()
+            );
+        } else {
+            reporter.writeDetailLine(
+                string("Reads: ") + HumanReadableFormatting::formatCount(ReadCountingVfs::countedBytes())
+                + " bytes in "
+                + HumanReadableFormatting::formatCount(ReadCountingVfs::countedReadCalls())
+                + " read calls, counted through SQLite's own file layer."
+            );
+        }
     }
     // The exit code tells a script whether to stop. Anything that needs a human is a
     // one, which is what makes the command usable from a monitoring script.
