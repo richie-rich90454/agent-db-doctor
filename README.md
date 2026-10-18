@@ -26,21 +26,23 @@ This tool exists so that the next person does not lose theirs.
 #    milliseconds and kilobytes, not minutes and gigabytes.
 agent-db-doctor look
 
-# 2. See where the bytes actually are, and what can be handed back.
-agent-db-doctor diagnose --database ~/.local/share/opencode/opencode.db --trace-reads
+# 2. Ask why one database is as large as it is, and where its bytes are.
+agent-db-doctor why --database ~/.local/share/opencode/opencode.db
 
-# 3. Remove the redundant snapshots, with a safety copy that is removed again
-#    once the check passes.
-agent-db-doctor compact --database ~/.local/share/opencode/opencode.db
+# 3. Give a target amount of space back: compaction first, then the vacuum,
+#    each with its own safety copy and its own check.
+agent-db-doctor reclaim --database ~/.local/share/opencode/opencode.db --target 20GB
 
-# 4. Hand the space the file only marked as reusable back to the drive.
-agent-db-doctor vacuum --database ~/.local/share/opencode/opencode.db
+# 4. Keep a copy of one conversation as Markdown before deciding anything.
+agent-db-doctor export --database ~/.local/share/opencode/opencode.db --session <id> --output session.md
 ```
 
-On a real 10.9 GB OpenCode database, that flow removed **415,856 redundant
-snapshots**, left all **479 sessions untouched and verified**, and handed
-**8.3 GB (76.3%) back to the drive**. The check that follows the deletion re-reads
-the oldest sessions and takes the safety copy back if anything is missing.
+On a real 10.9 GB OpenCode database, the compact-then-vacuum flow removed
+**415,856 redundant snapshots**, left all **479 sessions untouched and verified**,
+and handed **8.3 GB (76.3%) back to the drive**. The check that follows the deletion
+re-reads the oldest sessions and takes the safety copy back if anything is missing.
+The vacuum itself was verified on the same file: 10.89 GB to 2.58 GB, structurally
+sound afterwards.
 
 ---
 
@@ -49,12 +51,16 @@ the oldest sessions and takes the safety copy back if anything is missing.
 | | |
 |---|---|
 | **A diagnostic pass that reads nothing** | 13 ms on a 100 GB database, 2 file system queries, and fewer than 64 KB read. The byte count is not a promise: it is counted through SQLite's own file layer and asserted by the test suite, and you can see it yourself with `--trace-reads`. |
+| **Answers, not just numbers** | `why` ranks the causes of a database's size; `explain-space` divides the bytes between tables, indexes, and the largest conversations, from SQLite's own page accounting; `history` turns the watchdog's hourly record into a rate and a forecast. |
 | **Event log compaction** | The operation Kafka calls log compaction, for the one agent whose event log layout is documented: keep the newest snapshot of every message, remove the older copies, keep every word of the conversation. |
-| **Vacuuming for every SQLite agent** | Seven agents keep SQLite databases now, and giving unused space back needs no knowledge of a schema, so it is offered for all seven. |
+| **A reclaim target** | `reclaim --target 20GB` works out the cheapest safe sequence, shows the plan, asks once, and reports what the drive actually got back. |
+| **Vacuuming for every SQLite agent** | Seven agents keep SQLite databases now, and giving unused space back needs no knowledge of a schema, so it is offered for all seven. A database set up for incremental auto-vacuum hands its pages back in place, with no second file and no scratch space. |
+| **Session tools** | `sessions` ranks conversations by the payload they store, `export` writes one out as Markdown, JSON, or HTML, and `sessions delete` removes one with the same copy, typed yes, and sampled check every destructive command uses. |
 | **A safety copy that is honest** | Made before anything changes, verified after, and removed again once the check passes so it cannot cancel out the space the run reclaimed. `--keep-backup` keeps it. A failed check puts it back, for real, and re-checks the result. |
 | **A restore drill** | `backups verify` copies a backup to a scratch file, opens it, runs the integrity check, counts its sessions, and removes the scratch file. A copy you cannot restore is not a safety net. |
 | **Machine readable output** | `--machine-readable` turns every report into one JSON object per line: every number the commands carry, typed, with a final exit object. The graphical interface reads the same objects. |
-| **Watchdog monitoring** | A system service (systemd, launchd, or the Windows service manager) that measures every database once an hour with one metadata call each, logs when a threshold is crossed, and remembers each database's schema layout so a diagnose can notice when an agent changes it. |
+| **A shareable report** | `diagnose --report report.html` writes one standalone page with every number and warning, ready to attach to an issue. |
+| **Watchdog monitoring** | A system service (systemd, launchd, or the Windows service manager) that measures every database once an hour with one metadata call each, records the sizes and the schema layouts, and logs when a threshold is crossed. |
 
 ## What makes it safe
 
@@ -111,13 +117,20 @@ Everything else is vendored, and every download is pinned by hash or by commit.
 
 ## Commands
 
-| Command | What it does | Changes your data? |
+| Commands | What they do | Changes your data? |
 |---|---|---|
 | `diagnose`, `look` | Reports size, contents, and health | No |
+| `explain-space` | Divides the bytes between tables, indexes, and conversations | No |
+| `history` | The recorded growth, and when the drive would fill | No |
+| `why` | Ranks the causes of one database's size | No |
+| `export` | Writes one session out as Markdown, JSON, or HTML | No |
+| `watch` | A live table of every database, from metadata only | No |
+| `sessions` | Lists conversations, or deletes one after copying and checking | `delete` only |
 | `compact` | Event log compaction: removes redundant snapshots | Yes, after a copy and a confirmation |
-| `vacuum` | Rewrites the database at its smallest useful size | Yes, after a copy and a confirmation |
+| `vacuum` | Hands unused pages back, in place when the database is set up for it | Yes, after a copy and a confirmation |
+| `reclaim` | Reaches a space target by composing compaction and vacuum | Yes, after a copy and a confirmation |
 | `recover`, `rescue` | Explains what is wrong and what can be fixed | Only with `--rebuild` |
-| `backups` | Lists, verifies, restores, or deletes safety copies | Only `restore` and `delete` |
+| `backups` | Lists, verifies, restores, or deletes safety copies | `restore` and `delete` only |
 | `service` | Installs and controls the background watchdog | No |
 | `agents` | Lists every supported agent and where its data was found | No |
 
