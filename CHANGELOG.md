@@ -14,6 +14,64 @@ gave 76% of its file back to the drive).
 
 ### Added
 
+**Machine readable output.** `--machine-readable` turns every report into one JSON
+object per line, flushed as it is written: the diagnostic report with every number
+typed, a progress object per percent, a typed result object per command, a plan
+object with the recovery steps, a service status object, and a final exit object.
+The contract is documented in `docs/json-api.md`, and the graphical interface reads
+the same objects.
+
+**A measured read budget.** `--trace-reads` reports how many bytes and read calls a
+run made, counted through a wrapper around SQLite's own file layer. The benchmark
+that asserts the sixty four kilobyte budget now asserts the measured number rather
+than the intention, and the fixture's hundred gigabyte pass reads a few kilobytes.
+
+**The `backups` command** and **the `agents` command** are described above; the
+first manages the safety copies, and the second lists every supported agent with
+the paths found on this machine and, with `--verify`, every candidate path that was
+looked at.
+
+**A schema fingerprint.** The watchdog records a fingerprint of each database's
+schema once an hour, and a later diagnose warns when the layout has changed since —
+which is the one change that can make every number in a report quietly wrong.
+
+**The `look` and `rescue` aliases** for `diagnose` and `recover`, so the help text,
+the errors, and the documentation speak the four job names.
+
+**A new mark.** The logo is redrawn as three database rings threaded by a heartbeat
+line ending in a spark: flat colour, four numbers per shape, legible at sixteen
+pixels, with the PNG sizes and the multi size Windows icon rendered from the same
+geometry by `tools/render-logo.ps1`. The README, the documentation index, and the
+new reference pages (`docs/getting-started.md`, `docs/cli-reference.md`,
+`docs/json-api.md`, `docs/safety.md`, `docs/agents.md`, `docs/faq.md`,
+`docs/roadmap.md`, `SECURITY.md`) were rebuilt around it.
+
+### Changed
+
+**The diagnostic pass no longer scans the event table to name its generation.** The
+first generation probe was `LIKE '%.1'`, a pattern with a leading wildcard that no
+index can answer, so on a database whose rows are all second generation the pass
+read the entire event table. It is now an equality comparison over the known type
+names, and the second generation probe is a prefix range rather than a wildcard
+pattern.
+
+**A database named directly is identified.** `diagnose --database <path>` used to
+report without knowing whose database it was, so a compaction-capable agent was
+reported as ordinary. The path is now matched against the agents' candidate paths.
+
+### Fixed
+
+**An integrity check that cannot finish is no longer a pass**, in both the diagnose
+report and the pre-flight check that authorises row deletion.
+
+**The count of rows in the `message` and `part` tables is no longer taken on
+diagnose.** When SQLite's statistics table was missing, the report ran a full count
+of both tables, which is where all the conversation text lives: a routine diagnose
+on a large database read the whole of it. The counts are reported as unknown, which
+is what the documentation already claimed.
+
+### Added (the safety work)
+
 **The `backups` command.** Lists every safety copy beside a database with its
 size and age, proves one restorable by copying it to a scratch file and
 checking that copy (the restore drill), puts one back over the database after
