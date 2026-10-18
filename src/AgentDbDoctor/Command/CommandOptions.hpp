@@ -83,6 +83,19 @@ struct CommandOptions final {
     int watchdogIntervalSeconds=3600;
     // The service subcommand: install, uninstall, start, stop, status, or run.
     string serviceAction;
+    // The backups subcommand: list, restore, delete, or verify. The empty string
+    // means list, which is the harmless default.
+    string backupsAction;
+    // True when every backup for the target should be removed rather than only the
+    // ones older than a number of days.
+    bool backupsDeleteAll=false;
+    // How old a backup must be, in days, before `backups delete` removes it. A
+    // negative value means no age limit was given, which is refused unless --all
+    // says the whole set is meant.
+    int backupsOlderThanDays=-1;
+    // A specific backup file for `backups restore` or `backups verify`. The empty
+    // string means the newest copy beside the database.
+    string backupsFilePath;
     // Receives progress reports from long operations. Empty on the command
     // line, where the console bar draws them instead; a graphical front end
     // sets one and feeds its own widgets from it.
