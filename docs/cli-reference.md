@@ -16,6 +16,13 @@ them. `--help` on any subcommand prints the same list.
 | Command | Alias | What it does | Changes data |
 |---|---|---|---|
 | `diagnose` | `look` | Reports size, contents, and health | No |
+| `explain-space` | | Divides the file's bytes between tables, indexes, and (with `--sessions`) conversations | No |
+| `history` | | Reports the growth the watchdog recorded, and when the drive would fill | No |
+| `why` | | Ranks the causes of one database's size and names the command worth running next | No |
+| `export` | | Writes one session out as Markdown, JSON, or HTML | No |
+| `sessions` | | Lists the largest conversations, or deletes one after copying and checking | `delete` only |
+| `reclaim` | | Reaches a space target: compaction first, then the vacuum | Yes, after a copy and a confirmation |
+| `watch` | | A live table of every database, sorted by size, with the growth between refreshes | No |
 | `compact` | | Event log compaction: removes redundant snapshots | Yes, after a copy and a confirmation |
 | `vacuum` | | Rewrites the database at its smallest useful size | Yes, after a copy and a confirmation |
 | `recover` | `rescue` | Explains what is wrong and what can be fixed | Only with `--rebuild` |
@@ -49,6 +56,7 @@ agent-db-doctor diagnose [flags]
 |---|---|
 | `--check` | Run the full page by page integrity check. It reads the whole file, so it is skipped by default above 2 GB, and the report says so when it is. |
 | `--trace-reads` | Also report how many bytes and read calls the run made, counted through a wrapper around SQLite's own file layer. |
+| `-o, --report PATH` | Also write a standalone HTML report of the whole pass to this path. |
 
 Reports the size, the page counts, the free pages, the journal mode, the row counts
 it can answer cheaply, the schema generation, and the integrity status. The exit
@@ -81,18 +89,143 @@ copy cannot be made. Every refusal exits with code one and changes nothing.
 agent-db-doctor vacuum [flags]
 ```
 
+| Flag | Meaning |
+|---|---|
+| `--enable-auto-vacuum` | Also convert the database to incremental auto-vacuum, so later reclaims hand pages back in place. This is a persistent setting stored in the file, applied during the rewrite. |
+
 Takes the same confirmation, preview, and backup flags as `compact`. It writes the
 smaller database beside the original, runs SQLite's integrity check on it, and only
 then swaps it in, moving the original and its side files aside rather than deleting
 them. The swap is journaled: an interruption between any two of its steps is
 resolved on the next run.
 
-The free space needed is about the size of the file, because the new file exists
-beside the old one until the swap. It refuses, before anything is written, when
-that space is not there.
+A database that was set up for incremental auto-vacuum takes the cheap path
+instead: the unused pages are released in place with SQLite's own
+`PRAGMA incremental_vacuum`, so no second file is written and no free space is
+needed. The command says which path it took, and `--enable-auto-vacuum` is how a
+database is converted the first time.
+
+The free space needed for the rewrite is about the size of the file, because the new
+file exists beside the old one until the swap. It refuses, before anything is
+written, when that space is not there.
 
 When the safety copy is kept, the report states the net change in free space
 rather than letting the reclaimed figure stand alone.
+
+## explain-space
+
+```
+agent-db-doctor explain-space [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--sessions N` | Also rank the N largest conversations by the payload they store. This reads the part table. |
+
+Reports the bytes each table and index occupies, largest first, read from SQLite's
+own page accounting, plus the free pages waiting inside the file. With `--sessions`
+it ranks the conversations by the payload they store, which is what a session
+deletion gives back.
+
+## history
+
+```
+agent-db-doctor history [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--days N` | How many days of recorded sizes to report. The default is 30. |
+| `-d, --database PATH` | One database instead of every database the record knows about. |
+
+The sizes come from the background watchdog, which records one size per database per
+hour, and only when the size changed. The report ends with a straight-line forecast:
+the rate per day, and about how many days the drive's free space lasts at that rate.
+Nothing is recorded by this command; it only reads.
+
+## why
+
+```
+agent-db-doctor why --database PATH
+```
+
+Runs the cheap parts of diagnose, the page accounting, and the growth record, then
+ranks the causes by what they would give back: unused pages inside the file first
+(exact, and a vacuum returns all of them), the redundant snapshots next (counted
+exactly; the byte count comes from the compact preview), then the stored content
+itself. It ends with the one command worth running next.
+
+## export
+
+```
+agent-db-doctor export --database PATH --session ID [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--session ID` | The session to write out. `sessions` or `explain-space --sessions` prints identifiers. |
+| `--format NAME` | `markdown`, `json`, or `html`. The default is markdown. |
+| `-o, --output PATH` | Where to write the document. A single dash means standard output, which is the default. |
+
+The document carries the session's messages in order, with the text of each message
+and the name of every tool that ran. It reads only.
+
+## sessions
+
+```
+agent-db-doctor sessions [list|delete] [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--top N` | How many sessions the listing shows. The default is 10. |
+| `--session ID` | The session to delete, for the delete action. |
+| `-y, --yes` | Do not ask before deleting. |
+
+`list` is the default and ranks the conversations by stored payload. `delete`
+removes one conversation after making a safety copy, asking for a typed `yes`,
+running the deletion in one transaction, and checking that every other sampled
+conversation still holds its readable text. A failed check puts the copy back and
+checks the restored file again.
+
+Deleting is refused on a database whose second generation tables are in use,
+because their layout is not documented anywhere this tool trusts; the compact and
+vacuum commands are safe there instead.
+
+## reclaim
+
+```
+agent-db-doctor reclaim --database PATH --target SIZE [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--target SIZE` | How much space to give back, for example `20GB`. Accepts KB, MB, GB, TB, or a plain number of bytes. |
+
+Takes the confirmation and backup flags, and the compaction settings (`-k`,
+`--max-fraction`, `--batch-size`), which are passed to the compaction step. The
+command works out the cheapest safe sequence — compaction first, because it makes
+the vacuum smaller and faster — prints the plan, asks once, and then runs the
+compact and vacuum commands with the full safety machinery each. It ends by
+reporting how many bytes the drive actually got back, and whether the target was
+met; when it was not, what is left is the conversation itself, and the report names
+the session tools for going further.
+
+## watch
+
+```
+agent-db-doctor watch [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--once` | Render one snapshot and exit, for a script. |
+| `--interval N` | How many seconds between refreshes. The default is five. |
+
+A live table of every discovered database, sorted by size, with the growth since
+the last refresh beside each one. The sizes come from file metadata: no database is
+ever opened, so the view can run for days without touching anything. `--once` and
+`--machine-readable` render one snapshot and exit.
 
 ## recover (rescue)
 
