@@ -104,6 +104,11 @@ public:
         Database& database,
         const vector<SessionSnapshot>& snapshotsTakenBefore
     );
+    // Forces the survival check to fail. Used only by the test suite, which cannot
+    // otherwise exercise the restore path on a healthy database. The flag lives
+    // here rather than in the compactor so a test can trip it without changing how
+    // the compactor is built.
+    static bool& failSurvivalCheckForTests();
     // Counts the readable text parts of one session. A readable part is one whose
     // stored text is longer than twenty characters, because anything shorter is
     // more likely to be a placeholder than a message. Returns zero when the query
