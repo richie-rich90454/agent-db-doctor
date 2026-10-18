@@ -32,9 +32,8 @@ static constexpr int EXIT_CODE_PROBLEM=1;
 // The exit code used when the command line itself was wrong. It is two, which is
 // the convention every other program on these platforms follows.
 static constexpr int EXIT_CODE_USAGE=2;
-// Adds the options every command shares. CLI11 groups them so that `--help` shows
-// them once rather than five times.
-void addSharedOptions(CLI::App& application, CommandOptions& options) {
+// Adds the options that say which database the command works on.
+void addTargetingOptions(CLI::App& application, CommandOptions& options) {
     // The database flag is the only one most people ever need, so it is described
     // in terms of what it is for rather than in terms of the tool's internals.
     application.add_option(
@@ -47,6 +46,28 @@ void addSharedOptions(CLI::App& application, CommandOptions& options) {
         options.agentName,
         "Only look at this coding agent, for example OpenCode."
     );
+}
+// Adds the options that govern how much is printed.
+void addOutputOptions(CLI::App& application, CommandOptions& options) {
+    application.add_flag(
+        "-q,--quiet",
+        options.quiet,
+        "Print only the lines that matter. Useful in a script."
+    );
+    application.add_flag(
+        "-v,--verbose",
+        options.verbose,
+        "Write extra detail to the log, including every path the tool considered."
+    );
+    application.add_flag(
+        "--machine-readable",
+        options.machineReadableOutput,
+        "Print one JSON object per line instead of sentences, for a script or another program."
+    );
+}
+// Adds the options that govern a run which changes something: the confirmation and
+// the preview.
+void addConfirmationOptions(CLI::App& application, CommandOptions& options) {
     application.add_flag(
         "-y,--yes",
         options.answerYesToEverything,
@@ -57,16 +78,22 @@ void addSharedOptions(CLI::App& application, CommandOptions& options) {
         options.dryRunOnly,
         "Report what would happen and change nothing."
     );
-    application.add_flag(
-        "-q,--quiet",
-        options.quiet,
-        "Print only the lines that matter. Useful in a script."
+}
+// Adds the options that describe where the safety copy goes and whether it stays.
+void addBackupOptions(CLI::App& application, CommandOptions& options) {
+    application.add_option(
+        "--backup-to",
+        options.backupFilePath,
+        "Where to write the safety copy. Leave this out and the tool puts it beside the database. Naming a path keeps the copy."
     );
     application.add_flag(
-        "-v,--verbose",
-        options.verbose,
-        "Write extra detail about what the tool is doing."
+        "--keep-backup",
+        options.keepBackup,
+        "Keep the safety copy after a successful run. By default it is removed once the checks pass, so the space it holds comes back too."
     );
+}
+// Adds the options only compaction uses.
+void addCompactionOptions(CLI::App& application, CommandOptions& options) {
     application.add_option(
         "-k,--keep",
         options.sessionsToKeep,
@@ -81,36 +108,6 @@ void addSharedOptions(CLI::App& application, CommandOptions& options) {
         "--batch-size",
         options.deletionBatchSize,
         "How many rows to remove in one transaction when compacting. The default is 10000."
-    );
-    application.add_option(
-        "--backup-to",
-        options.backupFilePath,
-        "Where to write the safety copy. Leave this out and the tool puts it beside the database."
-    );
-    application.add_option(
-        "--warning-threshold",
-        options.warningThresholdBytes,
-        "The size in bytes a database must reach before the service mentions it. The default is 53687091200, which is 50 GB."
-    );
-    application.add_option(
-        "--interval",
-        options.watchdogIntervalSeconds,
-        "How many seconds the service waits between checks. The default is 3600, which is an hour."
-    );
-    application.add_flag(
-        "--rebuild",
-        options.rebuildWorkingCopy,
-        "When recovering, build a working copy holding every row that can still be read. The original is never modified."
-    );
-    application.add_flag(
-        "--check",
-        options.runIntegrityCheck,
-        "Run the full page by page integrity check. Slower, and it reads the whole file."
-    );
-    application.add_flag(
-        "--machine-readable",
-        options.machineReadableOutput,
-        "Print sizes and counts as plain numbers rather than as sentences."
     );
 }
 int main(int argumentCount, char** argumentValues) {
@@ -134,28 +131,60 @@ int main(int argumentCount, char** argumentValues) {
         "diagnose",
         "Look at every supported database and report what is wrong. Changes nothing."
     );
-    addSharedOptions(*diagnoseSubcommand, options);
+    addTargetingOptions(*diagnoseSubcommand, options);
+    addOutputOptions(*diagnoseSubcommand, options);
+    diagnoseSubcommand->add_flag(
+        "--check",
+        options.runIntegrityCheck,
+        "Run the full page by page integrity check. Slower, and it reads the whole file."
+    );
     CLI::App* compactSubcommand=application.add_subcommand(
         "compact",
         "Compact the event log: keep the newest snapshot of every message and remove the older "
         "ones, after copying your database and checking nothing was lost."
     );
-    addSharedOptions(*compactSubcommand, options);
+    addTargetingOptions(*compactSubcommand, options);
+    addOutputOptions(*compactSubcommand, options);
+    addConfirmationOptions(*compactSubcommand, options);
+    addBackupOptions(*compactSubcommand, options);
+    addCompactionOptions(*compactSubcommand, options);
     CLI::App* vacuumSubcommand=application.add_subcommand(
         "vacuum",
         "Give unused space inside the database back to the drive by rewriting the file."
     );
-    addSharedOptions(*vacuumSubcommand, options);
+    addTargetingOptions(*vacuumSubcommand, options);
+    addOutputOptions(*vacuumSubcommand, options);
+    addConfirmationOptions(*vacuumSubcommand, options);
+    addBackupOptions(*vacuumSubcommand, options);
     CLI::App* recoverSubcommand=application.add_subcommand(
         "recover",
         "Work out what is wrong with a database that will not open, and say what can be fixed."
     );
-    addSharedOptions(*recoverSubcommand, options);
+    addTargetingOptions(*recoverSubcommand, options);
+    addOutputOptions(*recoverSubcommand, options);
+    addConfirmationOptions(*recoverSubcommand, options);
+    addBackupOptions(*recoverSubcommand, options);
+    recoverSubcommand->add_flag(
+        "--rebuild",
+        options.rebuildWorkingCopy,
+        "Build a working copy holding every row that can still be read. The original is never modified."
+    );
     CLI::App* serviceSubcommand=application.add_subcommand(
         "service",
         "Install and control the background service that watches database sizes."
     );
-    addSharedOptions(*serviceSubcommand, options);
+    addOutputOptions(*serviceSubcommand, options);
+    addConfirmationOptions(*serviceSubcommand, options);
+    serviceSubcommand->add_option(
+        "--warning-threshold",
+        options.warningThresholdBytes,
+        "The size in bytes a database must reach before the service mentions it. The default is 53687091200, which is 50 GB."
+    );
+    serviceSubcommand->add_option(
+        "--interval",
+        options.watchdogIntervalSeconds,
+        "How many seconds the service waits between checks. The default is 3600, which is an hour."
+    );
     serviceSubcommand->add_option(
         "action",
         options.serviceAction,
