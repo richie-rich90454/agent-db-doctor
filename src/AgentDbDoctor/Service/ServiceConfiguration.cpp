@@ -62,6 +62,10 @@ struct JsonValue final {
     // The value of a boolean.
     bool booleanValue=false;
 };
+// The deepest nesting the parser accepts. A configuration file is a flat object of
+// scalars and short lists, so anything past this is either a mistake or an attempt
+// to exhaust the stack of a process that may be running as an administrator.
+static constexpr int MAXIMUM_NESTING_DEPTH=32;
 // The JsonParser class turns configuration text into a JsonValue tree.
 //
 // The class is `final` because the specification forbids inheritance. Its only
@@ -114,6 +118,11 @@ private:
     size_t cursor=0;
     // How many newlines have been passed, which is the current line number.
     int currentLine=1;
+    // How deep the value nest currently is. Every object and array adds one, and the
+    // parser refuses documents past `MAXIMUM_NESTING_DEPTH` rather than recursing
+    // until the stack runs out. A configuration file that arrives from somewhere
+    // other than the user's own editor must not be able to end the service.
+    int nestingDepth=0;
 };
 JsonParser::JsonParser(const string& text)
     : text(text) {
@@ -304,10 +313,22 @@ JsonValue JsonParser::parseValue() {
         fail("a value was expected but the file ended.");
     }
     if (matches('{')) {
-        return parseObject();
+        if (nestingDepth>=MAXIMUM_NESTING_DEPTH) {
+            fail("the configuration nests deeper than any real setting does, so it was refused.");
+        }
+        nestingDepth++;
+        JsonValue objectValue=parseObject();
+        nestingDepth--;
+        return objectValue;
     }
     if (matches('[')) {
-        return parseArray();
+        if (nestingDepth>=MAXIMUM_NESTING_DEPTH) {
+            fail("the configuration nests deeper than any real setting does, so it was refused.");
+        }
+        nestingDepth++;
+        JsonValue arrayValue=parseArray();
+        nestingDepth--;
+        return arrayValue;
     }
     if (matches('"')) {
         return parseString();
@@ -351,6 +372,15 @@ bool ServiceConfiguration::isValid(string& explanationOut) const {
     if (checkIntervalSeconds<10) {
         explanationOut=string("The check interval must be at least ten seconds. Anything more often wastes ")
             + "power and fills the log without telling you anything new.";
+        return false;
+    }
+    // A week is the largest interval that still means something. A larger value is a
+    // typo, and a very large one used to overflow the sleep arithmetic and turn the
+    // service into a processor spin instead of a watcher.
+    static constexpr int MAXIMUM_CHECK_INTERVAL_SECONDS=7*24*60*60;
+    if (checkIntervalSeconds>MAXIMUM_CHECK_INTERVAL_SECONDS) {
+        explanationOut=string("The check interval must be at most seven days. A larger number is "
+            "almost certainly a typo, and the service refuses to guess what was meant.");
         return false;
     }
     return true;
