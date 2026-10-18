@@ -33,6 +33,10 @@ struct BackupRecord final {
     string backupFilePath;
     // The size of the copy in bytes.
     long long backupSizeBytes=0;
+    // The total bytes the copy occupies, main file and side files together. This
+    // is what deleting the copy hands back, and therefore what the net space
+    // arithmetic needs.
+    long long copiedBytes=0;
     // A sentence saying what the copy is for.
     string explanation;
 };
@@ -65,6 +69,28 @@ public:
     bool confirmWithUser(const string& operationDescription, const BackupRecord& backup);
     // True when the options say the user already answered yes.
     bool isAlreadyConfirmed() const;
+    // Removes the safety copy after a run that finished and passed its checks.
+    //
+    // Returns the number of bytes handed back, which is zero when the copy was
+    // kept and also zero when it could not be removed. A copy is kept when the
+    // user asked with `--keep-backup` or named a destination with `--backup-to`,
+    // and this method says so in a line rather than removing it. A removal that
+    // fails leaves the copy in place and names the path, because a file the tool
+    // cannot delete is a file the user can.
+    long long removeBackupAfterSuccess(const BackupRecord& backup);
+    // Puts the safety copy back over the database, side files included.
+    //
+    // This is the promise behind every destructive run: when the check that
+    // follows the change fails, the database is returned to the state it was
+    // found in. The current side files are removed first, because a write ahead
+    // log from the changed database paired with the restored main file is exactly
+    // the stale pairing that corrupts a database. Returns true when the copy is
+    // in place, and false when it could not be, in which case the copy is still
+    // untouched at its own path.
+    bool restoreBackup(const BackupRecord& backup, const string& databaseFilePath);
+    // True when the safety copy must be kept: the user asked with `--keep-backup`
+    // or named a destination with `--backup-to`.
+    bool shouldKeepBackup() const;
     // The sentence used to begin every confirmation question, exposed so the
     // command classes can build the part that names the specific change.
     string confirmationPreamble(const string& operationDescription) const;
