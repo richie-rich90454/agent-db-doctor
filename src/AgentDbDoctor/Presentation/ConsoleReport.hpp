@@ -101,11 +101,19 @@ public:
         long long totalUnits,
         bool isFinished
     ) const;
+    // Writes one complete JSON object the caller built itself. The object is written
+    // as it stands, without being wrapped in a line event, which is what a command
+    // that builds its own objects needs.
+    void writeMachineObject(const string& jsonObject) const;
     // Writes the object every machine readable run ends with, so a script knows the
     // run is over even when it read nothing else.
     void writeExitEvent(int exitCode) const;
     // Writes how many bytes and read calls the run made, for `diagnose --trace-reads`.
     void writeReadTraceEvent(long long readBytes, long long readCalls) const;
+    // Escapes the characters JSON requires to be escaped. Public because the few
+    // places that build a JSON object of their own, rather than printing one, must
+    // use exactly the same rule as this class does.
+    static string escapeForJson(const string& text);
     // Writes the two line banner that starts every command's output.
     void writeBanner(const string& commandName, const string& oneLinePurpose) const;
     // Writes a heading, underlined when the output is a terminal.
@@ -151,10 +159,6 @@ private:
     // Writes one complete JSON object followed by a newline, and flushes so a
     // script reading the pipe sees each object as it happens.
     void writeJsonLine(const string& jsonText) const;
-    // Escapes the characters JSON requires to be escaped. Written by hand because
-    // the project has no JSON library and this is the whole of what one is needed
-    // for.
-    static string escapeForJson(const string& text);
 };
 }
 #endif
