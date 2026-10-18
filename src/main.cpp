@@ -256,34 +256,58 @@ int main(int argumentCount, char** argumentValues) {
     const string chosenSubcommand=application.get_subcommands().empty()
         ? string()
         : application.get_subcommands().front()->get_name();
+    // Machine readable output turns every report into one JSON object per line and
+    // installs a progress sink that does the same for the numbers a long operation
+    // reports. Both the scripts people write and the graphical interface read this,
+    // so the shape is documented rather than incidental.
+    if (options.machineReadableOutput) {
+        ConsoleReport::setMachineReadableForProcess(true);
+        reporter.enableMachineReadableOutput();
+        long long lastReportedPercent=-1;
+        options.progressSink=[&reporter, lastReportedPercent](const ProgressUpdate& update) mutable {
+            const long long percent=update.totalUnits>0
+                ? (update.completedUnits * 100) / update.totalUnits
+                : -1;
+            // One object per percent, plus the final one. A sink called per row
+            // would flood a pipe; a sink called per percent follows the run at the
+            // pace a person reads.
+            if (percent==lastReportedPercent && !update.isFinished) {
+                return;
+            }
+            lastReportedPercent=percent;
+            reporter.writeProgressEvent(
+                update.taskDescription,
+                update.completedUnits,
+                update.totalUnits,
+                update.isFinished
+            );
+        };
+    }
+    int exitCode=EXIT_CODE_USAGE;
     try {
         if (chosenSubcommand=="diagnose") {
             DiagnoseCommand command(terminalIsAttached);
-            return command.execute(options);
-        }
-        if (chosenSubcommand=="compact") {
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="compact") {
             CompactCommand command(terminalIsAttached);
-            return command.execute(options);
-        }
-        if (chosenSubcommand=="vacuum") {
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="vacuum") {
             VacuumCommand command(terminalIsAttached);
-            return command.execute(options);
-        }
-        if (chosenSubcommand=="recover") {
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="recover") {
             RecoverCommand command(terminalIsAttached);
-            return command.execute(options);
-        }
-        if (chosenSubcommand=="service") {
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="service") {
             ServiceCommand command(terminalIsAttached);
-            return command.execute(options);
-        }
-        if (chosenSubcommand=="backups") {
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="backups") {
             BackupsCommand command(terminalIsAttached);
-            return command.execute(options);
+            exitCode=command.execute(options);
+        } else {
+            // A subcommand with no name means the user asked for help, which CLI11
+            // has already printed by the time control gets here.
+            return EXIT_CODE_USAGE;
         }
-        // A subcommand with no name means the user asked for help, which CLI11 has
-        // already printed by the time control gets here.
-        return EXIT_CODE_USAGE;
     } catch (const std::exception& unexpectedFailure) {
         // A failure from the standard library itself, such as running out of
         // memory. The technical text goes on the end so it can be searched for,
@@ -294,7 +318,7 @@ int main(int argumentCount, char** argumentValues) {
                 "technical text follows."),
             unexpectedFailure.what()
         );
-        return EXIT_CODE_PROBLEM;
+        exitCode=EXIT_CODE_PROBLEM;
     } catch (...) {
         // The tool's own exception types deliberately share no base class, so this
         // final catch cannot read their sentences. Every command catches the
@@ -305,6 +329,12 @@ int main(int argumentCount, char** argumentValues) {
                 "explanation for. Nothing was changed.\n\nIf you can, please report this."),
             string()
         );
-        return EXIT_CODE_PROBLEM;
+        exitCode=EXIT_CODE_PROBLEM;
     }
+    if (options.machineReadableOutput) {
+        // The last object of a machine readable run says the run is over, so a
+        // script that reads a pipe knows it has everything.
+        reporter.writeExitEvent(exitCode);
+    }
+    return exitCode;
 }
