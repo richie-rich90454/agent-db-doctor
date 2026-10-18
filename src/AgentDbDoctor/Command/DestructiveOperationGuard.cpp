@@ -48,6 +48,19 @@ DestructiveOperationGuard::DestructiveOperationGuard(
 bool DestructiveOperationGuard::isAlreadyConfirmed() const {
     return options.answerYesToEverything;
 }
+bool DestructiveOperationGuard::isBackupFileNameFor(const string& databaseFilePath, const string& fileNameOnly) {
+    // The database's own file name is taken from its path, so the comparison works
+    // for a path the user typed as well as for one the tool discovered.
+    const size_t lastSeparator=databaseFilePath.find_last_of("/\\");
+    const string databaseFileName=lastSeparator==string::npos
+        ? databaseFilePath
+        : databaseFilePath.substr(lastSeparator + 1);
+    if (fileNameOnly.rfind(databaseFileName + ".backup-", 0)==0) {
+        return true;
+    }
+    // The name used when the timestamp could not be formatted. It is still a copy.
+    return fileNameOnly==databaseFileName + ".agent-db-doctor-backup";
+}
 string DestructiveOperationGuard::buildBackupFilePath(const string& databaseFilePath) const {
     if (!options.backupFilePath.empty()) {
         return options.backupFilePath;
