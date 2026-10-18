@@ -298,6 +298,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Command/VacuumCommand.cpp
     src/AgentDbDoctor/Command/RecoverCommand.cpp
     src/AgentDbDoctor/Command/ServiceCommand.cpp
+    src/AgentDbDoctor/Command/BackupsCommand.cpp
     src/AgentDbDoctor/Service/ServiceConfiguration.cpp
     src/AgentDbDoctor/Service/ServiceManager.cpp
 )
