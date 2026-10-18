@@ -20,6 +20,9 @@
 #include "AgentDbDoctor/Command/DestructiveOperationGuard.hpp"
 // Provides the Database wrapper this class works on.
 #include "AgentDbDoctor/Persistence/Database.hpp"
+// Provides the sampled session count the verification uses, so the number lives in
+// exactly one place.
+#include "AgentDbDoctor/Doctor/SafetyChecks.hpp"
 // Provides the ConsoleReport class, which prints every user facing line.
 #include "AgentDbDoctor/Presentation/ConsoleReport.hpp"
 using namespace std;
@@ -110,7 +113,7 @@ public:
     // How many of the oldest sessions are checked before and after the deletion.
     // A sample of ten is enough to catch a mistake that affects everything, and
     // small enough that the check costs nothing.
-    static constexpr int VERIFIED_SESSION_SAMPLE_SIZE=10;
+    static constexpr int VERIFIED_SESSION_SAMPLE_SIZE=SafetyChecks::SAMPLED_SESSION_COUNT;
     // The number of rows in one deletion transaction.
     static constexpr int DEFAULT_DELETION_BATCH_SIZE=10000;
 private:
