@@ -76,6 +76,7 @@ set(AGENT_DB_DOCTOR_INTEGRATION_TESTS
     integration/DiagnoseIntegrationTest.cpp
     integration/CompactIntegrationTest.cpp
     integration/VacuumIntegrationTest.cpp
+    integration/BackupsIntegrationTest.cpp
     integration/RecoverIntegrationTest.cpp
     integration/ServiceIntegrationTest.cpp
     integration/CompressionCorruptionIntegrationTest.cpp
