@@ -14,6 +14,70 @@ gave 76% of its file back to the drive).
 
 ### Added
 
+**The `backups` command.** Lists every safety copy beside a database with its
+size and age, proves one restorable by copying it to a scratch file and
+checking that copy (the restore drill), puts one back over the database after
+moving the current file aside rather than deleting it, and removes old copies
+only after naming exactly what it will remove and asking.
+
+**Copy on write safety copies.** The safety copy is attempted as a file system
+clone first (APFS, btrfs and XFS, ReFS or a Windows Dev Drive), where it costs
+no space and almost no time, with a full byte copy as the fallback everywhere
+else.
+
+**A recoverable vacuum swap.** The vacuum writes a small journal before its
+three renames and resolves an interrupted swap on the next run, putting the
+original back if the new file was never in place.
+
+**A lock check that sees write ahead log databases.** The `-wal` and `-shm`
+side files are probed as well as the database itself, because a write ahead
+log connection is held through the side files rather than through the main
+file. On Linux and macOS this closes the gap that let a live database be
+changed on a different platform.
+
+### Changed
+
+**A safety copy is removed again once the run passes its checks.** This is what
+makes the vacuum actually free the space it reports: a copy of the file would
+otherwise cancel out every byte the run gave back. `--keep-backup` keeps the
+copy, `--backup-to` implies keeping it, a failed or refused run always keeps
+it, and a kept copy's net effect on free space is stated rather than hidden.
+A failure of the post-change check now puts the copy back for real, and the
+database is checked again afterwards.
+
+**Refusals exit with code one.** A compaction or vacuum that stopped because a
+check refused it is no longer reported to a shell as success.
+
+**Every option is registered on the commands that read it.** `--check` exists
+on `diagnose`, `--rebuild` on `recover`, `-k`, `--max-fraction` and
+`--batch-size` on `compact`, and the service thresholds on `service`, instead
+of every command accepting every flag and ignoring most of them. `--verbose`
+now prints the discovery results and the settings a run actually uses.
+
+### Fixed
+
+**The compaction rollback claim is now true.** When the check after a deletion
+failed, the tool printed that the safety copy was being put back, and no code
+put it back. The restore is implemented, its result is verified, and the
+outcome says what actually happened.
+
+**Every removal step is checked.** The keep list, every batch delete, the
+rewrite result, the removal of a stale intermediate file, and the copying of
+the side files all check their results; a failure restores the database and
+reports honestly rather than leaving a change the report cannot account for.
+
+**The half-the-table guard always runs.** When the statistics table was
+missing, which is the normal state of a database that has never been analysed,
+the guard was skipped entirely; the exact count is taken instead.
+
+**The service can no longer be turned into a processor spin**, refuses
+configurations that nest without end, keeps running when its configuration
+file cannot be read, and escapes the values it writes into the launchd
+property list. The watched path list is rediscovered once an hour instead of
+on every tick, and the discovery calls are counted in the tick's total.
+
+### Added (earlier in this release)
+
 **Fifty six more agents.** Cline, Roo Code, Reasonix, VS Code, Gemini CLI,
 Windsurf, Zed, GitHub Copilot, Warp, Kilo Code, Augment, Trae, PearAI, Amp,
 CommandCode, Pi, Void, Tabnine, Cody, Codeium, Supermaven, Bito, CodeGPT,
