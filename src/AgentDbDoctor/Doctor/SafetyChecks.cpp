@@ -237,6 +237,18 @@ SafetyCheckResult SafetyChecks::verifyDatabaseIsNotDamaged(Database& database) {
             + "Run the recover command for the safe next step."
         );
     }
+    // A step that ended in an error rather than in "no more rows" means the check
+    // could not be finished. An integrity check that cannot finish is not a pass:
+    // treating it as one was how a damaged database could be authorised for
+    // deletion. The two codes below are the only two clean endings.
+    const int finalStepResultCode=quickCheckStatement.lastStepResultCode();
+    if (finalStepResultCode!=SQLITE_DONE && finalStepResultCode!=SQLITE_ROW) {
+        return SafetyCheckResult::failed(
+            string("The integrity check could not be completed, because SQLite reported an error "
+                "while reading the database. A check that did not finish is not a pass, so nothing "
+                "was changed. Run the recover command for the safe next step.")
+        );
+    }
     return SafetyCheckResult(string("The integrity check found no problems."));
 }
 SafetyCheckResult SafetyChecks::verifySchemaSupportsCompaction(Database& database) {
