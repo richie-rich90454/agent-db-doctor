@@ -69,6 +69,12 @@ public:
     bool confirmWithUser(const string& operationDescription, const BackupRecord& backup);
     // True when the options say the user already answered yes.
     bool isAlreadyConfirmed() const;
+    // True when `fileNameOnly` names a safety copy of `databaseFilePath`.
+    //
+    // The naming rule lives here so the backups command can find copies without
+    // knowing how they are built, and so there is exactly one place to change if
+    // the naming ever changes. `fileNameOnly` is a file name, not a path.
+    static bool isBackupFileNameFor(const string& databaseFilePath, const string& fileNameOnly);
     // Removes the safety copy after a run that finished and passed its checks.
     //
     // Returns the number of bytes handed back, which is zero when the copy was
