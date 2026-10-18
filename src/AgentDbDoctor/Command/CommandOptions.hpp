@@ -66,6 +66,13 @@ struct CommandOptions final {
     int historyDaysToShow=0;
     // The output format for sessions being exported: markdown, json, or html.
     string exportFormat="markdown";
+    // The sessions subcommand: list or delete. The empty string means list.
+    string sessionsAction;
+    // True when `watch` should render one snapshot and exit, which is what a script
+    // or a test uses.
+    bool watchOnce=false;
+    // How many seconds `watch` waits between refreshes. The default is five.
+    int watchIntervalSeconds=5;
     // The session to export, or to delete. The empty string means all of them for an
     // export and nothing at all for a deletion, which is refused.
     string sessionIdentifier;
