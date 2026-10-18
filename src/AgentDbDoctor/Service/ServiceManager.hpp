@@ -137,6 +137,13 @@ private:
     // True when the loop has been asked to stop. It is a plain flag rather than an
     // atomic because the specification allows exactly one thread.
     bool stopRequested=false;
+    // The watched paths discovered when the configuration named none. Kept between
+    // ticks so the whole discovery does not re-run every hour, and refreshed on the
+    // schedule in the implementation so a database an agent creates later is picked
+    // up within that hour.
+    mutable vector<string> cachedDiscoveredPaths;
+    // When the cache above was last refreshed, on the monotonic clock.
+    mutable long long cachedPathsRefreshedNanoseconds=0;
 };
 }
 #endif
