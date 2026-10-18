@@ -3,6 +3,26 @@
 What is planned next, in the order it is being built. Everything under "planned"
 is a decision, not a promise of a date.
 
+## Built in this cycle
+
+- **`explain-space` and `why`.** Where a database's bytes actually are, from
+  SQLite's own page accounting, and the ranked causes with the one command worth
+  running next.
+- **`history` and the growth record.** The watchdog records one size per database
+  per hour, and the report turns it into a rate and a date at which the drive would
+  fill.
+- **`reclaim --target`.** A target in gigabytes rather than a choice of operations.
+- **`sessions`, `export`, and `sessions delete`.** Rank the conversations by
+  payload, write one out as Markdown, JSON, or HTML, and remove one with the same
+  copy, typed yes, and sampled check as every other destructive command.
+- **`watch`.** A live table of every database, rendered from file metadata alone.
+- **The incremental vacuum.** A database set up for incremental auto-vacuum hands
+  its unused pages back in place, with no second file and no scratch space;
+  `vacuum --enable-auto-vacuum` converts a database once so later reclaims are
+  cheap.
+- **`diagnose --report report.html`.** One standalone page with every number and
+  warning, ready to attach to an issue.
+
 ## In progress
 
 **The graphical interface as a thin invoker.** The window currently links the core
@@ -13,22 +33,6 @@ clipped action buttons, no sorting or filtering in a list of hundreds of databas
 stale numbers after an action, and no way to cancel one.
 
 ## Planned
-
-**Space attribution and a forecast.** `explain-space` reads SQLite's own page
-accounting and reports which tables, indexes, and sessions hold the bytes, so the
-question "why is this database forty gigabytes" gets an answer with numbers.
-History recorded by the watchdog turns into a growth line and a date at which the
-disk fills at the current rate.
-
-**One command that reclaims space (`reclaim --target 20GB`).** People think in
-"give me twenty gigabytes back", not in operations. The command picks the cheapest
-safe sequence — compaction, then vacuum, then offered session deletions — shows the
-plan, and stops when the target is met.
-
-**Session tools.** List sessions with their sizes, export one or many to Markdown or
-JSON, and delete a single oversized session with the same copy-verify-restore
-machinery the other destructive commands use. The last one matters for the case
-where four gigabytes are one week-long agent run that nobody will read again.
 
 **Watchdog notifications and automatic maintenance.** A desktop notification when a
 threshold is crossed or maintenance runs; declarative per-database policies; and a
