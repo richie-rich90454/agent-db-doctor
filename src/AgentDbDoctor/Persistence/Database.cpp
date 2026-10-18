@@ -7,12 +7,20 @@
 #include <string>
 // Provides the Database class declaration.
 #include "AgentDbDoctor/Persistence/Database.hpp"
+// Provides the counting file system, installed before the first connection opens
+// so that the bytes every connection reads can be measured.
+#include "AgentDbDoctor/Persistence/ReadCountingVfs.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Common;
 namespace AgentDbDoctor::Persistence {
 Database::Database(const string& databaseFilePath, int openFlags)
     : databaseFilePath(databaseFilePath) {
+    // The counting file system is installed before the first connection exists, so
+    // every byte every connection reads can be measured. Installing it costs one
+    // branch and two additions per read, and it is what turns the performance
+    // contract from a promise into an assertion.
+    ReadCountingVfs::install();
     sqlite3* rawDatabasePointer=nullptr;
     // `sqlite3_open_v2` opens the database and writes a handle into the pointer
     // we pass. It returns an integer result code, where zero means success.
