@@ -55,6 +55,9 @@ struct CommandOptions final {
     // True when the run should also report how many bytes were read from the
     // databases. The counters are always kept; this only prints them.
     bool traceReadCounts=false;
+    // True when `agents` should also show the candidate paths that were looked at,
+    // which is where each agent's data is expected and what was not found.
+    bool verifyAgentPaths=false;
     // True when progress lines should be suppressed, for use in a script.
     bool quiet=false;
     // True when extra detail should be written to the log.
