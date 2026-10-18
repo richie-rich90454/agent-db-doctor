@@ -29,6 +29,10 @@
 #include "AgentDbDoctor/Persistence/Database.hpp"
 // Provides the schema fingerprint written for each watched database.
 #include "AgentDbDoctor/Doctor/SchemaFingerprint.hpp"
+// Provides the growth record the watchdog appends to once an hour.
+#include "AgentDbDoctor/Service/HistoryStore.hpp"
+// Provides `time`, used for the timestamp of each recorded size.
+#include <ctime>
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Agents;
@@ -165,6 +169,12 @@ WatchdogRunSummary ServiceManager::runOneWatchdogPass() {
     // hidden, and it is what lets a later diagnose say that an agent changed its
     // layout.
     if (endNanoseconds-lastFingerprintRefreshNanoseconds>=WATCHED_PATHS_REFRESH_NANOSECONDS) {
+        const long long currentEpochSeconds=static_cast<long long>(std::time(nullptr));
+        for (const WatchdogSample& sample : summary.samples) {
+            // The size is already known from the tick, so the history costs one
+            // append per changed database per hour and nothing on an idle machine.
+            HistoryStore::recordSize(sample.databaseFilePath, sample.currentSizeBytes, currentEpochSeconds);
+        }
         for (const string& currentPath : watchedPaths) {
             try {
                 Database watchedDatabase(currentPath, Database::OPEN_READ_ONLY);
