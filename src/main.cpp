@@ -21,6 +21,8 @@
 #include "AgentDbDoctor/Command/BackupsCommand.hpp"
 // Provides the command that lists the supported agents.
 #include "AgentDbDoctor/Command/AgentsCommand.hpp"
+// Provides the command that explains where a database's bytes are.
+#include "AgentDbDoctor/Command/ExplainSpaceCommand.hpp"
 // Provides ConsoleReport, which prints every line the program writes.
 #include "AgentDbDoctor/Presentation/ConsoleReport.hpp"
 // Provides PlatformMetadata, for the terminal test.
@@ -242,6 +244,17 @@ int main(int argumentCount, char** argumentValues) {
         options.verifyAgentPaths,
         "Also show every candidate path that was looked at, including the ones that were not found."
     );
+    CLI::App* explainSpaceSubcommand=application.add_subcommand(
+        "explain-space",
+        "Report where a database's bytes actually are, and with --sessions the largest conversations."
+    );
+    addTargetingOptions(*explainSpaceSubcommand, options);
+    addOutputOptions(*explainSpaceSubcommand, options);
+    explainSpaceSubcommand->add_option(
+        "--sessions",
+        options.sessionsToRank,
+        "Also rank this many of the largest conversations by stored payload. This reads the part table."
+    );
     // The parse is the only part of start up that allocates, and it is finished
     // before any measurement of start up cost is taken.
     try {
@@ -324,6 +337,9 @@ int main(int argumentCount, char** argumentValues) {
             exitCode=command.execute(options);
         } else if (chosenSubcommand=="agents") {
             AgentsCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="explain-space") {
+            ExplainSpaceCommand command(terminalIsAttached);
             exitCode=command.execute(options);
         } else {
             // A subcommand with no name means the user asked for help, which CLI11
