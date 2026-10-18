@@ -134,6 +134,41 @@ TEST_CASE("an inconsistent configuration is refused with a reason", "[configurat
     REQUIRE(configuration.isValid(explanation));
     REQUIRE(configuration.describeLocations().find("Configuration:")!=string::npos);
 }
+TEST_CASE("an interval far in the future is refused rather than overflowing the sleep loop", "[configuration]") {
+    ServiceConfiguration configuration;
+    configuration.warningThresholdBytes=1000;
+    configuration.criticalThresholdBytes=2000;
+    // Two thousand million seconds is longer than the machine will exist. It used to
+    // pass validation and overflow the slice arithmetic into a negative count, which
+    // turned the watchdog into a processor spin.
+    configuration.checkIntervalSeconds=2000000000;
+    string explanation;
+    REQUIRE_FALSE(configuration.isValid(explanation));
+    REQUIRE(explanation.find("seven days")!=string::npos);
+    // A week is the largest value that still means something, so it passes.
+    configuration.checkIntervalSeconds=7*24*60*60;
+    REQUIRE(configuration.isValid(explanation));
+}
+TEST_CASE("a configuration that nests without end is refused", "[configuration]") {
+    const string configurationPath=SyntheticDatabaseBuilder::temporaryDatabasePath("TestConfigurationDeep")
+        + ".json";
+    std::filesystem::remove(configurationPath);
+    // A small file that nests a thousand levels deep. Without a depth limit this
+    // would recurse until the stack ran out, and on Windows the service reads the
+    // file as an administrator.
+    {
+        std::ofstream configurationFile(configurationPath, std::ios::trunc);
+        for (int depthIndex=0; depthIndex<1000; ++depthIndex) {
+            configurationFile << "{\"nested\":";
+        }
+        configurationFile << "1";
+        for (int depthIndex=0; depthIndex<1000; ++depthIndex) {
+            configurationFile << "}";
+        }
+    }
+    REQUIRE_THROWS_AS(ConfigurationFile::read(configurationPath), ConfigurationException);
+    std::filesystem::remove(configurationPath);
+}
 TEST_CASE("the default configuration watches everything", "[configuration]") {
     const ServiceConfiguration configuration=ServiceConfiguration::createDefault();
     // An empty watched list means every supported agent, which is the right default
