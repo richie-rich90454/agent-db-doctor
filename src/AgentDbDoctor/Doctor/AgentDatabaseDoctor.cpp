@@ -315,13 +315,21 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
     PlatformMetadata::resetMetadataCallCount();
     const long long startNanoseconds=PlatformMetadata::monotonicNanoseconds();
     DiagnosisReport report(databaseFilePath);
-    if (!agentName.empty()) {
-        report.setAgentName(agentName);
+    // When a database is named directly on the command line there is no agent name
+    // with it. The path itself is then asked which agent claims it, so the report
+    // still knows whose layout it is looking at and can offer that agent's kinds of
+    // help, which is exactly what the machine readable output depends on.
+    string resolvedAgentName=agentName;
+    if (resolvedAgentName.empty() && !databaseFilePath.empty()) {
+        resolvedAgentName=agentRegistry.agentNameForPath(databaseFilePath);
+    }
+    if (!resolvedAgentName.empty()) {
+        report.setAgentName(resolvedAgentName);
         // The redundant types come from the agent's own descriptor, which is
         // the single place that names them. Before this wiring the setter was
         // never called, so every report carried an empty list and the duplicate
         // count below always read zero without saying so.
-        const optional<AgentDescriptor> agentDescriptor=agentRegistry.findAgent(agentName);
+        const optional<AgentDescriptor> agentDescriptor=agentRegistry.findAgent(resolvedAgentName);
         if (agentDescriptor.has_value() && agentDescriptor->supportsCompaction) {
             report.setCompactionSupported(true);
             report.setRedundantEventTypes(agentDescriptor->redundantEventTypes);
