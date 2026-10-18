@@ -223,6 +223,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Common/Exceptions.cpp
     src/AgentDbDoctor/Common/Logger.cpp
     src/AgentDbDoctor/Persistence/Database.cpp
+    src/AgentDbDoctor/Persistence/ReadCountingVfs.cpp
     src/AgentDbDoctor/Persistence/Statement.cpp
     src/AgentDbDoctor/FileSystem/DiskSpaceChecker.cpp
     src/AgentDbDoctor/FileSystem/FileLockDetector.cpp
