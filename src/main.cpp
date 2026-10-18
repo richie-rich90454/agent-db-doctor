@@ -147,6 +147,11 @@ int main(int argumentCount, char** argumentValues) {
         options.traceReadCounts,
         "Also report how many bytes were read, counted through a wrapper around SQLite's own file layer."
     );
+    // The job names people think in. They are aliases rather than separate commands,
+    // so the help text, the errors, and the documentation all speak one vocabulary:
+    // look at the data, rescue the damaged, and later reclaim the space and watch in
+    // the background as their commands arrive.
+    diagnoseSubcommand->alias("look");
     CLI::App* compactSubcommand=application.add_subcommand(
         "compact",
         "Compact the event log: keep the newest snapshot of every message and remove the older "
@@ -178,6 +183,7 @@ int main(int argumentCount, char** argumentValues) {
         options.rebuildWorkingCopy,
         "Build a working copy holding every row that can still be read. The original is never modified."
     );
+    recoverSubcommand->alias("rescue");
     CLI::App* serviceSubcommand=application.add_subcommand(
         "service",
         "Install and control the background service that watches database sizes."
