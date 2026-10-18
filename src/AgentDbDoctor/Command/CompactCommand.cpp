@@ -233,6 +233,23 @@ int CompactCommand::execute(const CommandOptions& options) {
     if (!options.quiet) {
         reporter.writeBanner(commandName(), describe());
         writePurpose(options);
+        if (options.verbose) {
+            // The verbose flag shows the settings the run actually uses, so a user
+            // reading a log can tell what produced the result.
+            reporter.writeDetailLine(
+                string("Rows removed per transaction: ")
+                + to_string(options.deletionBatchSize>0
+                    ? options.deletionBatchSize
+                    : EventLogCompactor::DEFAULT_DELETION_BATCH_SIZE)
+            );
+            reporter.writeDetailLine(
+                string("Safety copy: ")
+                + (options.backupFilePath.empty() ? string("beside the database") : options.backupFilePath)
+                + (options.keepBackup || !options.backupFilePath.empty()
+                    ? ", kept after a successful run"
+                    : ", removed after a successful run")
+            );
+        }
     }
     if (options.databaseFilePath.empty()) {
         lastRunOutcome.summarySentence=string(
