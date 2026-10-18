@@ -15,6 +15,9 @@
 #include <vector>
 // Provides the CommandOptions value type.
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
+// Provides the BackupRecord value type, carried in the report when a failed run
+// asks the caller to put the safety copy back.
+#include "AgentDbDoctor/Command/DestructiveOperationGuard.hpp"
 // Provides the Database wrapper this class works on.
 #include "AgentDbDoctor/Persistence/Database.hpp"
 // Provides the ConsoleReport class, which prints every user facing line.
@@ -56,9 +59,22 @@ struct EventLogCompactionReport final {
     long long reclaimableBytesNow=0;
     // A sentence describing the outcome, used as the closing line of the report.
     string summarySentence;
-    // True when the run stopped early because verification failed, in which case the
-    // safety copy was put back and nothing was lost.
+    // True when the run stopped early because its post-change check failed or a
+    // removal step failed, in which case the caller puts the safety copy back.
+    // Only the caller can do that: the database connection must be closed first,
+    // and the calling command owns it.
     bool wasRolledBack=false;
+    // True when the run failed and the caller must put the safety copy back.
+    bool restoreWasRequested=false;
+    // The copy to put back when `restoreWasRequested` is set.
+    BackupRecord safetyCopy;
+    // True when the run stopped because a check refused it or a step failed, which
+    // the command line reports as exit code one rather than as success.
+    bool wasRefused=false;
+    // True when the safety copy was removed after the run passed its checks.
+    bool safetyCopyWasRemoved=false;
+    // The bytes the safety copy occupied, so the caller can report the net space.
+    long long safetyCopyBytes=0;
 };
 // The mode the compactor runs in.
 enum class CompactionMode {
