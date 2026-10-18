@@ -67,6 +67,12 @@ struct CommandOptions final {
     // The path a safety copy is written to. The empty string means the tool picks a
     // name beside the original.
     string backupFilePath;
+    // True when the safety copy should be kept even after the run finished and
+    // passed its checks. The default is to remove it then, because a copy of a
+    // hundred gigabyte database would otherwise cancel out the space the run
+    // reclaimed. Naming a destination with `--backup-to` keeps the copy too: a
+    // location the user chose is a location the user still wants.
+    bool keepBackup=false;
     // The number of bytes a database must reach before the service says something.
     // The default is fifty gigabytes, which is where a disk starts to become a
     // problem on a typical machine.
