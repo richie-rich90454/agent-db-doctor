@@ -17,6 +17,8 @@
 #include "AgentDbDoctor/Command/VacuumCommand.hpp"
 #include "AgentDbDoctor/Command/RecoverCommand.hpp"
 #include "AgentDbDoctor/Command/ServiceCommand.hpp"
+// Provides the command that manages the safety copies.
+#include "AgentDbDoctor/Command/BackupsCommand.hpp"
 // Provides ConsoleReport, which prints every line the program writes.
 #include "AgentDbDoctor/Presentation/ConsoleReport.hpp"
 // Provides PlatformMetadata, for the terminal test.
@@ -190,6 +192,32 @@ int main(int argumentCount, char** argumentValues) {
         options.serviceAction,
         "One of: install, uninstall, start, stop, status, run."
     );
+    CLI::App* backupsSubcommand=application.add_subcommand(
+        "backups",
+        "List, verify, restore, or delete the safety copies made before a destructive run."
+    );
+    addOutputOptions(*backupsSubcommand, options);
+    addConfirmationOptions(*backupsSubcommand, options);
+    backupsSubcommand->add_option(
+        "action",
+        options.backupsAction,
+        "One of: list, verify, restore, delete. The default is list."
+    );
+    backupsSubcommand->add_option(
+        "--file",
+        options.backupsFilePath,
+        "Act on this copy instead of the newest one beside the database."
+    );
+    backupsSubcommand->add_flag(
+        "--all",
+        options.backupsDeleteAll,
+        "Verify every copy rather than the newest, or remove every copy rather than the old ones."
+    );
+    backupsSubcommand->add_option(
+        "--older-than",
+        options.backupsOlderThanDays,
+        "When deleting, remove copies older than this many days. Required unless --all is given."
+    );
     // The parse is the only part of start up that allocates, and it is finished
     // before any measurement of start up cost is taken.
     try {
@@ -242,6 +270,10 @@ int main(int argumentCount, char** argumentValues) {
         }
         if (chosenSubcommand=="service") {
             ServiceCommand command(terminalIsAttached);
+            return command.execute(options);
+        }
+        if (chosenSubcommand=="backups") {
+            BackupsCommand command(terminalIsAttached);
             return command.execute(options);
         }
         // A subcommand with no name means the user asked for help, which CLI11 has
