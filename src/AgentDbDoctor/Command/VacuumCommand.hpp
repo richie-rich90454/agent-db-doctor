@@ -54,6 +54,11 @@ struct VacuumOutcome final {
     // the number the user actually cares about: the file shrinking by one gigabyte
     // while a two gigabyte copy stays behind costs the drive a gigabyte.
     long long netBytesFreed=0;
+    // True when the pages were handed back in place with `PRAGMA incremental_vacuum`
+    // rather than by building a second file and swapping it in. The incremental path
+    // is only available on a database that was set up for it, and it is much cheaper
+    // when it is available.
+    bool usedIncrementalVacuum=false;
 };
 // The VacuumCommand class rebuilds a database at its smallest useful size.
 //
@@ -77,6 +82,13 @@ public:
 private:
     // Runs the whole operation, so that the decision and the act are separate.
     VacuumOutcome performVacuum(const CommandOptions& options, const string& databaseFilePath);
+    // Hands the free pages back in place, which is the cheap path: no second file is
+    // written and no space has to be free. Only a database that was set up for
+    // incremental auto-vacuum can use it.
+    VacuumOutcome performIncrementalVacuum(const CommandOptions& options, const string& databaseFilePath);
+    // Reads the database's auto-vacuum setting: 0 for none, 1 for full, 2 for
+    // incremental. Returns -1 when it cannot be read.
+    static int readAutoVacuumMode(const string& databaseFilePath);
     // Resolves a swap a previous run left half finished, before this run starts.
     // A power loss between any two renames is what the journal written just before
     // them exists for, and this is the other half of that contract.
