@@ -145,12 +145,18 @@ extern "C" __declspec(dllexport) VOID WINAPI ServiceMain(
     (void)argumentValues;
     // The configuration is read here, on the service's own thread, so a bad file
     // is reported into the log rather than stopping the process before the Control
-    // Manager has been told the service started.
+    // Manager has been told the service started. A file that cannot be read at all
+    // falls back to the defaults rather than ending the service.
     ServiceConfiguration configuration=ServiceConfiguration::createDefault();
-    const optional<ServiceConfiguration> readConfiguration=
-        ConfigurationFile::read(configuration.configurationFilePath);
-    if (readConfiguration.has_value()) {
-        configuration=readConfiguration.value();
+    try {
+        const optional<ServiceConfiguration> readConfiguration=
+            ConfigurationFile::read(configuration.configurationFilePath);
+        if (readConfiguration.has_value()) {
+            configuration=readConfiguration.value();
+        }
+    } catch (const std::exception&) {
+        // The defaults above are already in place, which is the safe reading of an
+        // unreadable configuration file for a watchdog whose job is to watch.
     }
     ServiceManager serviceManager(configuration);
     runningServiceManager=&serviceManager;
@@ -176,7 +182,20 @@ extern "C" __declspec(dllexport) VOID WINAPI ServiceMain(
     SetServiceStatus(statusHandle, &serviceStatus);
     // The watchdog loop is the body of the service. It does not return until a stop
     // is requested.
-    serviceManager.runWatchdogLoop();
+    // The watchdog loop is the body of the service. It does not return until a stop
+    // is requested. A failure that escapes it is reported to the Control Manager
+    // rather than ending the process silently, so a service that stopped is visible
+    // in the service list rather than merely gone.
+    try {
+        serviceManager.runWatchdogLoop();
+    } catch (const std::exception&) {
+        serviceStatus.dwCurrentState=SERVICE_STOPPED;
+        serviceStatus.dwWin32ExitCode=ERROR_SERVICE_SPECIFIC_ERROR;
+        serviceStatus.dwServiceSpecificExitCode=1;
+        SetServiceStatus(statusHandle, &serviceStatus);
+        runningServiceManager=nullptr;
+        return;
+    }
     serviceStatus.dwCurrentState=SERVICE_STOPPED;
     SetServiceStatus(statusHandle, &serviceStatus);
     runningServiceManager=nullptr;
