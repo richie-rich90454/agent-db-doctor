@@ -90,6 +90,9 @@ public:
     static void setMachineReadableForProcess(bool enabled);
     // True when machine readable output is on.
     bool isMachineReadable() const;
+    // True when standard output is a terminal. Used by the commands that draw a live
+    // view, which must not clear the screen when the output is redirected.
+    bool isTerminalAttached() const;
     // Writes one result object for a command that has finished, carrying the typed
     // numbers a script cares about.
     void writeMachineResult(const string& commandName, const vector<MachineField>& fields) const;
