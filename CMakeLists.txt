@@ -98,6 +98,11 @@ target_compile_definitions(sqlite3 PRIVATE
     SQLITE_DQS=0
     SQLITE_THREADSAFE=0
     SQLITE_ENABLE_COLUMN_METADATA=1
+    # `SQLITE_ENABLE_DBSTAT_VTAB` provides the `dbstat` virtual table, which reports
+    # how many bytes each table and index occupies. It is what makes `explain-space`
+    # and `why` able to name where the bytes actually are, and it costs one small
+    # read of SQLite's own bookkeeping rather than a scan of the user's data.
+    SQLITE_ENABLE_DBSTAT_VTAB=1
     SQLITE_OMIT_LOAD_EXTENSION=1
     SQLITE_USE_ALLOCA=1
     SQLITE_DEFAULT_FOREIGN_KEYS=0
@@ -294,6 +299,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Doctor/DiagnosisReport.cpp
     src/AgentDbDoctor/Doctor/SchemaVersionDetector.cpp
     src/AgentDbDoctor/Doctor/SchemaFingerprint.cpp
+    src/AgentDbDoctor/Doctor/SpaceAttribution.cpp
     src/AgentDbDoctor/Doctor/SafetyChecks.cpp
     src/AgentDbDoctor/Doctor/StatisticsReader.cpp
     src/AgentDbDoctor/Recovery/KnownFailurePatterns.cpp
@@ -311,6 +317,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Command/ServiceCommand.cpp
     src/AgentDbDoctor/Command/BackupsCommand.cpp
     src/AgentDbDoctor/Command/AgentsCommand.cpp
+    src/AgentDbDoctor/Command/ExplainSpaceCommand.cpp
     src/AgentDbDoctor/Service/ServiceConfiguration.cpp
     src/AgentDbDoctor/Service/ServiceManager.cpp
 )
