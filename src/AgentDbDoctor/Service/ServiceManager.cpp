@@ -49,28 +49,43 @@ void ServiceManager::requestStop() {
 string ServiceManager::serviceDisplayName() {
     return string(SERVICE_NAME);
 }
+// How often the discovered path list is refreshed when the configuration names no
+// paths. An hour matches the tick interval: a database an agent creates is noticed
+// within one interval, and the discovery's metadata calls happen once an hour
+// rather than on every tick.
+static constexpr long long WATCHED_PATHS_REFRESH_NANOSECONDS=3600LL*1000000000LL;
 vector<string> ServiceManager::resolveWatchedDatabasePaths() const {
     if (!serviceConfiguration.watchedDatabasePaths.empty()) {
         // The user named the files, so exactly those are watched.
         return serviceConfiguration.watchedDatabasePaths;
     }
     // Nothing was named, so every supported agent is asked where its data is. The
-    // discovery is done once here rather than on every tick, because a tick is
-    // allowed to cost one call per database and nothing more.
-    vector<string> watchedPaths;
-    AgentRegistry registry;
-    for (const DiscoveredDatabase& discovered : registry.discoverAllDatabases()) {
-        watchedPaths.push_back(discovered.filePath);
+    // answer is cached, because re-running the whole discovery on every tick cost
+    // hundreds of metadata calls an hour that the performance contract does not
+    // allow. The cache is refreshed once an hour so new databases are still found.
+    const long long nowNanoseconds=PlatformMetadata::monotonicNanoseconds();
+    const bool cacheNeedsRefresh=cachedDiscoveredPaths.empty()
+        || nowNanoseconds-cachedPathsRefreshedNanoseconds>=WATCHED_PATHS_REFRESH_NANOSECONDS;
+    if (cacheNeedsRefresh) {
+        vector<string> refreshedPaths;
+        AgentRegistry registry;
+        for (const DiscoveredDatabase& discovered : registry.discoverAllDatabases()) {
+            refreshedPaths.push_back(discovered.filePath);
+        }
+        cachedDiscoveredPaths=std::move(refreshedPaths);
+        cachedPathsRefreshedNanoseconds=nowNanoseconds;
     }
-    return watchedPaths;
+    return cachedDiscoveredPaths;
 }
 WatchdogRunSummary ServiceManager::runOneWatchdogPass() {
     const long long startNanoseconds=PlatformMetadata::monotonicNanoseconds();
     WatchdogRunSummary summary;
-    const vector<string> watchedPaths=resolveWatchedDatabasePaths();
-    // The counter is read before and after rather than reset, because the service
-    // wants a running total for its whole life, not a per pass number.
+    // The counter is read before the paths are resolved, so that the discovery calls
+    // made on a refresh tick are part of the pass's honest total rather than being
+    // measured away. On every other tick the resolution costs nothing, because the
+    // list is cached.
     const long long callsBeforePass=PlatformMetadata::metadataCallCount();
+    const vector<string> watchedPaths=resolveWatchedDatabasePaths();
     for (const string& currentPath : watchedPaths) {
         // This is the whole tick: one metadata call, no file opened, no bytes read.
         // Everything else in this method is arithmetic on the number it returned and
@@ -156,10 +171,13 @@ void ServiceManager::runWatchdogLoop() {
         }
         // The loop sleeps in short slices so that a stop request is noticed quickly.
         // The total slept is the configured interval, so the frequency is exactly
-        // what the user asked for.
-        const int totalSlices=serviceConfiguration.checkIntervalSeconds
+        // what the user asked for. The arithmetic is 64 bit and the interval is
+        // bounded by the configuration validation, so a very large interval can no
+        // longer overflow into a negative slice count and turn the loop into a spin.
+        const long long totalSlices=
+            static_cast<long long>(serviceConfiguration.checkIntervalSeconds)
             * (1000 / SLEEP_SLICE_MILLISECONDS);
-        for (int sliceIndex=0; sliceIndex<totalSlices && !stopRequested; ++sliceIndex) {
+        for (long long sliceIndex=0; sliceIndex<totalSlices && !stopRequested; ++sliceIndex) {
             PlatformMetadata::sleepMilliseconds(SLEEP_SLICE_MILLISECONDS);
         }
     }
