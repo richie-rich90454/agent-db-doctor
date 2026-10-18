@@ -150,6 +150,9 @@ void ConsoleReport::writeProgressEvent(
         + ",\"finished\":" + (isFinished ? "true" : "false") + "}"
     );
 }
+void ConsoleReport::writeMachineObject(const string& jsonObject) const {
+    writeJsonLine(jsonObject);
+}
 void ConsoleReport::writeExitEvent(int exitCode) const {
     writeJsonLine(string("{\"event\":\"exit\",\"exitCode\":") + to_string(exitCode) + "}");
 }
