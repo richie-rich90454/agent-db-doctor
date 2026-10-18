@@ -196,11 +196,139 @@ void VacuumCommand::resolveInterruptedVacuumSwap(const string& databaseFilePath)
     }
     std::filesystem::remove(intentFilePath, cleanupError);
 }
+int VacuumCommand::readAutoVacuumMode(const string& databaseFilePath) {
+    try {
+        Database database(databaseFilePath, Database::OPEN_READ_ONLY);
+        database.setBusyTimeoutMilliseconds(2000);
+        const optional<long long> autoVacuumMode=database.queryPragmaInteger("PRAGMA auto_vacuum");
+        return autoVacuumMode.has_value() ? static_cast<int>(autoVacuumMode.value()) : -1;
+    } catch (const DatabaseOpenException&) {
+        return -1;
+    }
+}
+VacuumOutcome VacuumCommand::performIncrementalVacuum(
+    const CommandOptions& options,
+    const string& databaseFilePath
+) {
+    VacuumOutcome outcome;
+    DestructiveOperationGuard guard(options, reporter);
+    const FileMetadata sizeBefore=PlatformMetadata::readFileMetadata(databaseFilePath);
+    outcome.sizeBeforeBytes=sizeBefore.logicalSizeBytes;
+    outcome.peakFreeSpaceRequiredBytes=0;
+    const long long freeBytes={StatisticsReader::reclaimableBytesFromFreeList(
+        StatisticsReader::readHeaderFields(databaseFilePath)
+    )};
+    if (freeBytes<=0) {
+        outcome.summarySentence="The file was already as small as it can be, so nothing was freed.";
+        reporter.writeLine(outcome.summarySentence);
+        return outcome;
+    }
+    const BackupRecord backup=guard.createBackup(databaseFilePath);
+    if (!backup.wasCreated) {
+        reporter.writeFailure(
+            string("A safety copy could not be made, so nothing was changed."),
+            string()
+        );
+        outcome.wasRefused=true;
+        outcome.summarySentence="Nothing was changed, because a safety copy could not be made.";
+        return outcome;
+    }
+    if (!guard.confirmWithUser(
+        string("hand about ") + HumanReadableFormatting::formatBytes(freeBytes)
+            + " of unused pages back to the drive. This database was set up for incremental "
+              "auto-vacuum, so the pages are given back in place: no second file is written and no "
+              "extra space is needed.",
+        backup
+    )) {
+        outcome.summarySentence="Nothing was changed. Your database is exactly as it was.";
+        return outcome;
+    }
+    {
+        // The operation is SQLite's own: pages at the end of the file that hold
+        // nothing are released and the file shrinks. It runs in one transaction per
+        // page moved, which is why it is the cheap path.
+        Database database(databaseFilePath, Database::OPEN_READ_WRITE);
+        database.setBusyTimeoutMilliseconds(30000);
+        database.execute("PRAGMA incremental_vacuum");
+    }
+    // The result is checked before it is trusted. The quick check reads the whole
+    // file, which is why the rewrite path runs it too; on this path the file was
+    // changed in place, so the check is the only evidence that the change was sound.
+    bool fileIsSound=false;
+    string quickCheckText;
+    try {
+        Database checkDatabase(databaseFilePath, Database::OPEN_READ_ONLY);
+        Statement quickCheckStatement(
+            checkDatabase.rawHandle(),
+            "PRAGMA quick_check",
+            "an integrity check of the vacuumed database"
+        );
+        if (quickCheckStatement.isValid() && quickCheckStatement.step()) {
+            quickCheckText=quickCheckStatement.columnText(0);
+            fileIsSound=quickCheckText=="ok";
+            const int finalStepResultCode=quickCheckStatement.lastStepResultCode();
+            if (finalStepResultCode!=SQLITE_DONE && finalStepResultCode!=SQLITE_ROW) {
+                fileIsSound=false;
+            }
+        }
+    } catch (const DatabaseOpenException&) {
+        fileIsSound=false;
+    }
+    if (!fileIsSound) {
+        // What SQLite actually said, so the failure can be acted on rather than only
+        // known about. An empty string means the check produced no answer at all,
+        // which is its own kind of failure.
+        reporter.writeDetailLine(
+            string("The integrity check reported: ")
+            + (quickCheckText.empty() ? string("(no result)") : quickCheckText)
+        );
+        DestructiveOperationGuard restoringGuard(options, reporter);
+        const bool restored=restoringGuard.restoreBackup(backup, databaseFilePath);
+        reporter.writeFailure(
+            string("The integrity check after the incremental vacuum did not pass. ")
+            + (restored
+                ? string("The safety copy was put back, so your database is exactly as it was.")
+                : string("The safety copy could not be put back automatically; it is at ")
+                    + backup.backupFilePath + "."),
+            string()
+        );
+        outcome.wasRefused=true;
+        outcome.wasRefusedForDamage=true;
+        outcome.summarySentence="Nothing was changed, because the check after the vacuum did not pass.";
+        return outcome;
+    }
+    const FileMetadata sizeAfter=PlatformMetadata::readFileMetadata(databaseFilePath);
+    outcome.wasCompacted=true;
+    outcome.usedIncrementalVacuum=true;
+    outcome.sizeAfterBytes=sizeAfter.logicalSizeBytes;
+    outcome.bytesReclaimed=outcome.sizeBeforeBytes-outcome.sizeAfterBytes;
+    reporter.writeHeading("Done");
+    reporter.writeLine("Size before: " + HumanReadableFormatting::formatBytes(outcome.sizeBeforeBytes));
+    reporter.writeLine("Size after:  " + HumanReadableFormatting::formatBytes(outcome.sizeAfterBytes));
+    reporter.writeLine(
+        string("Given back to the drive: ") + HumanReadableFormatting::formatBytes(outcome.bytesReclaimed)
+        + ". This database was set up for incremental auto-vacuum, so the pages were handed back in "
+          "place: no second file was written and no extra space was needed."
+    );
+    const bool keepTheCopy=guard.shouldKeepBackup();
+    guard.removeBackupAfterSuccess(backup);
+    outcome.keptSafetyCopyBytes=keepTheCopy ? backup.copiedBytes : 0;
+    outcome.netBytesFreed=outcome.bytesReclaimed-outcome.keptSafetyCopyBytes;
+    outcome.summarySentence=string("Given back in place: ")
+        + HumanReadableFormatting::formatBytes(outcome.bytesReclaimed)
+        + " (incremental vacuum, no rewrite).";
+    return outcome;
+}
 VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const string& databaseFilePath) {
     VacuumOutcome outcome;
     // The guard is built here so it reads the options of the run that is happening,
     // which is what makes the `--yes` flag reach the confirmation.
     DestructiveOperationGuard guard(options, reporter);
+    // The auto-vacuum setting decides which of the two vacuum paths applies. A
+    // database set up for incremental auto-vacuum can hand its pages back in place,
+    // which needs no second file and no free space; every other one needs the
+    // rewrite, which needs both.
+    const int autoVacuumMode=readAutoVacuumMode(databaseFilePath);
     // The clock is read outside the block below, because that block closes the
     // connection and the readings have to outlive it.
     long long startNanoseconds=0;
@@ -225,9 +353,32 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
         reporter.writeHeading("What the vacuum would do");
         reporter.writeLine("Unused space inside the file: "
             + HumanReadableFormatting::formatBytes(reclaimableBytes) + " would go back to the drive.");
+        if (autoVacuumMode==2) {
+            reporter.writeLine(
+                "This database was set up for incremental auto-vacuum, so the pages would be handed "
+                "back in place: no second file is written and no extra space is needed."
+            );
+        } else if (options.enableIncrementalAutoVacuum) {
+            reporter.writeLine(
+                "This run would also convert the database to incremental auto-vacuum, which is a "
+                "persistent setting stored in the file: one full rewrite now, and later reclaims "
+                "are cheap."
+            );
+        } else {
+            reporter.writeLine(
+                "This database is not set up for incremental auto-vacuum, so the pages are handed "
+                "back by writing a smaller file beside this one and swapping it in. Pass "
+                "--enable-auto-vacuum to convert it once, and later reclaims become cheap."
+            );
+        }
         outcome.summarySentence=string("Preview only: the vacuum would give back about ")
             + HumanReadableFormatting::formatBytes(reclaimableBytes) + ". Nothing was changed.";
         return outcome;
+    }
+    if (autoVacuumMode==2) {
+        // The cheap path, and it comes before the space check on purpose: it needs no
+        // second file, so "not enough free space" is not a reason to refuse it.
+        return performIncrementalVacuum(options, databaseFilePath);
     }
     if (!DiskSpaceChecker::hasEnoughSpace(availableSpace, requirement)) {
         // The refusal is the important part of this command. Running out of room
@@ -283,7 +434,17 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
     // with delete sharing, so leaving this connection alive would make the swap
     // impossible.
     {
-    Database sourceDatabase(databaseFilePath, Database::OPEN_READ_ONLY);
+    // The one setting this command can change. SQLite applies a pending
+    // auto-vacuum change to the file that VACUUM produces, so asking for the
+    // conversion here means it lands in the new file, not in the original. The
+    // source is opened for writing only when the user asked for the conversion.
+    Database sourceDatabase(
+        databaseFilePath,
+        options.enableIncrementalAutoVacuum ? Database::OPEN_READ_WRITE : Database::OPEN_READ_ONLY
+    );
+    if (options.enableIncrementalAutoVacuum) {
+        sourceDatabase.applyPragma("PRAGMA auto_vacuum = INCREMENTAL");
+    }
     sourceDatabase.setBusyTimeoutMilliseconds(5000);
     // The pragma insists on a literal filename rather than a bound parameter, which
     // is a limitation of the statement rather than of this tool. The path is quoted
@@ -537,6 +698,22 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
     }
     reporter.writeLine("The rewrite took "
         + HumanReadableFormatting::formatDuration(endNanoseconds - startNanoseconds) + ".");
+    if (options.enableIncrementalAutoVacuum) {
+        // The conversion is claimed only after the new file says so.
+        const int newAutoVacuumMode=readAutoVacuumMode(databaseFilePath);
+        if (newAutoVacuumMode==2) {
+            reporter.writeLine(
+                "This database is now set up for incremental auto-vacuum: one expensive rewrite "
+                "has bought cheap reclaims from here on."
+            );
+        } else {
+            reporter.writeWarning(
+                "The request to convert this database to incremental auto-vacuum did not take "
+                "effect in the new file. The rewrite itself succeeded; run the command again with "
+                "the flag to try once more."
+            );
+        }
+    }
     // The safety copy has done its job once the file is in place and checked. A kept
     // copy is space the drive did not get back, so the net change is reported
     // explicitly rather than hiding behind the file's new size.
@@ -689,6 +866,7 @@ int VacuumCommand::execute(const CommandOptions& options) {
             MachineField::boolean("previewOnly", lastRunOutcome.wasPreviewOnly),
             MachineField::boolean("refused", lastRunOutcome.wasRefused),
             MachineField::boolean("compacted", lastRunOutcome.wasCompacted),
+            MachineField::boolean("usedIncrementalVacuum", lastRunOutcome.usedIncrementalVacuum),
             MachineField::number("sizeBeforeBytes", lastRunOutcome.sizeBeforeBytes),
             MachineField::number("sizeAfterBytes", lastRunOutcome.sizeAfterBytes),
             MachineField::number("bytesReclaimed", lastRunOutcome.bytesReclaimed),
