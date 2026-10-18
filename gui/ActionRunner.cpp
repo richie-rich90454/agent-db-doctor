@@ -88,8 +88,15 @@ void runCompactionRun(ActionRunner* runner, ActionRequest request, ActionResult&
     result.summary=outcome.summarySentence;
     result.detailLines.push_back(
         string("Rows removed: ") + HumanReadableFormatting::formatCount(outcome.removedRowCount));
+    if (outcome.safetyCopyWasRemoved) {
+        result.detailLines.push_back(
+            string("Safety copy removed after the checks passed: ")
+            + HumanReadableFormatting::formatBytes(outcome.safetyCopyBytes) + " handed back.");
+    }
     if (outcome.wasRolledBack) {
-        result.detailLines.push_back("The safety copy was put back: the check did not pass.");
+        result.detailLines.push_back(
+            "The check after the removal did not pass, so the safety copy was put back and the "
+            "database was checked again. Nothing was lost.");
     }
 }
 void runVacuumPreview(ActionRunner* runner, ActionRequest request, ActionResult& result) {
@@ -122,6 +129,18 @@ void runVacuumRun(ActionRunner* runner, ActionRequest request, ActionResult& res
         string("Size before: ") + HumanReadableFormatting::formatBytes(outcome.sizeBeforeBytes));
     result.detailLines.push_back(
         string("Size after: ") + HumanReadableFormatting::formatBytes(outcome.sizeAfterBytes));
+    if (outcome.keptSafetyCopyBytes>0) {
+        result.detailLines.push_back(
+            string("Safety copy kept: ") + HumanReadableFormatting::formatBytes(outcome.keptSafetyCopyBytes));
+        const long long netBytes=outcome.netBytesFreed;
+        result.detailLines.push_back(
+            string("Net free space change: ")
+            + (netBytes>=0 ? string("+") : string("-"))
+            + HumanReadableFormatting::formatBytes(netBytes>=0 ? netBytes : -netBytes));
+    } else if (outcome.wasCompacted) {
+        result.detailLines.push_back(
+            "The safety copy was removed after the checks passed, so the space it held came back too.");
+    }
 }
 void runRecoverPlan(ActionRunner* runner, ActionRequest request, ActionResult& result) {
     nameTask(runner, "Reading the recovery plan");
