@@ -12,6 +12,10 @@
 #include <catch2/catch_test_macros.hpp>
 // Provides the command under test.
 #include "AgentDbDoctor/Command/CompactCommand.hpp"
+// Provides the command that finds and manages the safety copies.
+#include "AgentDbDoctor/Command/BackupsCommand.hpp"
+// Provides the survival check the forced-failure test trips.
+#include "AgentDbDoctor/Doctor/SafetyChecks.hpp"
 // Provides the options the command reads.
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
 // Provides the database wrapper, so the test can read the file itself.
@@ -261,5 +265,87 @@ TEST_CASE("compaction accepts a removal limit that is a real share of the table"
     CompactCommand command(false);
     REQUIRE(command.execute(commandOptions)==0);
     REQUIRE(command.lastOutcome().anythingWasRemoved);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction removes the safety copy once its checks pass", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactRemovesCopy");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=12;
+    options.messageCountPerSession=5;
+    options.redundantCopiesPerMessage=3;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    CompactCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    REQUIRE(command.lastOutcome().anythingWasRemoved);
+    // The copy did its job, so it is gone. A copy of the file left behind would
+    // cancel out every byte the run made reusable, which is the whole reason the
+    // removal exists.
+    REQUIRE(command.lastOutcome().safetyCopyWasRemoved);
+    REQUIRE(BackupsCommand::findBackupsBeside(databasePath).empty());
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction keeps the safety copy when asked", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactKeepsCopy");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=12;
+    options.messageCountPerSession=5;
+    options.redundantCopiesPerMessage=3;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    commandOptions.keepBackup=true;
+    CompactCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    const vector<BackupFile> backups=BackupsCommand::findBackupsBeside(databasePath);
+    REQUIRE(backups.size()==1);
+    // The kept copy is a complete copy from before the run, which is what makes it a
+    // rollback point rather than a file with the right name.
+    REQUIRE(countAllReadableTextParts(backups.front().filePath)==readablePartsBefore);
+    for (const BackupFile& backup : backups) {
+        std::filesystem::remove(backup.filePath);
+    }
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction puts the safety copy back when the check fails", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactRollsBack");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=12;
+    options.messageCountPerSession=5;
+    options.redundantCopiesPerMessage=3;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    const long long redundantRowsBefore=countRedundantEventRows(databasePath);
+    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    // The check after the removal is forced to fail, because a healthy database
+    // cannot make it fail. This is the one path a user must never see a wrong claim on.
+    SafetyChecks::failSurvivalCheckForTests()=true;
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    CompactCommand command(false);
+    const int exitCode=command.execute(commandOptions);
+    SafetyChecks::failSurvivalCheckForTests()=false;
+    REQUIRE(exitCode==1);
+    REQUIRE(command.lastOutcome().wasRolledBack);
+    REQUIRE(command.lastOutcome().restoreWasRequested);
+    // The promise, measured rather than asserted: row for row and word for word, the
+    // database is what it was before the run.
+    REQUIRE(countRedundantEventRows(databasePath)==redundantRowsBefore);
+    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
+    // A failed run keeps its copy, so a person can look at it before deciding anything.
+    REQUIRE_FALSE(BackupsCommand::findBackupsBeside(databasePath).empty());
+    for (const BackupFile& backup : BackupsCommand::findBackupsBeside(databasePath)) {
+        std::filesystem::remove(backup.filePath);
+    }
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
