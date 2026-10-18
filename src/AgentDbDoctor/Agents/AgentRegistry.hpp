@@ -190,7 +190,14 @@ public:
     // The descriptor for the agent with the given name, or `nullopt` when no such
     // agent is supported. The comparison ignores case, because a user typing a
     // name on a command line should not have to match capitalisation.
+    // Looks up one agent's descriptor by its display name. Returns nothing when
+    // the name matches no agent.
     optional<AgentDescriptor> findAgent(const string& displayName) const;
+    // The display name of the agent whose candidate paths include `filePath`, or
+    // the empty string when no agent claims it. Used when a database is named
+    // directly on the command line, so the report still knows whose layout it is
+    // looking at and can offer that agent's kinds of help.
+    string agentNameForPath(const string& filePath) const;
     // Looks for the data of every supported agent and returns what was found.
     //
     // Discovery never walks a directory tree. Each agent contributes a fixed list
