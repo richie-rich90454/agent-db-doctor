@@ -85,12 +85,14 @@ optional<EventLogCompactionPlan> CompactCommand::buildPlan(
     if (!contentCheck.passed()) {
         reporter.writeFailure(contentCheck.explanation(), string());
         reportOut.summarySentence="Nothing was removed, because the tool could not prove the message text would survive.";
+        reportOut.wasRefused=true;
         return nullopt;
     }
     const SafetyCheckResult schemaCheck=SafetyChecks::verifySchemaSupportsCompaction(database);
     if (!schemaCheck.passed()) {
         reporter.writeFailure(schemaCheck.explanation(), string());
         reportOut.summarySentence="Nothing was removed, because this database is not laid out in a way the tool recognises.";
+        reportOut.wasRefused=true;
         return nullopt;
     }
     // A schema the checks accept can still hold rows from a generation no
@@ -106,6 +108,7 @@ optional<EventLogCompactionPlan> CompactCommand::buildPlan(
             string()
         );
         reportOut.summarySentence="Nothing was removed, because the event rows belong to no generation the tool knows.";
+        reportOut.wasRefused=true;
         return nullopt;
     }
     // The number of sessions is counted once. It is a full scan of a small table,
@@ -131,6 +134,7 @@ optional<EventLogCompactionPlan> CompactCommand::buildPlan(
             string()
         );
         reportOut.summarySentence="Nothing was removed, because the limit you gave was not a fraction this tool can use.";
+        reportOut.wasRefused=true;
         return nullopt;
     }
     int sessionsToKeep=options.sessionsToKeep;
@@ -177,8 +181,15 @@ optional<EventLogCompactionPlan> CompactCommand::buildPlan(
     // The refusal is arithmetic rather than a feeling. A change that would remove
     // more than half the rows usually means a misread count rather than a real
     // problem, so the tool stops and lets a human decide.
-    const long long totalEventRows=StatisticsReader::approximateRowCount(database, "event")
-        .value_or(0);
+    long long totalEventRows=StatisticsReader::approximateRowCount(database, "event").value_or(0);
+    if (totalEventRows<=0) {
+        // The statistics table is missing, which is the normal state of a database
+        // that has never been analysed. The guard is the tool's own promise, so it
+        // must not be skipped: the exact count is taken instead. It is a full count
+        // of one table, but this command is about to walk that same table to delete
+        // rows, so the cost is of the same order as the work it authorises.
+        totalEventRows=StatisticsReader::exactRowCount(database, "event");
+    }
     if (totalEventRows>0) {
         const double fractionToRemove=static_cast<double>(plan.doomedRowCount) / static_cast<double>(totalEventRows);
         // A limit of zero is a real choice: it means remove nothing. Only a negative
@@ -199,8 +210,21 @@ optional<EventLogCompactionPlan> CompactCommand::buildPlan(
                 string()
             );
             reportOut.summarySentence="Nothing was removed, because the change would have been larger than this tool allows by itself.";
+            reportOut.wasRefused=true;
             return nullopt;
         }
+    } else {
+        // The event table could not be counted at all. A guard that cannot be
+        // evaluated is not a guard, so the run stops rather than continuing without
+        // the protection the user believes is there.
+        reporter.writeFailure(
+            string("The size of the event table could not be measured, so the safety limit that "
+                "protects against a misread count could not be checked. Nothing was changed."),
+            string()
+        );
+        reportOut.summarySentence="Nothing was removed, because the size of the event table could not be measured.";
+        reportOut.wasRefused=true;
+        return nullopt;
     }
     return plan;
 }
@@ -321,6 +345,63 @@ int CompactCommand::execute(const CommandOptions& options) {
             }
         }
         lastRunOutcome=report;
+        if (lastRunOutcome.restoreWasRequested) {
+            // The database connection is closed by the end of the block above, which
+            // is what makes the file replaceable. The guard is built again here
+            // because the one inside the compactor went out of scope with it.
+            DestructiveOperationGuard restoringGuard(options, reporter);
+            const bool restored=restoringGuard.restoreBackup(
+                lastRunOutcome.safetyCopy,
+                options.databaseFilePath
+            );
+            bool databaseIsWhole=false;
+            if (restored) {
+                try {
+                    Database restoredDatabase(options.databaseFilePath, Database::OPEN_READ_ONLY);
+                    restoredDatabase.setBusyTimeoutMilliseconds(5000);
+                    databaseIsWhole=SafetyChecks::verifyOldestSessionStillHasReadableContent(
+                        restoredDatabase
+                    ).passed();
+                } catch (const DatabaseOpenException&) {
+                    databaseIsWhole=false;
+                }
+            }
+            lastRunOutcome.wasRolledBack=restored;
+            if (restored && databaseIsWhole) {
+                reporter.writeLine(
+                    "The safety copy was put back and the oldest session still holds its text, so "
+                    "your database holds exactly what it held before this run. Nothing was lost."
+                );
+                reporter.writeLine(
+                    "The copy is still at " + lastRunOutcome.safetyCopy.backupFilePath
+                    + " until you delete it."
+                );
+                lastRunOutcome.summarySentence=string(
+                    "Nothing was changed: the change was undone and the database passed the check "
+                    "again."
+                );
+            } else if (restored) {
+                reporter.writeWarning(
+                    string("The safety copy was put back, but the check did not pass afterwards "
+                        "either.\n\nCompare the database with the copy at ")
+                    + lastRunOutcome.safetyCopy.backupFilePath
+                    + " and run the recover command for the safe next step."
+                );
+                lastRunOutcome.summarySentence="The safety copy was put back, but the check still did not pass.";
+            } else {
+                reporter.writeFailure(
+                    string("The safety copy could not be put back automatically. It is untouched at ")
+                    + lastRunOutcome.safetyCopy.backupFilePath
+                    + ".\n\nPut it back yourself with:\n  agent-db-doctor backups restore --database "
+                    + options.databaseFilePath,
+                    string()
+                );
+                lastRunOutcome.summarySentence=string(
+                    "The change stopped and the safety copy could not be put back automatically."
+                );
+            }
+            return 1;
+        }
     } catch (const PragmaException& pragmaFailure) {
         // A setting could not be applied, which stops the run rather than continuing
         // with settings the caller did not ask for.
@@ -355,12 +436,14 @@ int CompactCommand::execute(const CommandOptions& options) {
         reporter.writeLine("Nothing was changed.");
         return 1;
     } catch (const DatabaseOperationException& operationFailure) {
-        // The run stopped partway, and the safety copy note below says what that
-        // means for the original, so the sentence is carried as it is.
+        // The run stopped partway, and the note below says what that means for the
+        // original, so the sentence is carried as it is.
         lastRunOutcome.summarySentence=operationFailure.message();
         reporter.writeFailure(operationFailure.message(), string());
-        reporter.writeLine("The command stopped. The safety copy made before this run is still where "
-            "it was reported, and it is a complete copy of your database as it was before.");
+        reporter.writeLine(
+            "The command stopped partway. If a safety copy was reported above, it is a complete "
+            "copy of your database from before this run; put it back over the database with:\n"
+            "  agent-db-doctor backups restore --database " + options.databaseFilePath);
         return 1;
     } catch (const UserDeclinedException&) {
         // The user declining is not a failure, so it gets its own message and its
@@ -376,6 +459,11 @@ int CompactCommand::execute(const CommandOptions& options) {
             string("Run the vacuum command after it. That is what gives the space back to the drive.")
         });
         return 0;
+    }
+    if (lastRunOutcome.wasRefused) {
+        // A refusal is not a success, so the caller's shell must be able to see it.
+        reporter.writeLine(lastRunOutcome.summarySentence);
+        return 1;
     }
     if (lastRunOutcome.anythingWasRemoved) {
         reporter.writeSuggestedNextSteps(vector<string>{
