@@ -128,6 +128,15 @@ static constexpr const char* CREATE_EVENT_AGGREGATE_SEQUENCE_INDEX=
 static constexpr const char* EVENT_TYPE_MESSAGE="message.updated.1";
 static constexpr const char* EVENT_TYPE_PART="message.part.updated.1";
 static constexpr const char* EVENT_TYPE_SESSION="session.updated.1";
+// The event type and the two tables that identify the second generation of the
+// agent's schema. The type carries the `session.next.` prefix the detector looks
+// for, and the tables are what a migrated database has beside its event log. These
+// rows are never older copies of anything, so no compaction may touch them.
+static constexpr const char* SECOND_GENERATION_EVENT_TYPE="session.next.updated";
+static constexpr const char* CREATE_SESSION_MESSAGE_TABLE=
+    "CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT)";
+static constexpr const char* CREATE_SESSION_INPUT_TABLE=
+    "CREATE TABLE session_input (id TEXT PRIMARY KEY, session_id TEXT, data TEXT)";
 // The filler text used to make each event row a given size. It is a run of one
 // character repeated, which is the cheapest way to occupy space in a file.
 static string buildFillerText(int byteCount) {
@@ -173,6 +182,13 @@ long long SyntheticDatabaseBuilder::build(const string& databaseFilePath, const 
     database.execute(CREATE_EVENT_TABLE);
     database.execute(CREATE_EVENT_TYPE_INDEX);
     database.execute(CREATE_EVENT_AGGREGATE_SEQUENCE_INDEX);
+    if (options.secondGenerationRowsPerMessage>0) {
+        // A migrated database has these two tables beside its event log, and the
+        // schema detector reads their presence. They are created together with the
+        // second generation rows so the fixture is never half a generation.
+        database.execute(CREATE_SESSION_MESSAGE_TABLE);
+        database.execute(CREATE_SESSION_INPUT_TABLE);
+    }
     // The filler text is built once and reused for every row, so building a large
     // database does not spend its time allocating a hundred thousand strings.
     const string fillerText=buildFillerText(options.bytesPerEventRow);
@@ -277,6 +293,35 @@ long long SyntheticDatabaseBuilder::build(const string& databaseFilePath, const 
                         redundantRowCount++;
                     }
                 }
+            }
+            // The second generation rows are written after the older copies and are
+            // deliberately of a type no compaction removes, so a test can prove the
+            // two generations can live in one file without the wrong one being
+            // touched. They carry the same aggregate, which is what a real migrated
+            // database does.
+            for (int copyIndex=0; copyIndex<options.secondGenerationRowsPerMessage; ++copyIndex) {
+                const string eventIdentifier="evt_v2_" + to_string(sessionIndex) + "_"
+                    + to_string(messageIndex) + "_" + to_string(copyIndex);
+                const long long eventSequenceNumber=
+                    static_cast<long long>(messageIndex) * options.secondGenerationRowsPerMessage
+                    + copyIndex + 1000000;
+                Statement eventWriter(
+                    database.rawHandle(),
+                    "INSERT INTO event (id, aggregate_id, seq, type, time_created, data, filler) "
+                    "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    "the writing of one second generation event"
+                );
+                if (!eventWriter.isValid()) {
+                    continue;
+                }
+                eventWriter.bindText(1, eventIdentifier);
+                eventWriter.bindText(2, sessionIdentifier);
+                eventWriter.bindInteger(3, eventSequenceNumber);
+                eventWriter.bindText(4, SECOND_GENERATION_EVENT_TYPE);
+                eventWriter.bindInteger(5, sessionCreatedAt + messageIndex);
+                eventWriter.bindText(6, string("{\"sessionID\":\"") + sessionIdentifier + "\"}");
+                eventWriter.bindText(7, fillerText);
+                eventWriter.run();
             }
         }
     }
