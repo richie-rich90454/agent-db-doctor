@@ -23,6 +23,18 @@
 #include "AgentDbDoctor/Command/AgentsCommand.hpp"
 // Provides the command that explains where a database's bytes are.
 #include "AgentDbDoctor/Command/ExplainSpaceCommand.hpp"
+// Provides the command that reports how the databases have grown.
+#include "AgentDbDoctor/Command/HistoryCommand.hpp"
+// Provides the command that explains one database's size.
+#include "AgentDbDoctor/Command/WhyCommand.hpp"
+// Provides the command that writes one session out.
+#include "AgentDbDoctor/Command/ExportCommand.hpp"
+// Provides the command that lists and deletes sessions.
+#include "AgentDbDoctor/Command/SessionsCommand.hpp"
+// Provides the command that reaches a target of freed space.
+#include "AgentDbDoctor/Command/ReclaimCommand.hpp"
+// Provides the live terminal view.
+#include "AgentDbDoctor/Command/WatchCommand.hpp"
 // Provides ConsoleReport, which prints every line the program writes.
 #include "AgentDbDoctor/Presentation/ConsoleReport.hpp"
 // Provides PlatformMetadata, for the terminal test.
@@ -149,6 +161,11 @@ int main(int argumentCount, char** argumentValues) {
         options.traceReadCounts,
         "Also report how many bytes were read, counted through a wrapper around SQLite's own file layer."
     );
+    diagnoseSubcommand->add_option(
+        "-o,--report",
+        options.outputFilePath,
+        "Also write a standalone HTML report of the whole pass to this path."
+    );
     // The job names people think in. They are aliases rather than separate commands,
     // so the help text, the errors, and the documentation all speak one vocabulary:
     // look at the data, rescue the damaged, and later reclaim the space and watch in
@@ -172,6 +189,11 @@ int main(int argumentCount, char** argumentValues) {
     addOutputOptions(*vacuumSubcommand, options);
     addConfirmationOptions(*vacuumSubcommand, options);
     addBackupOptions(*vacuumSubcommand, options);
+    vacuumSubcommand->add_flag(
+        "--enable-auto-vacuum",
+        options.enableIncrementalAutoVacuum,
+        "Also convert the database to incremental auto-vacuum, so later reclaims hand pages back in place. A persistent setting, applied during the rewrite."
+    );
     CLI::App* recoverSubcommand=application.add_subcommand(
         "recover",
         "Work out what is wrong with a database that will not open, and say what can be fixed."
@@ -254,6 +276,96 @@ int main(int argumentCount, char** argumentValues) {
         "--sessions",
         options.sessionsToRank,
         "Also rank this many of the largest conversations by stored payload. This reads the part table."
+    );
+    CLI::App* historySubcommand=application.add_subcommand(
+        "history",
+        "Report how the databases have grown, and when the drive would fill at the current rate."
+    );
+    addTargetingOptions(*historySubcommand, options);
+    addOutputOptions(*historySubcommand, options);
+    historySubcommand->add_option(
+        "--days",
+        options.historyDaysToShow,
+        "How many days of recorded sizes to report. The default is 30."
+    );
+    CLI::App* whySubcommand=application.add_subcommand(
+        "why",
+        "Explain why one database is as large as it is, with the ranked causes and the command worth running next."
+    );
+    addTargetingOptions(*whySubcommand, options);
+    addOutputOptions(*whySubcommand, options);
+    CLI::App* exportSubcommand=application.add_subcommand(
+        "export",
+        "Write one session out as Markdown, JSON, or HTML."
+    );
+    addTargetingOptions(*exportSubcommand, options);
+    addOutputOptions(*exportSubcommand, options);
+    exportSubcommand->add_option(
+        "--session",
+        options.sessionIdentifier,
+        "The session to write out. `sessions` or `explain-space --sessions` prints identifiers."
+    );
+    exportSubcommand->add_option(
+        "--format",
+        options.exportFormat,
+        "One of: markdown, json, html. The default is markdown."
+    );
+    exportSubcommand->add_option(
+        "-o,--output",
+        options.outputFilePath,
+        "Where to write the document. A single dash means standard output, which is the default."
+    );
+    CLI::App* sessionsSubcommand=application.add_subcommand(
+        "sessions",
+        "List the largest conversations, or delete one after copying and checking the database."
+    );
+    addTargetingOptions(*sessionsSubcommand, options);
+    addOutputOptions(*sessionsSubcommand, options);
+    addConfirmationOptions(*sessionsSubcommand, options);
+    addBackupOptions(*sessionsSubcommand, options);
+    sessionsSubcommand->add_option(
+        "action",
+        options.sessionsAction,
+        "One of: list, delete. The default is list."
+    );
+    sessionsSubcommand->add_option(
+        "--session",
+        options.sessionIdentifier,
+        "The session to delete, for the delete action."
+    );
+    sessionsSubcommand->add_option(
+        "--top",
+        options.sessionsToRank,
+        "How many sessions the listing shows. The default is 10."
+    );
+    CLI::App* reclaimSubcommand=application.add_subcommand(
+        "reclaim",
+        "Give a target amount of space back: compaction first, then the vacuum, each with its own copy and check."
+    );
+    addTargetingOptions(*reclaimSubcommand, options);
+    addOutputOptions(*reclaimSubcommand, options);
+    addConfirmationOptions(*reclaimSubcommand, options);
+    addBackupOptions(*reclaimSubcommand, options);
+    addCompactionOptions(*reclaimSubcommand, options);
+    reclaimSubcommand->add_option(
+        "--target",
+        options.reclaimTarget,
+        "How much space to give back, for example 20GB. Accepts KB, MB, GB, TB, or bytes."
+    );
+    CLI::App* watchSubcommand=application.add_subcommand(
+        "watch",
+        "Watch every database from the terminal: a live table sorted by size, with the growth between refreshes."
+    );
+    addOutputOptions(*watchSubcommand, options);
+    watchSubcommand->add_flag(
+        "--once",
+        options.watchOnce,
+        "Render one snapshot and exit, for a script."
+    );
+    watchSubcommand->add_option(
+        "--interval",
+        options.watchIntervalSeconds,
+        "How many seconds between refreshes. The default is five."
     );
     // The parse is the only part of start up that allocates, and it is finished
     // before any measurement of start up cost is taken.
@@ -340,6 +452,24 @@ int main(int argumentCount, char** argumentValues) {
             exitCode=command.execute(options);
         } else if (chosenSubcommand=="explain-space") {
             ExplainSpaceCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="history") {
+            HistoryCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="why") {
+            WhyCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="export") {
+            ExportCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="sessions") {
+            SessionsCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="reclaim") {
+            ReclaimCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="watch") {
+            WatchCommand command(terminalIsAttached);
             exitCode=command.execute(options);
         } else {
             // A subcommand with no name means the user asked for help, which CLI11
