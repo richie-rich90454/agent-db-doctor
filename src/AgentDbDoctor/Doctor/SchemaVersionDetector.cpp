@@ -13,6 +13,10 @@
 #include "AgentDbDoctor/Doctor/StatisticsReader.hpp"
 // Provides the Statement class, which runs one probe query each.
 #include "AgentDbDoctor/Persistence/Statement.hpp"
+// Provides the OpenCode agent, which names the first generation event types. The
+// list lives in exactly one place, so the detector and the compactor cannot
+// disagree about which types count as older copies.
+#include "AgentDbDoctor/Agents/OpenCodeAgent.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Persistence;
@@ -27,22 +31,57 @@ static bool rowExists(Database& database, const char* probeQuery, const char* pr
     }
     return probe.step();
 }
+// The same question for a probe with one text parameter, which is what makes the
+// equality comparisons below possible.
+static bool rowExistsForType(
+    Database& database,
+    const char* probeQuery,
+    const string& eventType,
+    const char* probeDescription
+) {
+    Statement probe(database.rawHandle(), probeQuery, probeDescription);
+    if (!probe.isValid()) {
+        return false;
+    }
+    probe.bindText(1, eventType);
+    return probe.step();
+}
 SchemaGeneration SchemaVersionDetector::detect(Database& database) {
-    // The first generation marks its rows with a `.1` suffix, for example
-    // `message.updated.1`. The second generation family has no such suffix,
-    // so the two patterns cannot match each other's rows.
-    static constexpr const char* FIRST_GENERATION_PROBE=
-        "SELECT 1 FROM event WHERE type LIKE '%.1' LIMIT 1";
+    // The first generation marks its rows with a `.1` suffix on one of a small set
+    // of known type names, so those names are compared for equality. An index on the
+    // type column answers each comparison directly.
+    //
+    // The probe used to be `LIKE '%.1'`, a pattern with a leading wildcard that no
+    // index can answer. On a database whose rows are all second generation, which is
+    // exactly the case the detector exists for, that pattern read the whole event
+    // table: seconds of input and output every time the database was looked at,
+    // against a performance contract of a few milliseconds and a few dozen kilobytes.
+    static constexpr const char* FIRST_GENERATION_TYPE_PROBE=
+        "SELECT 1 FROM event WHERE type=?1 LIMIT 1";
+    // The second generation family shares the prefix `session.next.`. The range
+    // below covers exactly the strings with that prefix and, unlike a pattern with a
+    // trailing wildcard, an index on the type column can answer it.
     static constexpr const char* SECOND_GENERATION_EVENT_PROBE=
-        "SELECT 1 FROM event WHERE type LIKE 'session.next.%' LIMIT 1";
+        "SELECT 1 FROM event WHERE type>='session.next.' AND type<'session.next/' LIMIT 1";
     static constexpr const char* SECOND_GENERATION_MESSAGE_PROBE=
         "SELECT 1 FROM session_message LIMIT 1";
     static constexpr const char* SECOND_GENERATION_INPUT_PROBE=
         "SELECT 1 FROM session_input LIMIT 1";
     static constexpr const char* ANY_EVENT_ROW_PROBE=
         "SELECT 1 FROM event LIMIT 1";
-    const bool hasFirstGenerationRows=StatisticsReader::tableExists(database, "event")
-        && rowExists(database, FIRST_GENERATION_PROBE, "a first generation event row");
+    bool hasFirstGenerationRows=false;
+    if (StatisticsReader::tableExists(database, "event")) {
+        for (const string& redundantEventType : Agents::OpenCodeAgent().redundantEventTypes()) {
+            if (rowExistsForType(
+                    database,
+                    FIRST_GENERATION_TYPE_PROBE,
+                    redundantEventType,
+                    "a first generation event row")) {
+                hasFirstGenerationRows=true;
+                break;
+            }
+        }
+    }
     const bool hasSecondGenerationRows=
         (StatisticsReader::tableExists(database, "event")
          && rowExists(
