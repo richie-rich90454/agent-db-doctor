@@ -417,7 +417,37 @@ int CompactCommand::execute(const CommandOptions& options) {
                     "The change stopped and the safety copy could not be put back automatically."
                 );
             }
+            // The result object is emitted on this path too, so a script sees the
+            // same fields whether the run finished or was undone.
+            if (options.machineReadableOutput) {
+                reporter.writeMachineResult("compact", vector<MachineField>{
+                    MachineField::boolean("previewOnly", lastRunOutcome.wasPreviewOnly),
+                    MachineField::boolean("refused", lastRunOutcome.wasRefused),
+                    MachineField::boolean("rolledBack", lastRunOutcome.wasRolledBack),
+                    MachineField::number("rowsRemoved", lastRunOutcome.removedRowCount),
+                    MachineField::number("protectedSessions", lastRunOutcome.protectedSessionCount),
+                    MachineField::number("verifiedSessions", lastRunOutcome.verifiedSessionCount),
+                    MachineField::boolean("safetyCopyRemoved", lastRunOutcome.safetyCopyWasRemoved),
+                    MachineField::number("safetyCopyBytes", lastRunOutcome.safetyCopyBytes),
+                    MachineField::number("reclaimableBytesNow", lastRunOutcome.reclaimableBytesNow)
+                });
+            }
             return 1;
+        }
+        // The result object carries the numbers a script cares about, typed rather
+        // than embedded in sentences.
+        if (options.machineReadableOutput) {
+            reporter.writeMachineResult("compact", vector<MachineField>{
+                MachineField::boolean("previewOnly", lastRunOutcome.wasPreviewOnly),
+                MachineField::boolean("refused", lastRunOutcome.wasRefused),
+                MachineField::boolean("rolledBack", lastRunOutcome.wasRolledBack),
+                MachineField::number("rowsRemoved", lastRunOutcome.removedRowCount),
+                MachineField::number("protectedSessions", lastRunOutcome.protectedSessionCount),
+                MachineField::number("verifiedSessions", lastRunOutcome.verifiedSessionCount),
+                MachineField::boolean("safetyCopyRemoved", lastRunOutcome.safetyCopyWasRemoved),
+                MachineField::number("safetyCopyBytes", lastRunOutcome.safetyCopyBytes),
+                MachineField::number("reclaimableBytesNow", lastRunOutcome.reclaimableBytesNow)
+            });
         }
     } catch (const PragmaException& pragmaFailure) {
         // A setting could not be applied, which stops the run rather than continuing
