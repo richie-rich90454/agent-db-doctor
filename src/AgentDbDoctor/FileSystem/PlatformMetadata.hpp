@@ -84,6 +84,17 @@ public:
     // may be a file or a directory, or may not exist at all, as long as its
     // parent volume can be identified.
     static DiskSpace readDiskSpace(const string& pathOnVolume);
+    // Creates `destinationPath` as a copy on write clone of `sourcePath` when the
+    // file system can. A clone shares its blocks with the original until either is
+    // written, so on APFS, on btrfs and XFS, and on ReFS or a Windows Dev Drive a
+    // safety copy costs no space and almost no time.
+    //
+    // Returns false on every file system that cannot, and the caller copies the
+    // bytes instead. A false answer is never an error: it only means this volume
+    // has no cloning to offer. A destination that already exists is replaced on
+    // success and removed again on failure, so the caller never has to clean up
+    // after a refusal.
+    static bool tryCreateCopyOnWriteClone(const string& sourcePath, const string& destinationPath);
     // The number of metadata system calls this process has made. The benchmark
     // suite reads it to assert that a diagnostic pass stays inside the budget.
     static long long metadataCallCount();
