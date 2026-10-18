@@ -33,6 +33,12 @@ public:
         // How many older copies of each changed message to write into the event
         // table. This is the duplication the compact command exists to remove.
         int redundantCopiesPerMessage=4;
+        // How many second generation event rows to write per message, of the kind a
+        // migrated OpenCode database holds (`session.next.*`). They are written with
+        // the `session_message` and `session_input` tables that identify the second
+        // generation, so the schema detector and the compaction refusal can be tested
+        // against the shape that exists in the wild.
+        int secondGenerationRowsPerMessage=0;
         // The text placed in each part. It is deliberately longer than the
         // twenty character threshold the safety check uses.
         string messageText=string("A message body that is comfortably longer than twenty ")
