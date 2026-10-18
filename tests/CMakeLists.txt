@@ -77,6 +77,7 @@ set(AGENT_DB_DOCTOR_INTEGRATION_TESTS
     integration/CompactIntegrationTest.cpp
     integration/VacuumIntegrationTest.cpp
     integration/BackupsIntegrationTest.cpp
+    integration/CliProcessTest.cpp
     integration/RecoverIntegrationTest.cpp
     integration/ServiceIntegrationTest.cpp
     integration/CompressionCorruptionIntegrationTest.cpp
@@ -87,6 +88,13 @@ foreach(test_source IN LISTS AGENT_DB_DOCTOR_INTEGRATION_TESTS)
     get_filename_component(test_name "${test_source}" NAME_WE)
     agent_db_doctor_add_test(${test_name} "${CMAKE_CURRENT_SOURCE_DIR}/${test_source}")
 endforeach()
+# The process level test runs the real command line program, so it needs the binary
+# to exist and it needs to know where it is. The path arrives through the
+# environment, which needs no quoting and no shell.
+add_dependencies(CliProcessTest agent-db-doctor)
+set_tests_properties(CliProcessTest PROPERTIES
+    ENVIRONMENT "AGENT_DB_DOCTOR_CLI=$<TARGET_FILE:agent-db-doctor>"
+)
 # The benchmark suite. These tests measure wall clock time, resident memory, and
 # the number of file metadata calls the tool makes. They are registered with
 # CTest under the `benchmark` label so a continuous integration job can run or
