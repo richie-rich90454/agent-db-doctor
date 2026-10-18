@@ -198,6 +198,20 @@ bool StatisticsReader::columnExists(Database& database, string_view tableName, s
     }
     return false;
 }
+bool StatisticsReader::indexExists(Database& database, string_view indexName) {
+    // The schema table answers this with one indexed lookup, and the name is bound
+    // rather than interpolated.
+    Statement indexStatement(
+        database.rawHandle(),
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name=?1",
+        "a check for whether an index exists"
+    );
+    if (!indexStatement.isValid()) {
+        return false;
+    }
+    indexStatement.bindText(1, indexName);
+    return indexStatement.step();
+}
 long long StatisticsReader::exactRowCount(Database& database, string_view tableName) {
     // The table name is interpolated rather than bound because SQLite does not
     // allow a table name to be a bound parameter. The name comes from a constant
