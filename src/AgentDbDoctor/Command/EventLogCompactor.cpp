@@ -120,9 +120,25 @@ EventLogCompactionReport EventLogCompactor::run(
             FILL_KEPT_SESSIONS_QUERY,
             "a record of which sessions are being kept"
         );
-        if (fillingKeptSessions.isValid()) {
+        // The result is checked. When this insert fails silently the keep list is
+        // empty, the deletion predicate matches every redundant row in the table,
+        // and the run would remove far more than the plan it showed the user. That
+        // is exactly the failure this check exists to prevent.
+        bool keepListWasBuilt=fillingKeptSessions.isValid();
+        if (keepListWasBuilt) {
             fillingKeptSessions.bindInteger(1, plan.sessionsToKeep);
-            fillingKeptSessions.run();
+            keepListWasBuilt=fillingKeptSessions.run();
+        }
+        if (!keepListWasBuilt) {
+            reporter.writeFailure(
+                string("The record of which sessions to keep could not be built, so nothing was "
+                    "changed. This is a problem with the tool rather than with your database; "
+                    "please report it."),
+                string()
+            );
+            report.wasRefused=true;
+            report.summarySentence="Nothing was removed, because the keep list could not be built.";
+            return report;
         }
     }
     // The safety copy is made before the question is asked, so the question can
@@ -137,6 +153,7 @@ EventLogCompactionReport EventLogCompactor::run(
             string()
         );
         report.summarySentence="Nothing was removed, because a safety copy could not be made.";
+        report.wasRefused=true;
         return report;
     }
     if (!guard.confirmWithUser("remove " + HumanReadableFormatting::formatCount(plan.doomedRowCount)
@@ -169,6 +186,10 @@ EventLogCompactionReport EventLogCompactor::run(
     // behind: measured on a real database, one run removed a third of the rows it
     // promised because of exactly that.
     vector<long long> lastSeenRowIdentifierPerType(plan.redundantEventTypes.size(), 0);
+    // Set when any removal step fails. Every failure path stops the run and asks
+    // for the safety copy to be put back, because a partial removal the report
+    // cannot account for is worse than no removal at all.
+    bool deletionFailed=false;
     while (true) {
         long long batchRowCount=0;
         // The per type first and last row identifiers of this batch. A zero means
@@ -205,12 +226,25 @@ EventLogCompactionReport EventLogCompactor::run(
                     lastRowForThisType=currentRowIdentifier;
                     rowsForThisType++;
                 }
+                // A step that ended in an error rather than in "no more rows" means
+                // the batch was only partially read. The run stops rather than
+                // acting on a batch it cannot describe, and the copy goes back.
+                const int batchStepResultCode=batchStatement.lastStepResultCode();
+                if (batchStepResultCode!=SQLITE_DONE && batchStepResultCode!=SQLITE_OK) {
+                    deletionFailed=true;
+                    break;
+                }
                 if (rowsForThisType==0) {
                     continue;
                 }
                 batchFirstRowPerType[typeIndex]=firstRowForThisType;
                 batchLastRowPerType[typeIndex]=lastRowForThisType;
                 batchRowCount+=rowsForThisType;
+            }
+            if (deletionFailed) {
+                // The batch could not be read completely, so none of it is removed
+                // and the loop ends after this pass.
+                batchRowCount=0;
             }
         }
         if (batchRowCount==0) {
@@ -241,8 +275,17 @@ EventLogCompactionReport EventLogCompactor::run(
                     if (deletedInBatch>0) {
                         removedRowCount+=deletedInBatch;
                     }
+                } else {
+                    // A refused or failed delete means the batch is not what the plan
+                    // described. The transaction is rolled back below and the run
+                    // stops, so no partial delete is ever committed.
+                    deletionFailed=true;
                 }
             }
+        }
+        if (deletionFailed) {
+            database.execute("ROLLBACK");
+            break;
         }
         database.execute("COMMIT");
         for (size_t typeIndex=0; typeIndex<plan.redundantEventTypes.size(); ++typeIndex) {
@@ -260,28 +303,50 @@ EventLogCompactionReport EventLogCompactor::run(
         }
     }
     progressBar.finish();
+    if (removedRowCount>plan.doomedRowCount) {
+        // The removal count can never exceed the plan. A larger number means the
+        // plan and the deletion disagreed, which must never be reported as success.
+        deletionFailed=true;
+    }
     database.applyPragma("PRAGMA wal_checkpoint(TRUNCATE)");
     report.anythingWasRemoved=removedRowCount>0;
     report.removedRowCount=removedRowCount;
     // The verification is the last line of the safety argument. The sessions
     // sampled before the deletion are read again, and their readable text part
     // counts must not have gone down.
-    const SafetyCheckResult survivalCheck=SafetyChecks::verifySnapshotsSurvivedUnchanged(
-        database,
-        snapshotsBefore
-    );
-    if (!survivalCheck.passed()) {
-        // The tool promised the database would be left exactly as it found it if
-        // anything went wrong, so the safety copy is put back. Restoring is a file
-        // copy, which is why the copy was made in the first place.
-        reporter.writeFailure(
-            survivalCheck.explanation()
-            + "\n\nThe copy made before this run is being put back over the file now, so your "
-            + "database returns to the state it was in before the command ran.",
-            string()
+    SafetyCheckResult survivalCheck(string(
+        "The removal stopped before anything was checked, so the safety copy goes back."
+    ));
+    if (!deletionFailed) {
+        survivalCheck=SafetyChecks::verifySnapshotsSurvivedUnchanged(database, snapshotsBefore);
+    }
+    if (deletionFailed || !survivalCheck.passed()) {
+        // The copy is put back by the caller, not here: the database connection must
+        // be closed before the file can be replaced, and the calling command is the
+        // one that owns the connection. The report carries the copy and the reason,
+        // and the command performs the restore and re-checks the result.
+        if (deletionFailed) {
+            reporter.writeFailure(
+                string("A removal step failed partway through, so the run stopped. The safety copy "
+                    "is being put back, which returns the database to the state it was in before "
+                    "this command ran."),
+                string()
+            );
+        } else {
+            reporter.writeFailure(
+                survivalCheck.explanation()
+                + "\n\nThe safety copy is being put back, which returns the database to the state "
+                "it was in before this command ran.",
+                string()
+            );
+        }
+        report.restoreWasRequested=true;
+        report.safetyCopy=backup;
+        report.wasRefused=true;
+        report.summarySentence=string(
+            "The run stopped and the safety copy is being put back, so your database returns to "
+            "the state it was in before the command ran."
         );
-        report.wasRolledBack=true;
-        report.summarySentence="The change was undone and your database was restored from the safety copy.";
         return report;
     }
     report.reclaimableBytesNow=StatisticsReader::reclaimableBytesFromFreeList(
@@ -293,6 +358,13 @@ EventLogCompactionReport EventLogCompactor::run(
     reporter.writeLine("Sessions checked afterwards: "
         + HumanReadableFormatting::formatCount(report.verifiedSessionCount));
     reporter.writeLine(survivalCheck.explanation());
+    // The safety copy has done its job once the checks pass. Removing it is what
+    // makes the space this run freed real rather than theoretical: a copy of the
+    // file occupies as much space as the file itself.
+    const bool keepTheCopy=guard.shouldKeepBackup();
+    const long long handedBackBytes=guard.removeBackupAfterSuccess(backup);
+    report.safetyCopyBytes=backup.copiedBytes;
+    report.safetyCopyWasRemoved=!keepTheCopy && handedBackBytes>0;
     // The important sentence: compaction frees space inside the file but does not
     // shrink it, which is the fact that surprises people most.
     reporter.writeWarning(
