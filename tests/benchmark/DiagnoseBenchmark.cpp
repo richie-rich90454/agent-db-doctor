@@ -13,6 +13,8 @@
 #include "AgentDbDoctor/Doctor/AgentDatabaseDoctor.hpp"
 // Provides the platform metadata, whose counter is the budget being measured.
 #include "AgentDbDoctor/FileSystem/PlatformMetadata.hpp"
+// Provides the read counters, so the bytes claim is asserted rather than assumed.
+#include "AgentDbDoctor/Persistence/ReadCountingVfs.hpp"
 // Provides the synthetic database builder.
 #include "SyntheticDatabaseBuilder.hpp"
 using namespace std;
@@ -52,6 +54,10 @@ TEST_CASE("a diagnostic pass on a huge database stays inside the call budget", "
     REQUIRE(reportedSize>90000000000LL);
     AgentDatabaseDoctor doctor;
     PlatformMetadata::resetMetadataCallCount();
+    // The bytes read are measured through a wrapper around SQLite's own file layer,
+    // not inferred from the queries. The contract is stated in bytes, so it is
+    // asserted in bytes: fewer than sixty four kilobytes for the whole pass.
+    ReadCountingVfs::resetCounters();
     const long long startNanoseconds=PlatformMetadata::monotonicNanoseconds();
     const DiagnosisReport report=doctor.diagnoseDatabase(databasePath, "OpenCode", false);
     const long long endNanoseconds=PlatformMetadata::monotonicNanoseconds();
@@ -62,6 +68,10 @@ TEST_CASE("a diagnostic pass on a huge database stays inside the call budget", "
     // Fewer than twenty metadata calls, whatever the size of the file. This is the
     // assertion that would fail first if anyone reintroduced a scan.
     REQUIRE(report.getMetadataCallCount()<CALL_BUDGET);
+    // Fewer than sixty four kilobytes read, measured rather than promised. A single
+    // full table scan, which is the failure this tool exists to prevent, would read
+    // gigabytes and be caught right here.
+    REQUIRE(ReadCountingVfs::countedBytes()<65536);
     // Under five hundred milliseconds on a hundred gigabyte database. Reading even
     // one percent of that file would take longer, so the only way to pass is to
     // answer every question from metadata.
