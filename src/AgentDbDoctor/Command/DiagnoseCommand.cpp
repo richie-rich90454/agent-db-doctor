@@ -16,6 +16,8 @@
 #include "AgentDbDoctor/Doctor/SafetyCheckResult.hpp"
 // Provides the read counters, so `--trace-reads` can report what the run read.
 #include "AgentDbDoctor/Persistence/ReadCountingVfs.hpp"
+// Provides the HTML report writer, for `--report`.
+#include "AgentDbDoctor/Presentation/HtmlReportWriter.hpp"
 // Provides the number to text conversions used by the trace line.
 #include "AgentDbDoctor/Presentation/HumanReadableFormatting.hpp"
 using namespace std;
@@ -150,6 +152,9 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     // A folder is counted apart from the two verdicts, because it is neither a
     // database that passed nor a database that failed.
     int folderCount=0;
+    // The reports are kept as well as printed, because `--report` writes them to one
+    // HTML page at the end.
+    vector<DiagnosisReport> collectedReports;
     for (size_t reportIndex=0; reportIndex<databasePaths.size(); ++reportIndex) {
         if (options.verbose) {
             const string agentLabel=reportIndex<agentNames.size() && !agentNames[reportIndex].empty()
@@ -164,6 +169,7 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
             reportIndex<agentNames.size() ? agentNames[reportIndex] : string(),
             options.runIntegrityCheck
         );
+        collectedReports.push_back(report);
         reporter.writeDiagnosisReport(report);
         reporter.writeLine("");
         // A folder of plain text files is not a database and has no integrity to
@@ -200,6 +206,30 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     summary += ".";
     reporter.writeHeading("Summary");
     reporter.writeLine(summary);
+    // The report is written after the summary, so the page holds every database the
+    // run saw. A report that cannot be written is reported and does not change the
+    // diagnostics themselves.
+    if (!options.outputFilePath.empty()) {
+#ifndef AGENT_DB_DOCTOR_VERSION
+#define AGENT_DB_DOCTOR_VERSION "1.0.0"
+#endif
+        const bool reportWasWritten=HtmlReportWriter::write(
+            options.outputFilePath,
+            collectedReports,
+            AGENT_DB_DOCTOR_VERSION
+        );
+        if (reportWasWritten) {
+            if (!reporter.isMachineReadable()) {
+                reporter.writeLine("Wrote the report to " + options.outputFilePath + ".");
+            }
+        } else {
+            reporter.writeFailure(
+                string("The report could not be written to ") + options.outputFilePath
+                + ". The diagnostics above are unaffected.",
+                string()
+            );
+        }
+    }
     if (options.traceReadCounts) {
         if (reporter.isMachineReadable()) {
             reporter.writeReadTraceEvent(
