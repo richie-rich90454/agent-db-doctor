@@ -307,6 +307,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Recovery/RecoveryPlaybook.cpp
     src/AgentDbDoctor/Presentation/ConsoleReport.cpp
     src/AgentDbDoctor/Presentation/HumanReadableFormatting.cpp
+    src/AgentDbDoctor/Presentation/HtmlReportWriter.cpp
     src/AgentDbDoctor/Presentation/ProgressBar.cpp
     src/AgentDbDoctor/Command/DiagnoseCommand.cpp
     src/AgentDbDoctor/Command/DestructiveOperationGuard.cpp
@@ -318,8 +319,15 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Command/BackupsCommand.cpp
     src/AgentDbDoctor/Command/AgentsCommand.cpp
     src/AgentDbDoctor/Command/ExplainSpaceCommand.cpp
+    src/AgentDbDoctor/Command/HistoryCommand.cpp
+    src/AgentDbDoctor/Command/WhyCommand.cpp
+    src/AgentDbDoctor/Command/ExportCommand.cpp
+    src/AgentDbDoctor/Command/SessionsCommand.cpp
+    src/AgentDbDoctor/Command/ReclaimCommand.cpp
+    src/AgentDbDoctor/Command/WatchCommand.cpp
     src/AgentDbDoctor/Service/ServiceConfiguration.cpp
     src/AgentDbDoctor/Service/ServiceManager.cpp
+    src/AgentDbDoctor/Service/HistoryStore.cpp
 )
 # The platform specific translation units are chosen at configure time so that
 # exactly one implementation is compiled into the binary.
