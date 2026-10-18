@@ -138,12 +138,22 @@ void VacuumCommand::resolveInterruptedVacuumSwap(const string& databaseFilePath)
         return;
     }
     std::ifstream intentFile(intentFilePath);
+    if (!intentFile.is_open()) {
+        reporter.writeWarning(
+            string("A journal from a previous vacuum run is at ") + intentFilePath
+            + ", but it could not be read. Look at it yourself before doing anything else."
+        );
+        return;
+    }
     string originalPath;
     string displacedPath;
     string rewrittenPath;
     getline(intentFile, originalPath);
     getline(intentFile, displacedPath);
     getline(intentFile, rewrittenPath);
+    // The stream is closed here rather than at the end of the function, because the
+    // journal is removed below and Windows refuses to delete a file that is open.
+    intentFile.close();
     const bool originalExists=PlatformMetadata::readFileMetadata(databaseFilePath).exists;
     const bool displacedExists=PlatformMetadata::readFileMetadata(displacedPath).exists;
     if (!originalExists && displacedExists) {
@@ -561,6 +571,21 @@ int VacuumCommand::execute(const CommandOptions& options) {
     if (!options.quiet) {
         reporter.writeBanner(commandName(), describe());
         writePurpose(options);
+        if (options.verbose) {
+            // The verbose flag shows the settings the run actually uses, so a user
+            // reading a log can tell what produced the result.
+            reporter.writeDetailLine(
+                string("Safety copy: ")
+                + (options.backupFilePath.empty() ? string("beside the database") : options.backupFilePath)
+                + (options.keepBackup || !options.backupFilePath.empty()
+                    ? ", kept after a successful run"
+                    : ", removed after a successful run")
+            );
+            reporter.writeDetailLine(
+                "The original is moved aside while the new file takes its place. The swap is "
+                "journaled, so an interruption between any two steps is resolved on the next run."
+            );
+        }
     }
     if (options.databaseFilePath.empty()) {
         lastRunOutcome.summarySentence=string(
@@ -572,6 +597,10 @@ int VacuumCommand::execute(const CommandOptions& options) {
         reporter.writeLine("Nothing was changed.");
         return 1;
     }
+    // A previous run may have been interrupted between two renames, and an
+    // interruption between the first two leaves the database path empty. Resolving
+    // that therefore comes before anything checks whether the file is there.
+    resolveInterruptedVacuumSwap(options.databaseFilePath);
     const FileMetadata fileStatus=PlatformMetadata::readFileMetadata(options.databaseFilePath);
     if (!fileStatus.exists) {
         lastRunOutcome.summarySentence=string("There is no file at ")
@@ -610,7 +639,6 @@ int VacuumCommand::execute(const CommandOptions& options) {
     // A previous run may have been interrupted between two renames. Resolving that
     // comes before anything else looks at the file, because the file it would look
     // at might be the wrong one.
-    resolveInterruptedVacuumSwap(options.databaseFilePath);
     try {
         lastRunOutcome=performVacuum(options, options.databaseFilePath);
     } catch (const PragmaException& pragmaFailure) {
