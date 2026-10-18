@@ -96,6 +96,12 @@ public:
     // a deletion can compare against it. Returns `nullopt` when the database has
     // no sessions at all, which is not an error.
     static vector<SessionSnapshot> captureOldestSessions(Database& database, int sessionCountToCapture);
+    // How many of the oldest sessions a destructive run samples before and after its
+    // change. Ten is enough to catch a mistake that affects everything, and small
+    // enough that the check costs nothing. The compaction and the session deletion
+    // share the number so the two can never disagree about how much checking is
+    // enough.
+    static constexpr int SAMPLED_SESSION_COUNT=10;
     // Re-reads the sessions captured before a deletion and confirms that every one
     // of them still holds the same readable content. This is the proof that a
     // compaction did not lose anything, and it is checked after the deletion rather
