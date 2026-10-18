@@ -24,6 +24,11 @@
 #include "AgentDbDoctor/Common/Exceptions.hpp"
 // Provides the number to text conversions used in the log lines.
 #include "AgentDbDoctor/Presentation/HumanReadableFormatting.hpp"
+// Provides the Database wrapper, used to fingerprint each watched database once an
+// hour.
+#include "AgentDbDoctor/Persistence/Database.hpp"
+// Provides the schema fingerprint written for each watched database.
+#include "AgentDbDoctor/Doctor/SchemaFingerprint.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Agents;
@@ -153,6 +158,26 @@ WatchdogRunSummary ServiceManager::runOneWatchdogPass() {
     const long long endNanoseconds=PlatformMetadata::monotonicNanoseconds();
     summary.totalMetadataCallCount=static_cast<int>(PlatformMetadata::metadataCallCount()-callsBeforePass);
     summary.durationNanoseconds=endNanoseconds-startNanoseconds;
+    // The schema fingerprints are refreshed once an hour, after the measured part of
+    // the tick, so the per database cost the contract describes stays exactly one
+    // metadata call. Fingerprinting means opening each database read only for the
+    // length of one small query, which is reported in the documentation rather than
+    // hidden, and it is what lets a later diagnose say that an agent changed its
+    // layout.
+    if (endNanoseconds-lastFingerprintRefreshNanoseconds>=WATCHED_PATHS_REFRESH_NANOSECONDS) {
+        for (const string& currentPath : watchedPaths) {
+            try {
+                Database watchedDatabase(currentPath, Database::OPEN_READ_ONLY);
+                watchedDatabase.setBusyTimeoutMilliseconds(500);
+                const string currentFingerprint=SchemaFingerprint::fingerprintOf(watchedDatabase);
+                SchemaFingerprint::storeFingerprint(currentPath, currentFingerprint);
+            } catch (const DatabaseOpenException&) {
+                // A database that cannot be read gets no fingerprint; the diagnose
+                // command reports the same problem with better words.
+            }
+        }
+        lastFingerprintRefreshNanoseconds=endNanoseconds;
+    }
     return summary;
 }
 void ServiceManager::runWatchdogLoop() {
