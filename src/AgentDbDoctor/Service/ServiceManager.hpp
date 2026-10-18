@@ -144,6 +144,10 @@ private:
     mutable vector<string> cachedDiscoveredPaths;
     // When the cache above was last refreshed, on the monotonic clock.
     mutable long long cachedPathsRefreshedNanoseconds=0;
+    // When the schema fingerprints were last refreshed, on the monotonic clock.
+    // They are refreshed on the same hourly schedule as the path cache, after the
+    // measured part of the tick.
+    mutable long long lastFingerprintRefreshNanoseconds=0;
 };
 }
 #endif
