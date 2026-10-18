@@ -11,6 +11,10 @@
 #include <catch2/catch_test_macros.hpp>
 // Provides the command under test.
 #include "AgentDbDoctor/Command/VacuumCommand.hpp"
+// Provides the command that finds the safety copies.
+#include "AgentDbDoctor/Command/BackupsCommand.hpp"
+// Provides `ofstream`, which writes the interrupted swap journal in the test.
+#include <fstream>
 // Provides the options the command reads.
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
 // Provides the database wrapper, so the test can read the file itself.
@@ -216,5 +220,122 @@ TEST_CASE("the vacuum leaves no half written file behind", "[integration][vacuum
     REQUIRE(integrityCheck.has_value());
     REQUIRE(integrityCheck.value()=="ok");
     std::filesystem::remove(commandOptions.backupFilePath);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("the vacuum removes its safety copy once the file is in place", "[integration][vacuum]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("VacuumRemovesCopy");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=8;
+    options.messageCountPerSession=4;
+    options.redundantCopiesPerMessage=2;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    inflateWithFreePages(databasePath, 400);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    VacuumCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    REQUIRE(command.lastOutcome().wasCompacted);
+    // The copy is gone and the space it held came back, which is what makes the
+    // vacuum actually free the space it reports.
+    REQUIRE(BackupsCommand::findBackupsBeside(databasePath).empty());
+    REQUIRE(command.lastOutcome().keptSafetyCopyBytes==0);
+    REQUIRE(command.lastOutcome().netBytesFreed==command.lastOutcome().bytesReclaimed);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("the vacuum reports the net change when the copy is kept", "[integration][vacuum]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("VacuumNetChange");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=8;
+    options.messageCountPerSession=4;
+    options.redundantCopiesPerMessage=2;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    inflateWithFreePages(databasePath, 400);
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    commandOptions.keepBackup=true;
+    VacuumCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    REQUIRE(command.lastOutcome().wasCompacted);
+    // Keeping the copy means the drive did not get everything back, and the net
+    // number says so rather than letting the reclaimed figure stand alone.
+    REQUIRE(command.lastOutcome().keptSafetyCopyBytes>0);
+    REQUIRE(
+        command.lastOutcome().netBytesFreed
+        == command.lastOutcome().bytesReclaimed-command.lastOutcome().keptSafetyCopyBytes
+    );
+    const vector<BackupFile> backups=BackupsCommand::findBackupsBeside(databasePath);
+    REQUIRE(backups.size()==1);
+    for (const BackupFile& backup : backups) {
+        std::filesystem::remove(backup.filePath);
+    }
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("an interrupted swap is rolled back before the next run", "[integration][vacuum]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("VacuumInterruptedSwap");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=6;
+    options.messageCountPerSession=3;
+    options.redundantCopiesPerMessage=1;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    // The state a power loss between the first two renames leaves: the original has
+    // been moved aside, the new file was never put in place, and the journal that
+    // records the three names is there.
+    const string displacedFilePath=databasePath+".before-vacuum";
+    const string rewrittenFilePath=databasePath+".vacuuming";
+    std::filesystem::rename(databasePath, displacedFilePath);
+    {
+        std::ofstream intentFile(databasePath+".vacuum-swap-intent", std::ios::trunc);
+        intentFile << databasePath << "\n" << displacedFilePath << "\n" << rewrittenFilePath << "\n";
+    }
+    // A dry run is enough: resolving the interruption happens before everything else.
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    commandOptions.dryRunOnly=true;
+    VacuumCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    // The original is back under its own name, with its content intact, and the
+    // journal and the half finished swap are gone.
+    REQUIRE(std::filesystem::exists(databasePath));
+    REQUIRE_FALSE(std::filesystem::exists(displacedFilePath));
+    REQUIRE_FALSE(std::filesystem::exists(databasePath+".vacuum-swap-intent"));
+    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("a swap interrupted after the new file was in place is cleaned up", "[integration][vacuum]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("VacuumInterruptedAfterSwap");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=6;
+    options.messageCountPerSession=3;
+    options.redundantCopiesPerMessage=1;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    // The state a power loss after the new file was in place leaves: the database is
+    // the new file, the old one is still beside it, and the journal is still there.
+    const string displacedFilePath=databasePath+".before-vacuum";
+    std::filesystem::copy_file(databasePath, displacedFilePath);
+    {
+        std::ofstream intentFile(databasePath+".vacuum-swap-intent", std::ios::trunc);
+        intentFile << databasePath << "\n" << displacedFilePath << "\n" << databasePath+".vacuuming" << "\n";
+    }
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    commandOptions.dryRunOnly=true;
+    VacuumCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    REQUIRE(std::filesystem::exists(databasePath));
+    REQUIRE_FALSE(std::filesystem::exists(displacedFilePath));
+    REQUIRE_FALSE(std::filesystem::exists(databasePath+".vacuum-swap-intent"));
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
