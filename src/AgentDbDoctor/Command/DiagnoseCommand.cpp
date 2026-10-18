@@ -14,6 +14,10 @@
 #include "AgentDbDoctor/Doctor/DiagnosisReport.hpp"
 // Provides the SafetyCheckResult value type.
 #include "AgentDbDoctor/Doctor/SafetyCheckResult.hpp"
+// Provides the read counters, so `--trace-reads` can report what the run read.
+#include "AgentDbDoctor/Persistence/ReadCountingVfs.hpp"
+// Provides the number to text conversions used by the trace line.
+#include "AgentDbDoctor/Presentation/HumanReadableFormatting.hpp"
 using namespace std;
 using namespace AgentDbDoctor;
 using namespace AgentDbDoctor::Presentation;
@@ -87,6 +91,11 @@ vector<string> DiagnoseCommand::resolveDatabasePaths(
 }
 int DiagnoseCommand::execute(const CommandOptions& options) {
     resetCounts();
+    if (options.traceReadCounts) {
+        // The counters are reset here so the trace reports this run and not the
+        // process's whole life.
+        ReadCountingVfs::resetCounters();
+    }
     if (!options.quiet) {
         reporter.writeBanner(commandName(), describe());
         writePurpose(options);
@@ -119,6 +128,14 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
             string("Install and use one of the supported agents, then run this command again."),
             string("If you know where the database is, pass it directly: agent-db-doctor diagnose --database /path/to/file")
         });
+        if (options.traceReadCounts) {
+            reporter.writeDetailLine(
+                string("Reads: ") + HumanReadableFormatting::formatCount(ReadCountingVfs::countedBytes())
+                + " bytes in "
+                + HumanReadableFormatting::formatCount(ReadCountingVfs::countedReadCalls())
+                + " read calls, counted through SQLite's own file layer."
+            );
+        }
         return 0;
     }
     // Every report is printed in turn, with a blank line between them so they read
@@ -176,6 +193,14 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     summary += ".";
     reporter.writeHeading("Summary");
     reporter.writeLine(summary);
+    if (options.traceReadCounts) {
+        reporter.writeDetailLine(
+            string("Reads: ") + HumanReadableFormatting::formatCount(ReadCountingVfs::countedBytes())
+            + " bytes in "
+            + HumanReadableFormatting::formatCount(ReadCountingVfs::countedReadCalls())
+            + " read calls, counted through SQLite's own file layer."
+        );
+    }
     // The exit code tells a script whether to stop. Anything that needs a human is a
     // one, which is what makes the command usable from a monitoring script.
     return problemCount>0 ? 1 : 0;
