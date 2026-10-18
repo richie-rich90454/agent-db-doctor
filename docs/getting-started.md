@@ -52,27 +52,49 @@ whole pass reads about 49 kilobytes.
 ### 2. Reclaim
 
 ```bash
+agent-db-doctor reclaim --database ~/.local/share/opencode/opencode.db --target 20GB
+```
+
+The target is how much space you want back, not which operation to run. The command
+works out the cheapest safe sequence — compaction first, because it makes the vacuum
+smaller and faster — shows the plan, asks once, and then runs the compact and vacuum
+commands with the full safety machinery each: a copy before anything changes, a
+typed confirmation once, a check afterwards, and the copy removed again when its
+check passes. It ends by reporting how many bytes the drive actually got back.
+
+The two operations are also available on their own when you want to see each step:
+
+```bash
 agent-db-doctor compact --database ~/.local/share/opencode/opencode.db
 agent-db-doctor vacuum  --database ~/.local/share/opencode/opencode.db
 ```
 
 `compact` is event log compaction: it keeps the newest snapshot of every message
-and removes the older copies, which is where most of the bloat comes from. It makes
-a safety copy first, asks for a typed `yes`, deletes in batches, and re-reads the
-oldest sessions afterwards.
-
-`compact` frees space *inside* the file. `vacuum` is what hands it back to the
+and removes the older copies, which is where most of the bloat comes from.
+`compact` frees space *inside* the file; `vacuum` is what hands it back to the
 drive, by writing a smaller database beside the original, checking it, and swapping
-it in.
+it in. A database that was set up for incremental auto-vacuum takes a cheaper path
+that releases the pages in place; `vacuum --enable-auto-vacuum` is how a database
+is converted, once.
 
 Neither command needs `--yes` when you run it in a terminal: the question is asked
 there, and anything other than exactly `yes` stops.
 
-After a successful run the safety copy is removed again, so the space the run
-reclaimed is real and not cancelled out by a second copy of the file. `--keep-backup`
-keeps it instead, and the report tells you what that costs.
+### 3. Understand it
 
-### 3. Rescue
+```bash
+agent-db-doctor why --database ~/.local/share/opencode/opencode.db
+agent-db-doctor explain-space --database ~/.local/share/opencode/opencode.db --sessions 10
+agent-db-doctor history
+agent-db-doctor watch
+```
+
+`why` ranks the causes of the size and names the one command worth running next.
+`explain-space` divides the file's bytes between tables, indexes, and the largest
+conversations. `history` turns the watchdog's record into a rate and a forecast.
+`watch` is a live table that opens no database at all.
+
+### 4. Rescue
 
 ```bash
 agent-db-doctor rescue --database ~/.local/share/opencode/opencode.db
@@ -82,7 +104,7 @@ The recovery plan names what happened, what is still readable, and what no progr
 can bring back. `--rebuild` builds a working copy holding every row that can still
 be read; the original is never modified.
 
-### 4. Watch
+### 5. Watch
 
 ```bash
 agent-db-doctor service install    # needs administrator rights
@@ -91,9 +113,24 @@ agent-db-doctor service status
 
 The watchdog checks every supported database once an hour, with one metadata call
 per database, and writes one line to its log when one crosses a threshold. Once an
-hour it also records each database's schema layout, so a later diagnose can warn
-when an agent has changed its schema and the tool's knowledge of it may be out of
-date. See [system-service.md](system-service.md).
+hour it also records each database's size, which is what `history` reports, and its
+schema layout, so a later diagnose can warn when an agent has changed its schema and
+the tool's knowledge of it may be out of date. See
+[system-service.md](system-service.md).
+
+## Reading a conversation before deleting it
+
+```bash
+agent-db-doctor sessions --database ~/.local/share/opencode/opencode.db --top 10
+agent-db-doctor export --database ~/.local/share/opencode/opencode.db --session <id> --output session.md
+agent-db-doctor sessions delete --database ~/.local/share/opencode/opencode.db --session <id>
+```
+
+`sessions` ranks the conversations by the payload they store. `export` writes one
+out as Markdown, JSON, or HTML, which is the copy to keep before anything is
+deleted. `delete` removes one conversation with the same copy, typed `yes`, and
+sampled check the other destructive commands use, and refuses on a database whose
+second generation tables are in use.
 
 ## The safety copies
 
