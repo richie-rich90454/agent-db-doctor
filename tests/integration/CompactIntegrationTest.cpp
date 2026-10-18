@@ -16,6 +16,9 @@
 #include "AgentDbDoctor/Command/BackupsCommand.hpp"
 // Provides the survival check the forced-failure test trips.
 #include "AgentDbDoctor/Doctor/SafetyChecks.hpp"
+// Provides the schema detector, so the fixture's generation is asserted rather than
+// assumed.
+#include "AgentDbDoctor/Doctor/SchemaVersionDetector.hpp"
 // Provides the options the command reads.
 #include "AgentDbDoctor/Command/CommandOptions.hpp"
 // Provides the database wrapper, so the test can read the file itself.
@@ -71,6 +74,13 @@ long long countRedundantEventRows(const string& databasePath) {
         }
     }
     return totalRows;
+}
+// Counts the second generation event rows, which no compaction may ever remove.
+long long countSecondGenerationEventRows(const string& databasePath) {
+    Database database(databasePath, Database::OPEN_READ_ONLY);
+    return database.querySingleInteger(
+        "SELECT COUNT(*) FROM event WHERE type>='session.next.' AND type<'session.next/'"
+    ).value_or(-1);
 }
 }
 TEST_CASE("compaction removes duplicates and keeps every word of the conversation", "[integration][compact]") {
@@ -347,5 +357,71 @@ TEST_CASE("compaction puts the safety copy back when the check fails", "[integra
     for (const BackupFile& backup : BackupsCommand::findBackupsBeside(databasePath)) {
         std::filesystem::remove(backup.filePath);
     }
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("a second generation only database has nothing to compact", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactSecondGenerationOnly");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=8;
+    options.messageCountPerSession=4;
+    // No older copies at all, and second generation rows instead: exactly what a
+    // database that has been used since the agent migrated looks like.
+    options.redundantCopiesPerMessage=0;
+    options.secondGenerationRowsPerMessage=2;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    const long long secondGenerationRowsBefore=countSecondGenerationEventRows(databasePath);
+    REQUIRE(secondGenerationRowsBefore>0);
+    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    // The detector names the generation before anything else is decided.
+    {
+        Database database(databasePath, Database::OPEN_READ_ONLY);
+        REQUIRE(SchemaVersionDetector::detect(database)==SchemaGeneration::Version2Only);
+    }
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    CompactCommand command(false);
+    const int exitCode=command.execute(commandOptions);
+    // Nothing needs doing, and that is a success rather than a refusal: the run did
+    // everything the plan described, which was nothing.
+    REQUIRE(exitCode==0);
+    REQUIRE_FALSE(command.lastOutcome().anythingWasRemoved);
+    REQUIRE_FALSE(command.lastOutcome().wasRefused);
+    // The second generation rows are exactly where they were.
+    REQUIRE(countSecondGenerationEventRows(databasePath)==secondGenerationRowsBefore);
+    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
+    // No safety copy was made, because nothing was going to change.
+    REQUIRE(BackupsCommand::findBackupsBeside(databasePath).empty());
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+}
+TEST_CASE("compaction leaves second generation rows alone in a mixed database", "[integration][compact]") {
+    const string databasePath=SyntheticDatabaseBuilder::temporaryDatabasePath("CompactMixedGenerations");
+    SyntheticDatabaseBuilder::Options options;
+    options.sessionCount=10;
+    options.messageCountPerSession=4;
+    options.redundantCopiesPerMessage=3;
+    options.secondGenerationRowsPerMessage=2;
+    SyntheticDatabaseBuilder::removeIfPresent(databasePath);
+    SyntheticDatabaseBuilder::build(databasePath, options);
+    const long long secondGenerationRowsBefore=countSecondGenerationEventRows(databasePath);
+    const long long redundantRowsBefore=countRedundantEventRows(databasePath);
+    const long long readablePartsBefore=countAllReadableTextParts(databasePath);
+    {
+        Database database(databasePath, Database::OPEN_READ_ONLY);
+        REQUIRE(SchemaVersionDetector::detect(database)==SchemaGeneration::Version1And2);
+    }
+    CommandOptions commandOptions;
+    commandOptions.databaseFilePath=databasePath;
+    commandOptions.answerYesToEverything=true;
+    commandOptions.quiet=true;
+    CompactCommand command(false);
+    REQUIRE(command.execute(commandOptions)==0);
+    REQUIRE(command.lastOutcome().removedRowCount>0);
+    // The older first generation copies go, and the second generation rows do not.
+    REQUIRE(countRedundantEventRows(databasePath)<redundantRowsBefore);
+    REQUIRE(countSecondGenerationEventRows(databasePath)==secondGenerationRowsBefore);
+    REQUIRE(countAllReadableTextParts(databasePath)==readablePartsBefore);
     SyntheticDatabaseBuilder::removeIfPresent(databasePath);
 }
