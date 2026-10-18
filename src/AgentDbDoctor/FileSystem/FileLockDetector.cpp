@@ -39,38 +39,50 @@ namespace AgentDbDoctor::FileSystem {
 // The name suffixes SQLite gives the two side files that sit next to a database.
 // They are constants because they must match SQLite's own naming exactly.
 static constexpr const char* WRITE_AHEAD_LOG_SUFFIX="-wal";
+// The shared memory file a write ahead log database keeps its locks in. This is
+// the file a live connection actually holds, which is why it is probed.
+static constexpr const char* SHARED_MEMORY_SUFFIX="-shm";
 // The rollback journal, which exists only when a write was interrupted.
 static constexpr const char* ROLLBACK_JOURNAL_SUFFIX="-journal";
-FileLockStatus FileLockDetector::checkLockStatus(const string& databaseFilePath) {
-    FileLockStatus status;
+// What one probe of one path answered.
+enum class PathAccessAnswer {
+    // The path can be locked exclusively, so nobody else is holding it.
+    Free,
+    // The path does not exist. Nothing can be holding a file that is not there.
+    Missing,
+    // Another program holds the path.
+    InUse,
+    // The question could not be answered, for example because of a permission
+    // problem. The caller treats this like a lock for the database itself and like
+    // a free file for a side file, which is the safe reading on both counts.
+    CannotTell
+};
 #if defined(_WIN32)
-    // `CreateFileW` with a share mode of zero asks for exclusive access. If any
-    // other process has the file open, Windows refuses with
-    // ERROR_SHARING_VIOLATION, and that refusal is the answer.
+// Asks Windows whether `filePath` can be opened with exclusive access. The share
+// mode of zero is what makes any other open handle, whether for reading or for
+// writing, refuse the request.
+static PathAccessAnswer probePathAccess(const string& filePath, int& errorCodeOut) {
     const int wideCharacterCount=MultiByteToWideChar(
         CP_UTF8,
         0,
-        databaseFilePath.c_str(),
-        static_cast<int>(databaseFilePath.size()),
+        filePath.c_str(),
+        static_cast<int>(filePath.size()),
         nullptr,
         0
     );
     if (wideCharacterCount<=0) {
-        status.explanation="The path could not be understood.";
-        return status;
+        errorCodeOut=ERROR_INVALID_NAME;
+        return PathAccessAnswer::CannotTell;
     }
     vector<wchar_t> widePath(static_cast<size_t>(wideCharacterCount) + 1, L'\0');
     MultiByteToWideChar(
         CP_UTF8,
         0,
-        databaseFilePath.c_str(),
-        static_cast<int>(databaseFilePath.size()),
+        filePath.c_str(),
+        static_cast<int>(filePath.size()),
         widePath.data(),
         wideCharacterCount
     );
-    // `GENERIC_READ` with no sharing is the least privilege that still answers
-    // the question. The handle is opened with `FILE_ATTRIBUTE_NORMAL` because
-    // the file may be compressed or sparse and those attributes are harmless.
     const HANDLE fileHandle=CreateFileW(
         widePath.data(),
         GENERIC_READ,
@@ -81,62 +93,43 @@ FileLockStatus FileLockDetector::checkLockStatus(const string& databaseFilePath)
         nullptr
     );
     if (fileHandle==INVALID_HANDLE_VALUE) {
-        const int failureCode=static_cast<int>(GetLastError());
-        status.errorCode=failureCode;
-        status.isLocked=failureCode==ERROR_SHARING_VIOLATION || failureCode==ERROR_LOCK_VIOLATION;
-        if (status.isLocked) {
-            status.explanation="Another program has this database open.";
-        } else if (failureCode==ERROR_FILE_NOT_FOUND) {
-            status.explanation="The database file does not exist at that path.";
-        } else {
-            status.explanation=AgentDbDoctor::Common::OperatingSystemErrorTranslator::explain(failureCode);
+        errorCodeOut=static_cast<int>(GetLastError());
+        if (errorCodeOut==ERROR_FILE_NOT_FOUND || errorCodeOut==ERROR_PATH_NOT_FOUND) {
+            return PathAccessAnswer::Missing;
         }
-        return status;
+        if (errorCodeOut==ERROR_SHARING_VIOLATION || errorCodeOut==ERROR_LOCK_VIOLATION) {
+            return PathAccessAnswer::InUse;
+        }
+        return PathAccessAnswer::CannotTell;
     }
-    // The handle was opened with exclusive access, which proves no other process
-    // has the file open. It must be closed on every path, which is what the
-    // single close call here expresses.
     CloseHandle(fileHandle);
-    status.explanation="No other program has this database open.";
-    return status;
+    return PathAccessAnswer::Free;
+}
 #else
-    // On Unix the only reliable question is whether a conflicting lock can be
-    // taken. SQLite takes its locks with `fcntl` byte range locks, and `fcntl`
-    // locks occupy the same lock space, so asking for a write lock over the whole
-    // file conflicts with any process that has the database open.
-    //
-    // `flock` is deliberately not used. On Linux the `flock` and `fcntl` lock
-    // spaces are independent, so a `flock` test would succeed even while SQLite
-    // held the file, and the tool would happily compact a database the coding agent
-    // was writing to.
-    //
+// Asks the Unix lock manager whether `filePath` can carry a write lock. SQLite's
+// locks live in the same `fcntl` lock space, so a successful request proves that
+// no process, including a write ahead log connection, is holding it.
+static PathAccessAnswer probePathAccess(const string& filePath, int& errorCodeOut) {
     // The descriptor is opened without `O_CREAT`, because this probe must never
     // bring a file into existence.
-    int fileDescriptor=open(databaseFilePath.c_str(), O_RDWR);
+    int fileDescriptor=open(filePath.c_str(), O_RDWR);
     if (fileDescriptor<0 && errno==EACCES) {
         // A read only file cannot take a write lock, so the question is asked with
-        // a read lock instead. That still detects a writer, which is the case that
-        // matters most.
-        fileDescriptor=open(databaseFilePath.c_str(), O_RDONLY);
+        // a read only descriptor instead, which still conflicts with a writer.
+        fileDescriptor=open(filePath.c_str(), O_RDONLY);
     }
     if (fileDescriptor<0) {
-        status.errorCode=errno;
-        status.explanation=errno==ENOENT
-            ? string("The database file does not exist at that path.")
-            : Common::OperatingSystemErrorTranslator::explain(errno);
-        return status;
+        errorCodeOut=errno;
+        return errno==ENOENT ? PathAccessAnswer::Missing : PathAccessAnswer::CannotTell;
     }
-    // `struct flock` describes one byte range lock. A length of zero with
-    // `SEEK_SET` at offset zero means "from the start of the file to its end",
-    // which is what makes the request overlap every lock SQLite could hold.
+    // A length of zero with `SEEK_SET` at offset zero means "from the start of the
+    // file to its end", which overlaps every lock SQLite could hold.
     struct flock lockRequest;
     memset(&lockRequest, 0, sizeof(lockRequest));
     lockRequest.l_type=F_WRLCK;
     lockRequest.l_whence=SEEK_SET;
     lockRequest.l_start=0;
     lockRequest.l_len=0;
-    // `F_SETLK` sets the lock without waiting. `F_SETLKW` would block until the
-    // other process let go, and a tool that blocks is a tool the user has to kill.
     const bool lockAcquired=fcntl(fileDescriptor, F_SETLK, &lockRequest)==0;
     if (lockAcquired) {
         // The lock must be released at once. Leaving it held would make this tool
@@ -149,17 +142,60 @@ FileLockStatus FileLockDetector::checkLockStatus(const string& databaseFilePath)
         releaseRequest.l_start=0;
         releaseRequest.l_len=0;
         fcntl(fileDescriptor, F_SETLK, &releaseRequest);
+        close(fileDescriptor);
+        return PathAccessAnswer::Free;
     }
-    // The descriptor must be closed on every path, which is what the single close
-    // call here expresses.
+    errorCodeOut=errno;
     close(fileDescriptor);
-    status.isLocked=!lockAcquired;
-    status.errorCode=status.isLocked ? errno : 0;
-    status.explanation=status.isLocked
-        ? string("Another program has this database open.")
-        : string("No other program has this database open.");
-    return status;
+    return (errno==EACCES || errno==EAGAIN) ? PathAccessAnswer::InUse : PathAccessAnswer::CannotTell;
+}
 #endif
+FileLockStatus FileLockDetector::checkLockStatus(const string& databaseFilePath) {
+    FileLockStatus status;
+    // Every file a live database may be holding is probed: the database itself and
+    // the side files SQLite keeps beside it. The database is first, because a
+    // missing database is a different answer from a held one.
+    vector<string> pathsToProbe;
+    pathsToProbe.push_back(databaseFilePath);
+    for (const char* sideFileSuffix : {WRITE_AHEAD_LOG_SUFFIX, SHARED_MEMORY_SUFFIX, ROLLBACK_JOURNAL_SUFFIX}) {
+        pathsToProbe.push_back(databaseFilePath + sideFileSuffix);
+    }
+    for (size_t pathIndex=0; pathIndex<pathsToProbe.size(); ++pathIndex) {
+        int probeErrorCode=0;
+        const PathAccessAnswer answer=probePathAccess(pathsToProbe[pathIndex], probeErrorCode);
+        if (answer==PathAccessAnswer::Free) {
+            continue;
+        }
+        if (answer==PathAccessAnswer::Missing) {
+            if (pathIndex==0) {
+                status.errorCode=probeErrorCode;
+                status.explanation="The database file does not exist at that path.";
+                return status;
+            }
+            // A side file that is not there cannot be held by anyone.
+            continue;
+        }
+        if (answer==PathAccessAnswer::InUse) {
+            status.isLocked=true;
+            status.errorCode=probeErrorCode;
+            status.explanation=pathIndex==0
+                ? string("Another program has this database open.")
+                : string("Another program has this database open: it is holding ")
+                    + pathsToProbe[pathIndex] + ".";
+            return status;
+        }
+        // The question could not be answered. For the database itself that is
+        // reported rather than treated as free; for a side file it is ignored,
+        // because the database itself was already proven free.
+        if (pathIndex==0) {
+            status.errorCode=probeErrorCode;
+            status.explanation=Common::OperatingSystemErrorTranslator::explain(probeErrorCode);
+            return status;
+        }
+    }
+    status.errorCode=0;
+    status.explanation="No other program has this database open.";
+    return status;
 }
 void FileLockDetector::inspectCompanionFiles(const string& databaseFilePath, FileLockStatus& status) {
     // The write ahead log and the rollback journal sit next to the database with
