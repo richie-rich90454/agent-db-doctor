@@ -11,6 +11,10 @@
 // glibc declares the same structure under a different name.
 #include <sys/vfs.h>
 #endif
+#if defined(__APPLE__)
+// Provides `clonefile`, which makes one file share another's blocks on APFS.
+#include <sys/clonefile.h>
+#endif
 // Provides `kill`, which asks whether a process is still running.
 #include <signal.h>
 // Provides the size the C library reserves for a host name: `HOST_NAME_MAX` on
@@ -111,6 +115,21 @@ DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
     result.freeBytesTotal=
         static_cast<long long>(fileSystemStatus.f_bfree) * static_cast<long long>(fileSystemStatus.f_bsize);
     return result;
+}
+bool PlatformMetadata::tryCreateCopyOnWriteClone(const string& sourcePath, const string& destinationPath) {
+#if defined(__APPLE__)
+    // `clonefile` is the Apple request that makes the destination share the
+    // source's blocks. APFS supports it; a volume that does not, or a destination
+    // that already exists, answers with an error, and the caller reads that as
+    // "copy the bytes instead".
+    return clonefile(sourcePath.c_str(), destinationPath.c_str(), 0)==0;
+#else
+    // This file is also compiled on Linux by the compile check, where the clone
+    // facility does not exist and there is nothing to imitate.
+    (void)sourcePath;
+    (void)destinationPath;
+    return false;
+#endif
 }
 long long PlatformMetadata::metadataCallCount() {
     return MetadataCallCounter::callCount;
