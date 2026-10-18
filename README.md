@@ -1,8 +1,12 @@
 # agent-db-doctor
 
-<img src="assets/logo.svg" width="128" alt="The agent-db-doctor logo: database rings threaded by a pulse line ending in a spark">
+<img src="assets/logo.svg" width="128" alt="The agent-db-doctor mark: three database rings threaded by a heartbeat line ending in a spark">
 
 **A doctor for AI coding agent databases. Diagnose, compact, and recover.**
+
+[![CI](https://github.com/richie-rich90454/agent-db-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/richie-rich90454/agent-db-doctor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Platforms: Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue)
 
 AI coding agents keep your work in local SQLite databases and JSONL files. They are
 built for streaming, not for keeping: every partial response, every tool call, and
@@ -15,10 +19,74 @@ This tool exists so that the next person does not lose theirs.
 
 ---
 
+## The 90 second version
+
+```bash
+# 1. See what you have. Nothing is changed, and the pass is measured in
+#    milliseconds and kilobytes, not minutes and gigabytes.
+agent-db-doctor look
+
+# 2. See where the bytes actually are, and what can be handed back.
+agent-db-doctor diagnose --database ~/.local/share/opencode/opencode.db --trace-reads
+
+# 3. Remove the redundant snapshots, with a safety copy that is removed again
+#    once the check passes.
+agent-db-doctor compact --database ~/.local/share/opencode/opencode.db
+
+# 4. Hand the space the file only marked as reusable back to the drive.
+agent-db-doctor vacuum --database ~/.local/share/opencode/opencode.db
+```
+
+On a real 10.9 GB OpenCode database, that flow removed **415,856 redundant
+snapshots**, left all **479 sessions untouched and verified**, and handed
+**8.3 GB (76.3%) back to the drive**. The check that follows the deletion re-reads
+the oldest sessions and takes the safety copy back if anything is missing.
+
+---
+
+## What you get
+
+| | |
+|---|---|
+| **A diagnostic pass that reads nothing** | 13 ms on a 100 GB database, 2 file system queries, and fewer than 64 KB read. The byte count is not a promise: it is counted through SQLite's own file layer and asserted by the test suite, and you can see it yourself with `--trace-reads`. |
+| **Event log compaction** | The operation Kafka calls log compaction, for the one agent whose event log layout is documented: keep the newest snapshot of every message, remove the older copies, keep every word of the conversation. |
+| **Vacuuming for every SQLite agent** | Seven agents keep SQLite databases now, and giving unused space back needs no knowledge of a schema, so it is offered for all seven. |
+| **A safety copy that is honest** | Made before anything changes, verified after, and removed again once the check passes so it cannot cancel out the space the run reclaimed. `--keep-backup` keeps it. A failed check puts it back, for real, and re-checks the result. |
+| **A restore drill** | `backups verify` copies a backup to a scratch file, opens it, runs the integrity check, counts its sessions, and removes the scratch file. A copy you cannot restore is not a safety net. |
+| **Machine readable output** | `--machine-readable` turns every report into one JSON object per line: every number the commands carry, typed, with a final exit object. The graphical interface reads the same objects. |
+| **Watchdog monitoring** | A system service (systemd, launchd, or the Windows service manager) that measures every database once an hour with one metadata call each, logs when a threshold is crossed, and remembers each database's schema layout so a diagnose can notice when an agent changes it. |
+
+## What makes it safe
+
+Every destructive operation does the same things, in this order, and a failure at
+any step stops before the next one begins:
+
+1. **Refuses to run** if the message text might live only in the rows it is about
+   to delete, if another process has a change in progress, or if the database is
+   damaged.
+2. **Copies the file**, including the side files, as a file system clone where the
+   platform supports one, and prints where the copy is.
+3. **Asks**, in plain language, and treats anything other than an exact `yes` as no.
+4. **Deletes in batches** inside transactions, checking every batch, so an
+   interruption leaves a consistent database. The test suite kills a compaction
+   partway through and checks exactly that.
+5. **Verifies afterwards** that the oldest sessions still hold their text, and puts
+   the copy back if they do not, then checks the restored database again.
+
+The vacuum is built the same way: a new file is written beside the original, checked
+with SQLite's own integrity check, and only then swapped in. The swap is journaled,
+so a power loss between any two of its steps is detected and resolved on the next
+run. The original is moved aside rather than deleted, and its side files move with
+it.
+
+The full story is in [docs/safety.md](docs/safety.md).
+
+---
+
 ## Installation
 
 ```bash
-# Build from source (the only way to get it today)
+# Today, from source. Package managers are planned.
 git clone https://github.com/richie-rich90454/agent-db-doctor
 cd agent-db-doctor
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -37,220 +105,65 @@ The binary lands at `build/bin/agent-db-doctor`. Put it somewhere on your path.
 | Standard | C++23 |
 | Network | Needed once, at configure time, to fetch the five dependencies |
 
-Everything else is vendored. There is no `boost`, no ORM, and no JSON library.
+Everything else is vendored, and every download is pinned by hash or by commit.
 
 </details>
 
-<details>
-<summary>What has actually been verified, and where</summary>
+## Commands
 
-The table below is what has been built and run, not what the code is intended to do.
+| Command | What it does | Changes your data? |
+|---|---|---|
+| `diagnose`, `look` | Reports size, contents, and health | No |
+| `compact` | Event log compaction: removes redundant snapshots | Yes, after a copy and a confirmation |
+| `vacuum` | Rewrites the database at its smallest useful size | Yes, after a copy and a confirmation |
+| `recover`, `rescue` | Explains what is wrong and what can be fixed | Only with `--rebuild` |
+| `backups` | Lists, verifies, restores, or deletes safety copies | Only `restore` and `delete` |
+| `service` | Installs and controls the background watchdog | No |
+| `agents` | Lists every supported agent and where its data was found | No |
 
-| Platform | Built | Full suite run | Notes |
-|---|---|---|---|
-| Windows 11, GCC 16.2, MinGW | yes | 25 of 25 pass | The reference platform. Every measurement in this file is from here. |
-| Ubuntu 24.04, GCC 13.3 | yes | 25 of 25 pass | A second toolchain, and it caught nine real bugs the Windows build never could. |
-| macOS | sources compile-checked | not run | See below. |
+Every flag is documented in [docs/cli-reference.md](docs/cli-reference.md), and the
+exit codes are part of the contract: `0` for success, `1` for a refusal or a
+problem, `2` for a mistake in the command line.
 
-**The macOS sources are compiled on every Linux build, and linked into nothing.**
-That is deliberate. The macOS implementation is portable POSIX apart from one branch
-naming the modification time field, so it can be compiled anywhere with Berkeley
-headers. Building it as a check caught four mistakes that had been sitting in those
-files for the life of the project: a missing include, a namespace qualification that
-resolved to `AgentDbDoctor::AgentDbDoctor`, and a function defined below its own call
-site. It is the same class of bug the Linux build found, and both went unnoticed
-because neither file had ever been compiled by anything.
-
-What cannot be done from a Windows machine is run the thing on a Mac, and this file
-does not claim otherwise. Two specific things are therefore unverified on macOS:
-that the `launchctl` calls behave as documented, and that the service installs and
-starts under launchd. Everything the tool does without root, which is the whole of
-`diagnose`, `compact`, `vacuum`, and `recover`, uses only `stat`, `statfs`, `clock_gettime`,
-`getpid`, and `getenv`, and that code is compiled and unit-tested on Linux.
-
-</details>
-
----
-
-## Quick start
+## Machine readable output
 
 ```bash
-# 1. See what you have.
-$ agent-db-doctor diagnose
-
-OpenCode database: ~/.local/share/opencode/opencode.db
-Size on disk:          257.7 MB
-Page size:             4,096 bytes
-Pages:                 65,977
-Unused pages inside:   0 (0 bytes)
-How it stores changes: wal - changes are written to a side file first, which is fast
-Integrity:             every page checked out, the database is sound
-  This check took 348 milliseconds and made 2 file system queries.
-
-Summary
-Looked at 2 databases. 2 healthy, 0 need attention.
+agent-db-doctor diagnose --database ~/.local/share/opencode/opencode.db --machine-readable --quiet
 ```
-
-```bash
-# 2. Compact the event log, after copying your database.
-$ agent-db-doctor compact --keep 200
-
-What would be removed
-Redundant snapshots in the event log: 1,200
-Sessions kept untouched:          200 of 412
-A copy of your database was made first
-Nothing has been changed yet. The copy is at:
-  /home/ann/.local/share/opencode/opencode.db.backup-20260930-162913
-
-About to remove 1,200 redundant snapshots from the event log.
-Type yes to go ahead, or anything else to stop: yes
-```
-
-```bash
-# 3. Hand the space back to the drive.
-$ agent-db-doctor vacuum
-
-Size before: 257.7 MB
-Size after:  198.4 MB
-Given back to the drive: 59.3 MB (23.0% of the file)
-```
-
----
-
-## The three emergencies this tool was written for
-
-### 1. "My disk is full and the agent database is enormous"
-
-**Symptom:** the disk is nearly full, and the agent database is the largest thing
-on it.
-
-```bash
-agent-db-doctor diagnose                    # what is it, and how bad
-agent-db-doctor compact --keep 200          # remove the redundant snapshots
-agent-db-doctor vacuum                      # give the space back
-agent-db-doctor service install             # so it never happens unannounced
-```
-
-`compact` alone will not shrink the file. Removing rows marks the space reusable;
-only `vacuum` hands it to the file system. The tool says this after every compact,
-because it is the single most common surprise.
-
-### 2. "The agent will not open and I think I have lost everything"
-
-**Symptom:** the coding agent hangs on launch, or the database will not open.
-
-```bash
-agent-db-doctor recover --database ~/.local/share/opencode/opencode.db
-```
-
-The first thing it prints is *stop using the computer*. That is not a formality: in
-the real case this was written for, the database had already been damaged, and
-every further write to the disk destroyed more of it. The plan that follows names
-what happened, what is still recoverable, and what no program can bring back.
-
-### 3. "I compressed my database to save space and now it is worse"
-
-**Symptom:** the file was compressed, or marked sparse, while the agent had it
-open. The agent now fails to save, and the file will not read.
-
-```bash
-agent-db-doctor recover --database ~/.local/share/opencode/opencode.db
-```
-
-See [Why filesystem compression is dangerous](#why-filesystem-compression-is-dangerous)
-below, and `docs/recovery-playbook.md` for the full story.
-
----
-
-## Why filesystem compression is dangerous
-
-**Compressing a SQLite database does not make it smaller.** SQLite pages have no
-repeated byte patterns for a compressor to find, so the algorithm writes new
-clusters beside the old ones and the file gets *bigger*. The real failure was worse
-than that:
-
-1. A naive prune script deleted 791,846 rows. SQLite does not shrink a file on
-   `DELETE`, so nothing was gained and the user assumed the script had failed.
-2. NTFS `compact` with the default LZNT1 algorithm produced a **1.0:1 ratio**.
-   124 GB in, 124 GB out.
-3. LZX compression would have worked on text, so it was started. It needed more
-   than the 36 GB that remained.
-4. The machine was rebooted mid-write. The compression process was killed.
-5. The file was left with a corrupted Master File Table entry. Explorer reported
-   11 GB. NTFS reported 124 GB allocated. SQLite returned
-   `ERROR_READ_FAULT (266)` on every read.
-6. `chkdsk`, `sqlite3 .recover`, PhotoRec, and filesystem tools all failed. The data
-   blocks had been overwritten by the partial write.
-
-Three weeks of sessions, gone. Not from hardware failure, not from malware, not
-from a mistake in the user's own code. From a database bloat problem that nothing
-warned them about and nothing diagnosed correctly.
-
-**This tool never uses filesystem compression, and the recover command names this
-case explicitly when it sees the signature.**
-
----
-
-## System service
-
-The service is what turns this from a tool you remember into one that notices.
-
-```bash
-agent-db-doctor service install     # needs administrator rights
-agent-db-doctor service status
-```
-
-It checks every supported agent database once an hour and writes one line to its
-log when one crosses a threshold you choose. The check costs **one metadata system
-call per database and reads zero bytes from them**, so it is safe to leave running
-for months.
-
-Configure it in plain text, with no need to rebuild:
 
 ```json
-{
-  "watchedDatabases": [],
-  "warningThresholdBytes": 53687091200,
-  "criticalThresholdBytes": 107374182400,
-  "checkIntervalSeconds": 3600,
-  "allowAutomaticCompaction": false
-}
+{"event":"database","path":"...","agent":"OpenCode","sizeBytes":3045969920,"pageCount":743645,"freePageCount":362934,"reclaimableBytes":1486577664,"journal":"wal","autoVacuum":false,"compactionSupported":true,"schema":"second generation rows only; the older duplicate snapshots are absent","integrity":"not_checked","rows":{"session":{"count":536,"approximate":false}},"warnings":[...],"nextSteps":[...]}
+{"event":"exit","exitCode":0}
 ```
 
-`docs/system-service.md` has the paths on each platform and what every field does.
+One object per line, flushed as it is written, so a script can follow a long
+operation. The full schema is in [docs/json-api.md](docs/json-api.md).
 
 ---
 
-## Graphical interface
+## Supported agents
 
-The same tool with a window. `agent-db-doctor-gui` is built alongside the
-command line program from the same sources, links the same core library, and
-calls the same commands, so the two front ends never disagree about a number.
+Sixty two agents are supported: seven keep SQLite databases and are diagnosed and
+vacuumed, and the rest keep text or configuration and are diagnosed and left alone.
 
-```bash
-cmake --build build
-./build/bin/agent-db-doctor-gui
-```
+| Agent | Database location | What the tool does |
+|---|---|---|
+| OpenCode | `~/.local/share/opencode/opencode.db` | Diagnose, compact the event log, vacuum |
+| Cursor | platform-specific, one SQLite file per workspace | Diagnose and vacuum |
+| VS Code | platform-specific, one `state.vscdb` per workspace | Diagnose and vacuum |
+| Cline | `~/.cline/data/db/sessions.db` | Diagnose and vacuum |
+| Windsurf | platform-specific data dir | Diagnose and vacuum |
+| Zed | platform-specific user data dir | Diagnose and vacuum |
+| Void | platform-specific data dir | Diagnose and vacuum |
+| Codex CLI | `~/.codex/sessions/` (JSONL) | Diagnose only |
 
-The dashboard browses all twenty one agents, shows every database with its
-size, health, schema generation, and duplicate count, and opens the newest
-sessions of each OpenCode database in a sortable table. Selecting a database
-offers its actions: compaction and vacuum run as preview-then-confirm (the
-confirmation demands the typed word `yes`, the same bar as the terminal),
-recover shows its plan before anything is offered, and the service view holds
-the six service actions. Every run shows a live activity bar fed by the same
-progress numbers the console bar draws, driven on a worker thread so the
-interface never stalls.
+The other fifty four, with the path each one uses and what the tool may do to it,
+are in [docs/agents.md](docs/agents.md). `agent-db-doctor agents --verify` prints
+every candidate path on your machine, including the ones that were not found.
 
-The interface follows the system light/dark theme, uses eighteen point system
-type, and needs no installation: the icon travels beside the binary.
-
-To skip it (a server with no display has no use for a window), configure with
-`-DAGENT_DB_DOCTOR_BUILD_GUI=OFF`. The command line program is unaffected
-either way and keeps its exact five dependencies; SDL3, Dear ImGui, and the
-icon decoder belong to the graphical target only.
-
----
+Only OpenCode stores redundant snapshots, so only OpenCode's event log is
+compacted. Every SQLite database can be vacuumed, because giving unused space back
+needs no knowledge of the tables' contents.
 
 ## Performance
 
@@ -263,256 +176,13 @@ quietly arriving in a release.
 | Diagnostic pass, 100 GB database | < 500 ms | **13 ms** | `DiagnoseBenchmark` |
 | Whole `diagnose` command on that file, process start included | < 500 ms | **29 to 41 ms** | measured over 3 runs |
 | File metadata queries per diagnostic pass | < 20 | **2** | `DiagnoseBenchmark` |
-| Bytes read from the database per pass | < 64 KB | **100** | `DiagnoseBenchmark` |
+| Bytes read from the database per pass | < 64 KB | **49 KB measured on a real 2.8 GB database**, counted through SQLite's own file layer | `DiagnoseBenchmark` |
 | Metadata calls per watchdog tick, per database | 1 | **1** | `WatchdogBenchmark` |
 | Memory growth over 1000 idle watchdog ticks | ~0 | **< 1 MB** | `WatchdogBenchmark` |
-| Peak resident memory, whole process, full diagnostic | < 40 MB | **7.1 MB** | measured with the process working set |
-| Startup, command line tool | < 30 ms | **28.3 ms** | average of 5 runs of `--version` |
 | Marginal cost of removing one redundant snapshot | 5.3 us | **8.0 us** Windows, **3.0 us** Linux | `CompactBenchmark` |
 
-Measured on the machine described in `benchmarks/results.md`, with the tool built
-at `-O3` and SQLite compiled with `SQLITE_THREADSAFE=0`. The 100 GB database is a
-real SQLite file grown to that size with a sparse region, so the pass had a genuine
-hundred gigabyte file to answer questions about and could not have read it.
-
-**One measurement is above its target on Windows, and inside it on Linux.** The
-specification's figure of 5.3 microseconds per row would put 1.5 million rows inside
-eight seconds. This build measures about 8 on Windows and about 3 on Linux. It used
-to measure 20: keeping SQLite's scratch structures in memory rather than in temporary
-files, and checkpointing passively instead of blocking on a truncate, moved it to 8.
-The remainder is the operating system rather than the query, because for identical
-SQL a row deletion costs about two and a half times more on Windows, where every
-temporary file and log write passes through antivirus software.
-
-The test prints the rate it measured, and asserts that tripling the work does not
-triple the cost per row. That second assertion is the one that matters: it is a
-ratio of two measurements taken at the same moment, so a busy machine cannot make it
-fail, while a design that had become quadratic could not pass it. See
-`docs/performance.md`.
-
-**The startup figure is a measurement of the whole process, launcher included.**
-`--version` takes 28.3 ms averaged over five runs from a PowerShell shell, which
-includes starting PowerShell's child process. The tool's own work is well under
-half of that. The specification's budget is 30 ms, so this is inside it, but only
-just, and it is worth knowing that most of the figure is not the tool.
-
-**No comparison figures for Rust, Go, or Python equivalents are given here.** No
-such tool was available to measure on the same machine, and inventing numbers for
-a comparison table would be the opposite of what this project is for. When one is
-measured, the table gets a row.
-
----
-
-## Supported agents
-
-| Agent | Database location | What the tool does |
-|---|---|---|
-| OpenCode | `~/.local/share/opencode/opencode.db` | Diagnose, compact the event log, vacuum |
-| Cursor | platform-specific, one SQLite file per workspace | Diagnose and vacuum; its tables are undocumented |
-| VS Code | platform-specific, one `state.vscdb` per workspace | Diagnose and vacuum; editor state, undocumented |
-| Cline | `~/.cline/data/db/sessions.db` | Diagnose and vacuum; its tables are undocumented |
-| Windsurf | platform-specific data dir | Diagnose and vacuum; workspace state, undocumented |
-| Zed | platform-specific user data dir | Diagnose and vacuum; its database is undocumented |
-| Void | platform-specific data dir | Diagnose and vacuum; workspace state, undocumented |
-| Codex CLI | `~/.codex/sessions/` (JSONL) | Diagnose only; no duplicate snapshots |
-| Claude Code | `~/.claude/projects/` (JSONL) | Diagnose only; no duplicate snapshots |
-| Continue | `~/.continue/` | Diagnose only; the index is rebuildable |
-| Aider | `.aider.chat.history.md` | Diagnose only; a transcript is the only copy |
-| Roo Code | `~/.roo/` plus VS Code extension storage | Diagnose only; task state, undocumented |
-| Reasonix | `~/.reasonix/` | Diagnose only; skills and configuration |
-| Gemini CLI | `~/.gemini/` | Diagnose only; session history, 30-day retention |
-| GitHub Copilot | VS Code extension storage | Diagnose only; chat state, undocumented |
-| Warp | platform-specific data dir | Diagnose only; terminal state, undocumented |
-| Kilo Code | `~/.kilo/` plus VS Code extension storage | Diagnose only; task state, undocumented |
-| Augment | VS Code extension storage | Diagnose only; assistant state, undocumented |
-| Trae | platform-specific data dir | Diagnose only; workspace state, undocumented |
-| PearAI | platform-specific data dir | Diagnose only; workspace state, undocumented |
-| Amp | `~/.amp/` | Diagnose only; CLI session state, undocumented |
-| CommandCode | `~/.commandcode/` | Diagnose only; session state, undocumented |
-| Pi | `~/.pi/` | Diagnose only; CLI session state, undocumented |
-| Tabnine | `~/.tabnine/` plus editor storage | Diagnose only; completion state, undocumented |
-| Cody | `~/.cody/` plus editor storage | Diagnose only; chat state, undocumented |
-| Codeium | `~/.codeium/` plus editor storage | Diagnose only; assistant state, undocumented |
-| Supermaven | editor extension storage | Diagnose only; completion state, undocumented |
-| Bito | editor extension storage | Diagnose only; assistant state, undocumented |
-| CodeGPT | editor extension storage | Diagnose only; assistant state, undocumented |
-| Blackbox AI | editor extension storage | Diagnose only; assistant state, undocumented |
-| AskCodi | editor extension storage | Diagnose only; assistant state, undocumented |
-| Phind | editor extension storage | Diagnose only; assistant state, undocumented |
-| IntelliCode | editor extension storage | Diagnose only; completion state, undocumented |
-| Tabby | `~/.tabby/` plus editor storage | Diagnose only; assistant state, undocumented |
-| Pieces | `~/.pieces/` | Diagnose only; snippets and state, undocumented |
-| Amazon Q | `~/.amazonq/` | Diagnose only; CLI session state, undocumented |
-| Junie | `~/.junie/` | Diagnose only; session state, undocumented |
-| Qoder | platform-specific data dir | Diagnose only; workspace state, undocumented |
-| Lingma | `~/.lingma/` | Diagnose only; session state, undocumented |
-| Comate | `~/.comate/` | Diagnose only; session state, undocumented |
-| Droid | `~/.factory/`, `~/.droid/` | Diagnose only; terminal state, undocumented |
-| GitLab Duo | editor extension storage | Diagnose only; assistant state, undocumented |
-| WorkBuddy | `~/.workbuddy/` | Diagnose only; task state, undocumented |
-| Kimi | `~/.kimi/` (`$KIMI_SHARE_DIR` overrides) | Diagnose only; session history, undocumented |
-| Kiro | `~/.kiro/` (`$KIRO_HOME` overrides) | Diagnose only; agents and sessions, undocumented |
-| Qwen Code | `~/.qwen/` | Diagnose only; CLI session state, undocumented |
-| CodeBuddy | `~/.codebuddy/` | Diagnose only; task state, undocumented |
-| MarsCode | `~/.marscode/` | Diagnose only; session state, undocumented |
-| Qodo | `~/.qodo/` | Diagnose only; review state, undocumented |
-| Sourcery | editor extension storage | Diagnose only; review state, undocumented |
-| Snyk | editor extension storage | Diagnose only; scan state, undocumented |
-| SonarQube | editor extension storage | Diagnose only; analysis state, undocumented |
-| AnythingLLM | `~/.anythingllm/` | Diagnose only; chat history, undocumented |
-| GPT4All | platform-specific data dir | Diagnose only; chat history, undocumented |
-| Jan | `~/.jan/` | Diagnose only; chat history, undocumented |
-| LM Studio | `~/.lmstudio/` | Diagnose only; chat history, undocumented |
-| Open WebUI | `~/.open-webui/` | Diagnose only; chat history, undocumented |
-| AIChat | `~/.config/aichat/` | Diagnose only; terminal state, undocumented |
-| gptme | `~/.config/gptme/` | Diagnose only; conversation logs, undocumented |
-| LLM | `~/.llm/` | Diagnose only; logged prompts, undocumented |
-| ShellGPT | `~/.config/shell_gpt/` | Diagnose only; terminal state, undocumented |
-| Raycast | platform-specific data dir | Diagnose only; launcher state, undocumented |
-
-Only OpenCode stores redundant snapshots, so only OpenCode's event log is
-compacted. Every SQLite based storage, which is OpenCode, Cursor, VS Code, Cline,
-Windsurf, Zed, and Void, can be vacuumed, because giving unused space back needs
-no knowledge of the tables' contents. The rest are reported and left alone: a
-plain text transcript is the only copy of that conversation, and deleting
-anything from it would be the tool's decision to make, not yours.
-
-`docs/agent-adapters.md` explains how a new agent is added, which is a small change
-in one place.
-
----
-
-## What this tool does not do
-
-The list is here because knowing where a tool stops is more useful than being
-surprised by it later. Everything below is a deliberate decision, not a gap in the
-work.
-
-**It does not compact any agent except OpenCode.** Compaction removes the older
-copies of messages that an agent leaves behind when a message is edited, and only
-OpenCode produces them. Every other supported agent is diagnosed and left alone,
-except that any SQLite based storage can be vacuumed: removing unused pages needs no
-knowledge of what the tables hold. Their conversation is a plain text transcript or a
-rebuildable index, which is the only copy, so deciding what to delete from it is not
-this tool's call.
-
-**It does not compact, vacuum, or rebuild a folder.** Several agents keep their history
-as text files in a folder. There is no database there to work on, and the tool says so
-in one sentence rather than producing a report full of zeroes or copying the folder
-first. A file that is not a SQLite database is refused the same way, before anything is
-copied and before the file is opened for writing. It used to be handled by attempting
-the work and reporting SQLite's own error, which read as damage.
-
-**It does not walk a directory tree.** Finding databases uses a fixed list of
-candidate paths, one metadata call each. The only exception is one bounded level for
-the two agents whose folders are named after a hash. Scanning a home directory can
-take minutes and says nothing the fixed list would not.
-
-**It does not check every page of a database over two gigabytes.** The check reads
-the whole file, so its cost grows with the size. Above 2 GB the report skips it, says
-plainly that it skipped it, and names the flag that runs it: `--check`. It never
-skips silently.
-
-**It does not report an exact row count for a database that has never been analysed.**
-The count comes from SQLite's own statistics table, which is one indexed read. When
-that table has never been populated the report says the count is unknown rather than
-spending minutes counting rows.
-
-**It does not turn on filesystem compression, and it does not repair its effects.**
-Compressing a live SQLite database is what caused the third emergency this tool was
-written for. See `docs/recovery-playbook.md`.
-
-**It does not install itself silently.** `service install` prints what it will do and
-asks first, and it needs administrator rights, because only an administrator can write
-where a system service definition lives.
-
-**It is built and tested by a continuous integration workflow.** Every change is
-compiled by four toolchains: GCC and Clang on Linux, MSVC on Windows, and
-AppleClang on macOS. The whole test suite runs on each of them, both the command
-line program and the window are started to prove they come up, and each platform
-produces a runnable package. Pushing a tag attaches those packages to the release.
-The workflow is `.github/workflows/ci.yml`.
-
-## Commands and flags
-
-| Command | What it does | Changes your data? |
-|---|---|---|
-| `diagnose` | Reports size, contents, and health | No |
-| `compact` | Compacts the event log: removes redundant message snapshots | Yes, after a copy and a confirmation |
-| `vacuum` | Rewrites the database to its smallest useful size | Yes, after a copy and a confirmation |
-| `recover` | Explains what is wrong and what can be fixed | Only with `--rebuild` |
-| `service` | Installs and controls the background watcher | No |
-
-<details>
-<summary>All flags</summary>
-
-| Flag | Meaning |
-|---|---|
-| `-d, --database PATH` | The file to work on. Leave it out and the tool finds it. |
-| `-a, --agent NAME` | Only look at this coding agent. |
-| `-y, --yes` | Do not ask before changing something. Required with no terminal. |
-| `-n, --dry-run` | Report what would happen and change nothing, on `compact` and `vacuum` alike. |
-| `-q, --quiet` | Print only the lines that matter. |
-| `-v, --verbose` | Write extra detail to the log. |
-| `-k, --keep N` | How many of the most recent sessions to keep when compacting. |
-| `--max-fraction F` | Refuse to compact more than this share of the event table. Default `0.5`. |
-| `--batch-size N` | Rows removed per transaction. Default `10000`. |
-| `--backup-to PATH` | Where to write the safety copy. |
-| `--warning-threshold N` | Size in bytes at which the service mentions a database. |
-| `--interval N` | Seconds between service checks. |
-| `--rebuild` | When recovering, build a working copy of what can still be read. |
-| `--check` | Run the full page by page integrity check. |
-| `--machine-readable` | Print numbers rather than sentences. |
-
-</details>
-
----
-
-## Compacting the event log
-
-**Event log compaction** removes redundant message snapshots from the `event` table
-while leaving every session, message, and file part intact. On a real-world
-database that has been used for weeks, compaction typically reclaims 60–90% of the
-file's original size.
-
-The agent writes a full snapshot of a message into its event log every time the
-message changes and keeps every previous snapshot too, which is why these files
-grow far faster than the conversations in them. Compaction keeps the newest copy
-of every message and removes the older copies, without changing the logical
-content of the log. It is the same operation Kafka calls log compaction.
-
-Three distinct operations are involved, and the tool keeps them separate:
-
-1. **Event log compaction** (`compact`) removes the redundant snapshots. It frees
-   space inside the file but does not shrink the file itself.
-2. **Vacuuming** (`vacuum`) rewrites the file at its smallest useful size, which is
-   what actually hands the space back to the drive.
-3. **Watchdog monitoring** (`service`) notices the growth before it becomes a
-   crisis, with one metadata call per database per hour.
-
-The full workflow is: **diagnose → compact → vacuum → verify**. Every step ends by
-telling you the next one, and `compact --dry-run` and `vacuum --dry-run` report
-exactly what would happen without touching the file.
-
----
-
-## What makes it safe
-
-Every destructive operation does the same five things, in this order, and a
-failure at any step stops before the next one begins:
-
-1. **Refuses to run** if the message text might live only in the rows it is about to
-   delete.
-2. **Copies the file**, including the `-wal` and `-shm` side files, and prints where
-   the copy is.
-3. **Asks**, in plain language, and treats anything other than an exact `yes` as no.
-4. **Deletes in batches** inside transactions, so an interrupted run leaves a
-   consistent database.
-5. **Verifies afterwards** that the oldest sessions still hold the same text, and
-   puts the copy back if they do not.
-
-The tool also refuses to remove more than half the event table without being told
-to, because a number that large usually means a miscount rather than a problem.
+See [benchmarks/results.md](benchmarks/results.md) for the machine and the full
+method.
 
 ---
 
@@ -520,13 +190,47 @@ to, because a number that large usually means a miscount rather than a problem.
 
 | File | What is in it |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | How the code is put together, and why it looks like Java |
-| [docs/performance.md](docs/performance.md) | The performance contract, and how each principle is met |
-| [docs/recovery-playbook.md](docs/recovery-playbook.md) | Every failure pattern the tool recognises, and what to do |
-| [docs/agent-adapters.md](docs/agent-adapters.md) | How each supported agent stores data, and how to add one |
-| [docs/system-service.md](docs/system-service.md) | Installing and configuring the service on each platform |
+| [docs/index.md](docs/index.md) | The documentation home, and where to start |
+| [docs/getting-started.md](docs/getting-started.md) | Install, first run, the four jobs |
+| [docs/cli-reference.md](docs/cli-reference.md) | Every command, every flag, every exit code |
+| [docs/json-api.md](docs/json-api.md) | The machine readable output contract |
+| [docs/safety.md](docs/safety.md) | The guarantees, and how each one is enforced |
+| [docs/agents.md](docs/agents.md) | All sixty two agents, and how to add one |
+| [docs/faq.md](docs/faq.md) | Why not just delete the database, and other questions |
+| [docs/architecture.md](docs/architecture.md) | How the code is put together |
+| [docs/performance.md](docs/performance.md) | The performance contract, principle by principle |
+| [docs/recovery-playbook.md](docs/recovery-playbook.md) | Every failure pattern the tool recognises |
+| [docs/agent-adapters.md](docs/agent-adapters.md) | How each agent stores data, for contributors |
+| [docs/system-service.md](docs/system-service.md) | The watchdog on each platform |
+| [docs/roadmap.md](docs/roadmap.md) | What is planned next |
 | [benchmarks/results.md](benchmarks/results.md) | Measured numbers and the machine they came from |
-| [examples/diagnose-bloated-database.md](examples/diagnose-bloated-database.md) | A worked example, start to finish |
+
+## What this tool does not do
+
+The list is here because knowing where a tool stops is more useful than being
+surprised by it later.
+
+**It does not compact any agent except OpenCode.** Only OpenCode produces redundant
+snapshots, and inventing a deletion rule for another agent's undocumented tables
+would be guessing with someone's history.
+
+**It does not walk a directory tree.** Finding databases uses a fixed list of
+candidate paths, one metadata call each.
+
+**It does not check every page of a database over two gigabytes** unless asked with
+`--check`, and it says so rather than skipping silently.
+
+**It does not report an exact row count for a database that has never been
+analysed.** The count comes from SQLite's statistics table, which is one indexed
+read. When that table has never been populated, the report says the count is
+unknown rather than spending minutes counting rows.
+
+**It does not turn on filesystem compression, and it does not repair its effects.**
+Compressing a live SQLite database is what caused the emergency this tool was
+written for.
+
+**It does not delete a safety copy that a failed run may need**, and it never
+deletes a database file without an explicit confirmation and a copy.
 
 ---
 
@@ -535,15 +239,8 @@ to, because a number that large usually means a miscount rather than a problem.
 See [CONTRIBUTING.md](CONTRIBUTING.md). The one rule that is not negotiable: nothing
 you add may destroy a user's session history without their explicit confirmation.
 
-Every change is built and tested by the workflow in `.github/workflows/ci.yml`.
-The same suites can be run locally with:
-
-```bash
-cmake --build build
-ctest --test-dir build --output-on-failure
-```
-
----
+Every change is built and tested by the workflow in `.github/workflows/ci.yml` with
+GCC and Clang on Linux, MSVC on Windows, and AppleClang on macOS.
 
 ## License
 
