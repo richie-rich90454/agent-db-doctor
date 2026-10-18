@@ -6,6 +6,10 @@
 // the tool needs in one call, with `stat` as the fallback for older kernels.
 #include <cerrno>
 #include <fcntl.h>
+// Provides `FICLONE`, the request that makes one file share another's extents.
+#include <linux/fs.h>
+// Provides `ioctl`, which carries the cloning request to the file system.
+#include <sys/ioctl.h>
 // Provides `struct statx`, the structure the `statx` call fills in.
 #include <linux/stat.h>
 // Provides `statx` itself. On very old C libraries the declaration lives in
@@ -109,6 +113,28 @@ DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
     result.totalBytes=static_cast<long long>(fileSystemStatus.f_blocks) * fragmentSize;
     result.freeBytesTotal=static_cast<long long>(fileSystemStatus.f_bfree) * fragmentSize;
     return result;
+}
+bool PlatformMetadata::tryCreateCopyOnWriteClone(const string& sourcePath, const string& destinationPath) {
+    // `FICLONE` is the Linux request that makes the destination share the source's
+    // extents. btrfs and XFS support it; ext4 and the rest answer with an error,
+    // which the caller reads as "copy the bytes instead".
+    const int sourceDescriptor=open(sourcePath.c_str(), O_RDONLY);
+    if (sourceDescriptor<0) {
+        return false;
+    }
+    const int destinationDescriptor=open(destinationPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (destinationDescriptor<0) {
+        close(sourceDescriptor);
+        return false;
+    }
+    const bool cloneSucceeded=ioctl(destinationDescriptor, FICLONE, sourceDescriptor)==0;
+    close(destinationDescriptor);
+    close(sourceDescriptor);
+    if (!cloneSucceeded) {
+        // The half made destination is removed so the fallback copy starts clean.
+        unlink(destinationPath.c_str());
+    }
+    return cloneSucceeded;
 }
 long long PlatformMetadata::metadataCallCount() {
     return MetadataCallCounter::callCount;
