@@ -18,6 +18,8 @@
 #include "AgentDbDoctor/Doctor/StatisticsReader.hpp"
 // Provides the schema generation detector, which names the layout from its rows.
 #include "AgentDbDoctor/Doctor/SchemaVersionDetector.hpp"
+// Provides the schema fingerprint, which notices when an agent changes its layout.
+#include "AgentDbDoctor/Doctor/SchemaFingerprint.hpp"
 // Provides the Database wrapper and the Statement class.
 #include "AgentDbDoctor/Persistence/Database.hpp"
 // Provides PlatformMetadata, the only place the file system is asked anything.
@@ -199,6 +201,25 @@ void AgentDatabaseDoctor::recordSchemaGeneration(Database& database, DiagnosisRe
     report.setSchemaGenerationDescription(
         SchemaVersionDetector::describe(SchemaVersionDetector::detect(database))
     );
+    // The fingerprint of the schema is compared with what the watchdog wrote the
+    // last time it looked. A difference is reported as a warning rather than as a
+    // failure: the tool still reads the database, but an agent that changed its
+    // layout is the one thing that can make every number below quietly wrong.
+    const string currentFingerprint=SchemaFingerprint::fingerprintOf(database);
+    if (currentFingerprint.empty()) {
+        return;
+    }
+    const optional<string> storedFingerprint=SchemaFingerprint::storedFingerprintFor(
+        report.getDatabaseFilePath()
+    );
+    if (storedFingerprint.has_value() && storedFingerprint.value()!=currentFingerprint) {
+        report.addWarning(
+            "The layout of this database has changed since the background service last looked at "
+            "it. The tool still reads the database, but if the numbers below look wrong, the "
+            "agent has changed its schema and this tool's knowledge of it may be out of date. "
+            "The reference documentation lists the layout for every supported agent."
+        );
+    }
 }
 void AgentDatabaseDoctor::recordRedundantEventCount(Database& database, DiagnosisReport& report) {
     const vector<string> redundantTypes=report.getRedundantEventTypes();
