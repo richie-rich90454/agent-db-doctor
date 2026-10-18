@@ -169,6 +169,35 @@ SafetyCheckResult SafetyChecks::verifyDatabaseIsNotLocked(const string& database
             + "database is exactly as it was."
         );
     }
+#if !defined(_WIN32)
+    // A write ahead log database is built for several connections at once, which is
+    // why the file locks above cannot see every live connection on the Unix family:
+    // an idle connection holds nothing that a probe can conflict with. SQLite can
+    // answer the narrower question that matters before a destructive run, namely
+    // whether another process has a transaction open, and it is asked here.
+    try {
+        Database probeDatabase(databaseFilePath, Database::OPEN_READ_ONLY);
+        probeDatabase.setBusyTimeoutMilliseconds(100);
+        int otherProcessHasTransactionOpen=0;
+        sqlite3_file_control(
+            probeDatabase.rawHandle(),
+            "main",
+            SQLITE_FCNTL_EXTERNAL_READER,
+            &otherProcessHasTransactionOpen
+        );
+        if (otherProcessHasTransactionOpen!=0) {
+            return SafetyCheckResult::failed(
+                string("Another program has a change in progress on this database. Close the "
+                    "coding agent and run the command again. Nothing was changed, and the "
+                    "database is exactly as it was.")
+            );
+        }
+    } catch (const DatabaseOpenException&) {
+        // The file level probe above has already answered for every case it can
+        // see, and a database that cannot be opened read only will be refused by
+        // the command itself with a clearer sentence.
+    }
+#endif
     return SafetyCheckResult(string("No other program has this database open."));
 }
 SafetyCheckResult SafetyChecks::verifySufficientFreeSpaceForBackup(
