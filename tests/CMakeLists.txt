@@ -55,6 +55,7 @@ set(AGENT_DB_DOCTOR_UNIT_TESTS
     unit/TestStatisticsReader.cpp
     unit/TestAgents.cpp
     unit/TestSchemaVersionDetector.cpp
+    unit/TestSchemaFingerprint.cpp
     unit/TestKnownFailurePatterns.cpp
     unit/TestProgressBar.cpp
     unit/TestServiceConfiguration.cpp
