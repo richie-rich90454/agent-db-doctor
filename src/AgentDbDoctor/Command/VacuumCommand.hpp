@@ -43,6 +43,17 @@ struct VacuumOutcome final {
     bool wasRefusedForSpace=false;
     // True when the run stopped because the database could not be read.
     bool wasRefusedForDamage=false;
+    // True when the run stopped because of anything else it refused to do, which
+    // the command line reports as exit code one rather than as success.
+    bool wasRefused=false;
+    // The bytes of the safety copy that were kept rather than removed. A kept copy
+    // is space the drive did not get back, so it is reported beside the reclaimed
+    // bytes instead of hiding inside them.
+    long long keptSafetyCopyBytes=0;
+    // The net change in free space the drive saw, counting the safety copy. This is
+    // the number the user actually cares about: the file shrinking by one gigabyte
+    // while a two gigabyte copy stays behind costs the drive a gigabyte.
+    long long netBytesFreed=0;
 };
 // The VacuumCommand class rebuilds a database at its smallest useful size.
 //
@@ -66,6 +77,10 @@ public:
 private:
     // Runs the whole operation, so that the decision and the act are separate.
     VacuumOutcome performVacuum(const CommandOptions& options, const string& databaseFilePath);
+    // Resolves a swap a previous run left half finished, before this run starts.
+    // A power loss between any two renames is what the journal written just before
+    // them exists for, and this is the other half of that contract.
+    void resolveInterruptedVacuumSwap(const string& databaseFilePath) const;
     // Every line the command prints goes through the reporter, which is the only
     // class in the tool allowed to write to the user's screen.
     ConsoleReport reporter;
