@@ -93,6 +93,15 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     }
     vector<string> agentNames;
     const vector<string> databasePaths=resolveDatabasePaths(options, agentNames);
+    if (options.verbose) {
+        // The verbose flag exists so a user can see the discovery itself, not just
+        // its results: how many paths were found, and which one is being examined
+        // at each step.
+        reporter.writeDetailLine(
+            string("Discovery finished with ") + to_string(databasePaths.size())
+            + " path(s) to look at."
+        );
+    }
     if (databasePaths.empty()) {
         reporter.writeHeading("Nothing was found");
         if (options.agentName.empty()) {
@@ -118,6 +127,14 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
     // database that passed nor a database that failed.
     int folderCount=0;
     for (size_t reportIndex=0; reportIndex<databasePaths.size(); ++reportIndex) {
+        if (options.verbose) {
+            const string agentLabel=reportIndex<agentNames.size() && !agentNames[reportIndex].empty()
+                ? agentNames[reportIndex]
+                : string("an unknown agent");
+            reporter.writeDetailLine(
+                string("Looking at the ") + agentLabel + " data at " + databasePaths[reportIndex]
+            );
+        }
         const DiagnosisReport report=doctor.diagnoseDatabase(
             databasePaths[reportIndex],
             reportIndex<agentNames.size() ? agentNames[reportIndex] : string(),
