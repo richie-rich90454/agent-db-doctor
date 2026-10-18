@@ -334,6 +334,35 @@ optional<AgentDescriptor> AgentRegistry::findAgent(const string& displayName) co
     }
     return nullopt;
 }
+string AgentRegistry::agentNameForPath(const string& filePath) const {
+    // Paths are compared without regard to case on Windows, where the file system
+    // does not care, and exactly everywhere else. The comparison is made on a copy
+    // with the separators normalised, because a path typed with forward slashes on
+    // Windows names the same file as one typed with backslashes.
+    const auto normaliseForComparison=[](const string& text) {
+        string normalisedText=text;
+#if defined(_WIN32)
+        for (char& currentCharacter : normalisedText) {
+            if (currentCharacter=='/') {
+                currentCharacter='\\';
+            }
+            currentCharacter=static_cast<char>(tolower(static_cast<unsigned char>(currentCharacter)));
+        }
+#else
+        (void)text;
+#endif
+        return normalisedText;
+    };
+    const string wantedPath=normaliseForComparison(filePath);
+    for (const AgentDescriptor& currentDescriptor : allAgents()) {
+        for (const string& candidatePath : currentDescriptor.candidatePaths) {
+            if (normaliseForComparison(candidatePath)==wantedPath) {
+                return currentDescriptor.displayName;
+            }
+        }
+    }
+    return string();
+}
 vector<DiscoveredDatabase> AgentRegistry::discoverAllDatabases() const {
     vector<DiscoveredDatabase> discoveredDatabases;
     // The OpenCode database is the common case, and it is found by testing a fixed
