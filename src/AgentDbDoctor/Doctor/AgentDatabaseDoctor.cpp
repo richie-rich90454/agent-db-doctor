@@ -171,6 +171,24 @@ void AgentDatabaseDoctor::recordTableRowCounts(Database& database, DiagnosisRepo
             );
             continue;
         }
+        // Only the session table is small by construction. The message and part
+        // tables hold the conversation and grow with it, so when the statistics
+        // table is missing their counts are reported as unknown rather than read.
+        // The fallback used to run an exact count on both, which meant a single
+        // `diagnose` on a large database read the whole of the two biggest tables
+        // while the performance contract promises a few milliseconds and a few
+        // dozen kilobytes. The rule the event table already followed is simply
+        // applied to the tables that actually hold the text.
+        if (currentTable!=string(TABLE_SESSION)) {
+            report.addWarning(
+                string("The number of rows in the ") + currentTable
+                + " table is not known, because this database has never been analysed and "
+                "counting it exactly would mean reading the whole table. The count appears once "
+                "SQLite has run ANALYZE on the database, which this tool will not do for you. "
+                "Nothing else about the database is affected, and nothing is wrong."
+            );
+            continue;
+        }
         report.setRowCount(currentTable, StatisticsReader::exactRowCount(database, currentTable), false);
     }
 }
@@ -257,6 +275,17 @@ void AgentDatabaseDoctor::recordIntegrityStatus(
         if (reportedProblem) {
             report.setIntegrityStatus(IntegrityStatus::STRUCTURALLY_DAMAGED);
             report.setIntegrityMessage("SQLite reports: " + firstProblemText);
+            return;
+        }
+        // A check that could not be finished is reported as not checked rather than
+        // as intact. The old code treated an error during the check as a pass, which
+        // told a user with a damaged database that every page checked out.
+        const int finalStepResultCode=quickCheckStatement.lastStepResultCode();
+        if (finalStepResultCode!=SQLITE_DONE && finalStepResultCode!=SQLITE_ROW) {
+            report.setIntegrityStatus(IntegrityStatus::NOT_CHECKED);
+            report.setIntegrityMessage(
+                string("The integrity check could not be completed: ") + database.lastErrorMessage()
+            );
             return;
         }
         report.setIntegrityStatus(IntegrityStatus::INTACT);
