@@ -7,6 +7,8 @@
 // Provides `rename` and `remove`, which swap the new file into place and clear away
 // the old one.
 #include <filesystem>
+// Provides `ofstream` and `ifstream`, used by the interrupted swap journal.
+#include <fstream>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, a growable array of values.
@@ -58,6 +60,43 @@ static constexpr const char* VACUUM_INTO_PRAGMA="VACUUM INTO";
 static constexpr const char* REWRITTEN_FILE_SUFFIX=".vacuuming";
 // The quick check pragma, run against the new file before it is swapped in.
 static constexpr const char* QUICK_CHECK_PRAGMA="PRAGMA quick_check";
+// The suffix given to the interrupted swap journal. The file holds the three paths
+// the swap touches, and its presence means a previous run stopped between two
+// renames and must be resolved before another swap starts.
+static constexpr const char* SWAP_INTENT_SUFFIX=".vacuum-swap-intent";
+// The suffix the original is moved to while the new file takes its place.
+static constexpr const char* DISPLACED_FILE_SUFFIX=".before-vacuum";
+// The suffixes SQLite gives the side files that belong to a database. They belong
+// to whichever database file they were created beside, so they travel with the
+// original when it is moved aside, and they are removed with it when it is.
+static constexpr const char* WRITE_AHEAD_LOG_SUFFIX="-wal";
+static constexpr const char* SHARED_MEMORY_SUFFIX="-shm";
+static constexpr const char* ROLLBACK_JOURNAL_SUFFIX="-journal";
+// The three side file suffixes, in the order every loop over them uses.
+static constexpr const char* SIDE_FILE_SUFFIXES[]={
+    WRITE_AHEAD_LOG_SUFFIX, SHARED_MEMORY_SUFFIX, ROLLBACK_JOURNAL_SUFFIX
+};
+// Writes the journal that makes the three renames recoverable. Each path goes on
+// one line, in the order the swap uses them: the database, the name the original is
+// moved to, and the name the new file is built under. Returns false when the
+// journal cannot be written, in which case the run must not start.
+static bool writeSwapIntent(
+    const string& databaseFilePath,
+    const string& displacedFilePath,
+    const string& rewrittenFilePath
+) {
+    std::ofstream intentFile(databaseFilePath + SWAP_INTENT_SUFFIX, std::ios::trunc);
+    if (!intentFile.is_open()) {
+        return false;
+    }
+    intentFile << databaseFilePath << "\n" << displacedFilePath << "\n" << rewrittenFilePath << "\n";
+    return intentFile.good();
+}
+// Removes the journal once the swap has finished or been rolled back.
+static void clearSwapIntent(const string& databaseFilePath) {
+    std::error_code removalError;
+    std::filesystem::remove(databaseFilePath + SWAP_INTENT_SUFFIX, removalError);
+}
 VacuumCommand::VacuumCommand(bool isTerminalAttached)
     : reporter(isTerminalAttached) {
 }
@@ -92,6 +131,60 @@ void VacuumCommand::writePurpose(const CommandOptions& options) const {
     );
     const DiskSpace availableSpace=PlatformMetadata::readDiskSpace(options.databaseFilePath);
     reporter.writeDetailLine("Right now the drive has " + HumanReadableFormatting::formatBytes(availableSpace.availableBytes) + " free.");
+}
+void VacuumCommand::resolveInterruptedVacuumSwap(const string& databaseFilePath) const {
+    const string intentFilePath=databaseFilePath + SWAP_INTENT_SUFFIX;
+    if (!PlatformMetadata::readFileMetadata(intentFilePath).exists) {
+        return;
+    }
+    std::ifstream intentFile(intentFilePath);
+    string originalPath;
+    string displacedPath;
+    string rewrittenPath;
+    getline(intentFile, originalPath);
+    getline(intentFile, displacedPath);
+    getline(intentFile, rewrittenPath);
+    const bool originalExists=PlatformMetadata::readFileMetadata(databaseFilePath).exists;
+    const bool displacedExists=PlatformMetadata::readFileMetadata(displacedPath).exists;
+    if (!originalExists && displacedExists) {
+        // The interruption happened between moving the original aside and putting
+        // the new file in place, so the original goes back where it belongs and the
+        // half installed new file is discarded.
+        std::error_code renameError;
+        std::filesystem::rename(displacedPath, databaseFilePath, renameError);
+        if (!renameError) {
+            reporter.writeDetailLine(
+                "A previous vacuum run was interrupted before the new file was in place, so the "
+                "original file was put back."
+            );
+        }
+    } else if (originalExists && displacedExists) {
+        // The interruption happened after the new file was in place but before the
+        // old one was cleared away. What is left over is the previous database.
+        std::error_code removalError;
+        std::filesystem::remove(displacedPath, removalError);
+        reporter.writeDetailLine(
+            "A previous vacuum run finished but did not clean up after itself; the leftover copy "
+            "of the previous file was removed."
+        );
+    } else if (!originalExists && !displacedExists) {
+        // Neither file is there, which a vacuum must never produce. The journal is
+        // deliberately left in place so the paths stay on record.
+        reporter.writeWarning(
+            string("A previous vacuum run left neither the database nor its moved copy in place.\n\n"
+                "The paths that run recorded were:\n  ") + originalPath + "\n  " + displacedPath
+            + "\n\nLook for the safety copy the tool made before that run, and run the recover "
+              "command before doing anything else."
+        );
+        return;
+    }
+    // Every other case ends with the swap resolved, so the journal and any
+    // intermediate file can go.
+    std::error_code cleanupError;
+    if (!rewrittenPath.empty()) {
+        std::filesystem::remove(rewrittenPath, cleanupError);
+    }
+    std::filesystem::remove(intentFilePath, cleanupError);
 }
 VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const string& databaseFilePath) {
     VacuumOutcome outcome;
@@ -141,6 +234,7 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
             string()
         );
         outcome.wasRefusedForSpace=true;
+        outcome.wasRefused=true;
         outcome.summarySentence="Nothing was changed, because there was not enough free space to do it safely.";
         return outcome;
     }
@@ -149,8 +243,24 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
     // than one an agent might try to open.
     const string rewrittenFilePath=databaseFilePath + REWRITTEN_FILE_SUFFIX;
     {
-        std::error_code ignoredError;
-        std::filesystem::remove(rewrittenFilePath, ignoredError);
+        // A leftover intermediate file from an earlier run is removed first, and the
+        // removal is checked. A stale file that survived would be mistaken for this
+        // run's output below: its size and its integrity check would both pass, and
+        // an out of date copy of the database would be swapped in as though the
+        // vacuum had succeeded.
+        std::error_code staleFileError;
+        std::filesystem::remove(rewrittenFilePath, staleFileError);
+        if (staleFileError) {
+            reporter.writeFailure(
+                string("A file left over from an earlier run is in the way and could not be "
+                    "removed:\n  ") + rewrittenFilePath
+                + "\n\nNothing was changed. Delete that file yourself and run the command again.",
+                string()
+            );
+            outcome.wasRefused=true;
+            outcome.summarySentence="Nothing was changed, because a leftover file from an earlier run could not be removed.";
+            return outcome;
+        }
     }
     // The source connection is opened read only, so the original cannot be changed
     // even in principle. `VACUUM INTO` needs a read connection to work from and a
@@ -183,10 +293,30 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
             string()
         );
         outcome.wasRefusedForDamage=true;
+        outcome.wasRefused=true;
         outcome.summarySentence="Nothing was changed, because the rewrite could not be started.";
         return outcome;
     }
-    vacuumStatement.step();
+    if (!vacuumStatement.run()) {
+        // The rewrite itself failed. Its result is checked because a silent failure
+        // followed by a leftover file would be indistinguishable from success below.
+        const int rewriteResultCode=sourceDatabase.lastResultCode();
+        reporter.writeFailure(
+            string("The rewrite could not be completed, so nothing was changed. This usually means "
+                "the drive ran out of room or the database is damaged. SQLite reported:\n  ")
+            + sourceDatabase.lastErrorMessage() + "\n\nRun the diagnose command, and then the "
+            "recover command, to see what it says.",
+            to_string(rewriteResultCode)
+        );
+        {
+            std::error_code cleanupError;
+            std::filesystem::remove(rewrittenFilePath, cleanupError);
+        }
+        outcome.wasRefused=true;
+        outcome.wasRefusedForDamage=true;
+        outcome.summarySentence="Nothing was changed, because the rewrite could not be completed.";
+        return outcome;
+    }
     endNanoseconds=PlatformMetadata::monotonicNanoseconds();
     const FileMetadata sizeAfter=PlatformMetadata::readFileMetadata(rewrittenFilePath);
     if (sizeAfter.logicalSizeBytes<=0) {
@@ -205,6 +335,7 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
             std::filesystem::remove(rewrittenFilePath, ignoredError);
         }
         outcome.wasRefusedForDamage=true;
+        outcome.wasRefused=true;
         outcome.summarySentence="Nothing was changed, because the rewrite could not be completed.";
         return outcome;
     }
@@ -237,6 +368,7 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
             std::filesystem::remove(rewrittenFilePath, ignoredError);
         }
         outcome.wasRefusedForDamage=true;
+        outcome.wasRefused=true;
         outcome.summarySentence="Nothing was changed, because the rewrite did not pass its own integrity check.";
         return outcome;
     }
@@ -255,6 +387,7 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
             std::filesystem::remove(rewrittenFilePath, ignoredError);
         }
         outcome.wasRefusedForSpace=true;
+        outcome.wasRefused=true;
         outcome.summarySentence="Nothing was changed, because a safety copy could not be made.";
         return outcome;
     }
@@ -269,44 +402,109 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
         outcome.summarySentence="Nothing was changed. Your database is exactly as it was.";
         return outcome;
     }
-    // The swap. The original is renamed rather than deleted, so there is never a
-    // moment when neither file exists. If the rename of the new file into place were
-    // to fail, the original would still be there under its old name.
-    std::error_code ignoredError;
-    const string displacedFilePath=databaseFilePath + ".before-vacuum";
-    std::filesystem::remove(displacedFilePath, ignoredError);
-    std::filesystem::rename(databaseFilePath, displacedFilePath, ignoredError);
-    if (ignoredError) {
-        // The original did not move, so the new file is removed and nothing has
-        // changed. The safety copy is still a valid second copy either way.
-        std::filesystem::remove(rewrittenFilePath, ignoredError);
+    // The swap. It happens in four steps: record the intent, move the original and
+    // its side files aside, move the new file into place, and clear away what was
+    // displaced. The intent journal makes a power loss between any two steps
+    // resolvable on the next run, and the original is renamed rather than deleted,
+    // so there is never a moment when neither file exists.
+    const string displacedFilePath=databaseFilePath + DISPLACED_FILE_SUFFIX;
+    if (!writeSwapIntent(databaseFilePath, displacedFilePath, rewrittenFilePath)) {
+        std::error_code cleanupError;
+        std::filesystem::remove(rewrittenFilePath, cleanupError);
+        reporter.writeFailure(
+            string("The journal that makes an interrupted swap recoverable could not be written "
+                "beside the database, so nothing was changed. This usually means the folder is "
+                "read only or the drive is full."),
+            string()
+        );
+        outcome.wasRefused=true;
+        outcome.summarySentence="Nothing was changed, because the swap could not be made recoverable.";
+        return outcome;
+    }
+    // A leftover displaced file from an interrupted run is removed before the names
+    // are reused, and then the original and its side files move as one group: the
+    // side files belong to the original, and leaving them beside the new file is
+    // the stale pairing that corrupts a database when a log is replayed against a
+    // file it did not come from.
+    std::error_code swapError;
+    std::filesystem::remove(displacedFilePath, swapError);
+    if (!swapError) {
+        std::filesystem::rename(databaseFilePath, displacedFilePath, swapError);
+    }
+    if (!swapError) {
+        for (const char* sideFileSuffix : SIDE_FILE_SUFFIXES) {
+            const string sideFilePath=databaseFilePath + sideFileSuffix;
+            if (!PlatformMetadata::readFileMetadata(sideFilePath).exists) {
+                continue;
+            }
+            std::filesystem::rename(sideFilePath, displacedFilePath + sideFileSuffix, swapError);
+            if (swapError) {
+                break;
+            }
+        }
+    }
+    if (swapError) {
+        // Something did not move. Everything that did move is put back, the journal
+        // is cleared, and nothing has changed.
+        std::error_code rollbackError;
+        for (const char* sideFileSuffix : SIDE_FILE_SUFFIXES) {
+            const string displacedSideFilePath=displacedFilePath + sideFileSuffix;
+            if (PlatformMetadata::readFileMetadata(displacedSideFilePath).exists) {
+                std::filesystem::rename(displacedSideFilePath, databaseFilePath + sideFileSuffix, rollbackError);
+            }
+        }
+        std::filesystem::rename(displacedFilePath, databaseFilePath, rollbackError);
+        std::filesystem::remove(rewrittenFilePath, rollbackError);
+        clearSwapIntent(databaseFilePath);
         reporter.writeFailure(
             string("The original file could not be moved aside, so nothing was changed. This "
                 "usually means the coding agent still has the database open, or the drive is "
                 "read only."),
             string()
         );
+        outcome.wasRefused=true;
         outcome.summarySentence="Nothing was changed, because the original file could not be moved aside.";
         return outcome;
     }
-    std::filesystem::rename(rewrittenFilePath, databaseFilePath, ignoredError);
-    if (ignoredError) {
-        // The new file could not be put in place, so the original is put back. The
-        // database is left exactly as it was found.
+    std::filesystem::rename(rewrittenFilePath, databaseFilePath, swapError);
+    if (swapError) {
+        // The new file could not be put in place, so the original and its side files
+        // are moved back. The database is left exactly as it was found.
         std::error_code rollbackError;
+        for (const char* sideFileSuffix : SIDE_FILE_SUFFIXES) {
+            const string displacedSideFilePath=displacedFilePath + sideFileSuffix;
+            if (PlatformMetadata::readFileMetadata(displacedSideFilePath).exists) {
+                std::filesystem::rename(displacedSideFilePath, databaseFilePath + sideFileSuffix, rollbackError);
+            }
+        }
         std::filesystem::rename(displacedFilePath, databaseFilePath, rollbackError);
+        clearSwapIntent(databaseFilePath);
         reporter.writeFailure(
             string("The smaller file could not be moved into place, so the original was put back. "
                 "Nothing was changed."),
             string()
         );
+        outcome.wasRefused=true;
         outcome.summarySentence="Nothing was changed, because the smaller file could not be moved into place.";
         return outcome;
     }
-    // The displaced file is removed only after the new one is confirmed in place.
-    // The safety copy made above is the copy the user is told about; this one is the
-    // intermediate, and keeping it would waste the space the user just recovered.
-    std::filesystem::remove(displacedFilePath, ignoredError);
+    clearSwapIntent(databaseFilePath);
+    // The displaced file and its side files are removed only after the new one is
+    // confirmed in place. The safety copy made above is the copy the user is told
+    // about; this one is the intermediate, and keeping it would waste the space the
+    // user just recovered. A failure here costs space, not correctness, so it is
+    // reported rather than treated as an error.
+    std::error_code cleanupError;
+    std::filesystem::remove(displacedFilePath, cleanupError);
+    for (const char* sideFileSuffix : SIDE_FILE_SUFFIXES) {
+        std::filesystem::remove(displacedFilePath + sideFileSuffix, cleanupError);
+    }
+    if (cleanupError) {
+        reporter.writeWarning(
+            string("The previous file could not be cleared away completely; remove it yourself to "
+                "get that space back:\n  ") + displacedFilePath
+        );
+    }
     const FileMetadata finalSize=PlatformMetadata::readFileMetadata(databaseFilePath);
     outcome.wasCompacted=true;
     outcome.sizeAfterBytes=finalSize.logicalSizeBytes;
@@ -329,8 +527,33 @@ VacuumOutcome VacuumCommand::performVacuum(const CommandOptions& options, const 
     }
     reporter.writeLine("The rewrite took "
         + HumanReadableFormatting::formatDuration(endNanoseconds - startNanoseconds) + ".");
+    // The safety copy has done its job once the file is in place and checked. A kept
+    // copy is space the drive did not get back, so the net change is reported
+    // explicitly rather than hiding behind the file's new size.
+    const bool keepTheCopy=guard.shouldKeepBackup();
+    guard.removeBackupAfterSuccess(backup);
+    outcome.keptSafetyCopyBytes=keepTheCopy ? backup.copiedBytes : 0;
+    outcome.netBytesFreed=outcome.bytesReclaimed-outcome.keptSafetyCopyBytes;
+    if (keepTheCopy) {
+        const string signedNetChange=outcome.netBytesFreed>=0
+            ? string("+") + HumanReadableFormatting::formatBytes(outcome.netBytesFreed)
+            : string("-") + HumanReadableFormatting::formatBytes(-outcome.netBytesFreed);
+        reporter.writeWarning(
+            string("The safety copy was kept, and it occupies ")
+            + HumanReadableFormatting::formatBytes(backup.copiedBytes)
+            + ".\n\nSo the free space on the drive changed by " + signedNetChange
+            + ": the file shrank by " + HumanReadableFormatting::formatBytes(outcome.bytesReclaimed)
+            + " while the copy holds " + HumanReadableFormatting::formatBytes(backup.copiedBytes)
+            + ".\n\nDelete the copy when you are satisfied with the result, and that space comes "
+              "back too."
+        );
+    }
     outcome.summarySentence=outcome.bytesReclaimed>0
         ? HumanReadableFormatting::formatBytes(outcome.bytesReclaimed) + " was given back to the drive."
+            + (keepTheCopy ? " The safety copy was kept, so the net change is "
+                + HumanReadableFormatting::formatBytes(outcome.netBytesFreed>=0
+                    ? outcome.netBytesFreed
+                    : -outcome.netBytesFreed) + "." : string())
         : string("The file was already as small as it can be, so nothing was freed.");
     return outcome;
 }
@@ -384,6 +607,10 @@ int VacuumCommand::execute(const CommandOptions& options) {
         reporter.writeLine("Nothing was changed.");
         return 1;
     }
+    // A previous run may have been interrupted between two renames. Resolving that
+    // comes before anything else looks at the file, because the file it would look
+    // at might be the wrong one.
+    resolveInterruptedVacuumSwap(options.databaseFilePath);
     try {
         lastRunOutcome=performVacuum(options, options.databaseFilePath);
     } catch (const PragmaException& pragmaFailure) {
@@ -434,11 +661,24 @@ int VacuumCommand::execute(const CommandOptions& options) {
         });
         return 0;
     }
+    if (lastRunOutcome.wasRefused) {
+        // A refusal is not a success, so the caller's shell must be able to see it.
+        reporter.writeLine(lastRunOutcome.summarySentence);
+        return 1;
+    }
     if (lastRunOutcome.wasCompacted) {
-        reporter.writeSuggestedNextSteps(vector<string>{
-            string("Run the diagnose command to see the new size."),
+        vector<string> suggestedSteps;
+        if (lastRunOutcome.keptSafetyCopyBytes>0) {
+            suggestedSteps.push_back(
+                string("Delete the safety copy when you are satisfied with the result: ")
+                + "agent-db-doctor backups delete --database " + options.databaseFilePath
+            );
+        }
+        suggestedSteps.push_back(string("Run the diagnose command to see the new size."));
+        suggestedSteps.push_back(
             string("Run the service install command so unused space is returned automatically next time.")
-        });
+        );
+        reporter.writeSuggestedNextSteps(suggestedSteps);
         return 0;
     }
     reporter.writeLine(lastRunOutcome.summarySentence);
