@@ -91,13 +91,12 @@ bool Statement::step() const {
     }
     // `sqlite3_step` runs the statement until it produces a row, runs out of rows,
     // or fails. `SQLITE_ROW` means a row is available now, `SQLITE_DONE` means
-    // the statement finished normally.
+    // the statement finished normally. The current result code is recorded on every
+    // path, so `lastStepResultCode` answers for the row case too; a caller that
+    // checks the code after a single step would otherwise read a stale value.
     const int stepResult=sqlite3_step(rawStatementHandle);
-    if (stepResult==SQLITE_ROW) {
-        return true;
-    }
     stepFailureCode=stepResult;
-    return false;
+    return stepResult==SQLITE_ROW;
 }
 bool Statement::run() const {
     if (rawStatementHandle==nullptr) {
