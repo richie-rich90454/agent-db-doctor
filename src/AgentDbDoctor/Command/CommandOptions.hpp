@@ -52,6 +52,9 @@ struct CommandOptions final {
     // True when the report should be printed as machine readable text rather than
     // for a person. The shape is documented in the README.
     bool machineReadableOutput=false;
+    // True when the run should also report how many bytes were read from the
+    // databases. The counters are always kept; this only prints them.
+    bool traceReadCounts=false;
     // True when progress lines should be suppressed, for use in a script.
     bool quiet=false;
     // True when extra detail should be written to the log.
