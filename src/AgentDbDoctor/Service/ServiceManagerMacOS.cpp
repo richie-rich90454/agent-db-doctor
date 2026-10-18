@@ -43,6 +43,24 @@ static constexpr const char* LAUNCH_DAEMON_FILE_NAME="com.agentdbdoctor.plist";
 static constexpr const char* LAUNCH_LABEL="com.agentdbdoctor";
 // Where the tool is installed, used when the running image cannot be discovered.
 static constexpr const char* DEFAULT_EXECUTABLE_PATH="/usr/local/bin/agent-db-doctor";
+// Escapes the characters that would end an XML text node. A path or a home
+// directory containing one of them would otherwise inject markup into a property
+// list that launchd loads as root.
+static string escapeForXmlText(const string& text) {
+    string escapedText;
+    escapedText.reserve(text.size());
+    for (const char currentCharacter : text) {
+        switch (currentCharacter) {
+            case '&': escapedText+="&amp;"; break;
+            case '<': escapedText+="&lt;"; break;
+            case '>': escapedText+="&gt;"; break;
+            case '"': escapedText+="&quot;"; break;
+            case '\'': escapedText+="&apos;"; break;
+            default: escapedText.push_back(currentCharacter); break;
+        }
+    }
+    return escapedText;
+}
 string ServiceManager::currentExecutablePath() {
 #if !defined(__APPLE__)
     // The dynamic loader's path query has no counterpart on this platform. This file
@@ -116,7 +134,7 @@ void ServiceManager::writePlatformServiceDefinition() const {
     plistFile << "    <string>" << LAUNCH_LABEL << "</string>\n";
     plistFile << "    <key>ProgramArguments</key>\n";
     plistFile << "    <array>\n";
-    plistFile << "        <string>" << currentExecutablePath() << "</string>\n";
+    plistFile << "        <string>" << escapeForXmlText(currentExecutablePath()) << "</string>\n";
     plistFile << "        <string>service</string>\n";
     plistFile << "        <string>run</string>\n";
     plistFile << "    </array>\n";
@@ -135,9 +153,9 @@ void ServiceManager::writePlatformServiceDefinition() const {
     plistFile << "    <key>Nice</key>\n";
     plistFile << "    <integer>5</integer>\n";
     plistFile << "    <key>StandardOutPath</key>\n";
-    plistFile << "    <string>" << serviceConfiguration.logFilePath << "</string>\n";
+    plistFile << "    <string>" << escapeForXmlText(serviceConfiguration.logFilePath) << "</string>\n";
     plistFile << "    <key>StandardErrorPath</key>\n";
-    plistFile << "    <string>" << serviceConfiguration.logFilePath << "</string>\n";
+    plistFile << "    <string>" << escapeForXmlText(serviceConfiguration.logFilePath) << "</string>\n";
     plistFile << "    <key>EnvironmentVariables</key>\n";
     plistFile << "    <dict>\n";
     // A launch daemon starts with a minimal environment and no home directory, so
@@ -145,7 +163,7 @@ void ServiceManager::writePlatformServiceDefinition() const {
     // of the user who installed it is recorded here, which is the only way a system
     // wide daemon can find a per user database.
     plistFile << "        <key>HOME</key>\n";
-    plistFile << "        <string>" << PlatformMetadata::homeDirectory() << "</string>\n";
+    plistFile << "        <string>" << escapeForXmlText(PlatformMetadata::homeDirectory()) << "</string>\n";
     plistFile << "    </dict>\n";
     plistFile << "</dict>\n";
     plistFile << "</plist>\n";
