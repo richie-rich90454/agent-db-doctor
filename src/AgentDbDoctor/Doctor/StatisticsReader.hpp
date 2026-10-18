@@ -99,6 +99,10 @@ public:
     // True when a column with the given name exists on the given table. Used to
     // check the shape of the schema before a query that depends on it.
     static bool columnExists(Database& database, string_view tableName, string_view columnName);
+    // True when a table or index with the given name exists in the schema. Used by
+    // the space accounting, which reports names without saying which kind each one
+    // is.
+    static bool indexExists(Database& database, string_view indexName);
     // The number of rows in a table, counted exactly.
     //
     // This walks the whole table and is therefore linear in the number of rows.
