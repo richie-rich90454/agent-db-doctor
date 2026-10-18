@@ -682,6 +682,20 @@ int VacuumCommand::execute(const CommandOptions& options) {
         reporter.writeFailure(operationFailure.message(), string());
         return 1;
     }
+    if (options.machineReadableOutput) {
+        // The result object carries the typed numbers behind the sentences, and it
+        // is emitted once the outcome is final, whatever the tail below decides.
+        reporter.writeMachineResult("vacuum", vector<MachineField>{
+            MachineField::boolean("previewOnly", lastRunOutcome.wasPreviewOnly),
+            MachineField::boolean("refused", lastRunOutcome.wasRefused),
+            MachineField::boolean("compacted", lastRunOutcome.wasCompacted),
+            MachineField::number("sizeBeforeBytes", lastRunOutcome.sizeBeforeBytes),
+            MachineField::number("sizeAfterBytes", lastRunOutcome.sizeAfterBytes),
+            MachineField::number("bytesReclaimed", lastRunOutcome.bytesReclaimed),
+            MachineField::number("keptSafetyCopyBytes", lastRunOutcome.keptSafetyCopyBytes),
+            MachineField::number("netBytesFreed", lastRunOutcome.netBytesFreed)
+        });
+    }
     if (lastRunOutcome.wasPreviewOnly) {
         reporter.writeLine(lastRunOutcome.summarySentence);
         reporter.writeSuggestedNextSteps(vector<string>{
