@@ -7,6 +7,12 @@
 #define WIN32_LEAN_AND_MEAN
 // Declares the Win32 file, process, and console functions used below.
 #include <windows.h>
+// Provides `DUPLICATE_EXTENTS_DATA` and `FSCTL_DUPLICATE_EXTENTS_TO_FILE`, the
+// block cloning request behind the copy on write clone. windows.h leaves it out
+// under WIN32_LEAN_AND_MEAN, and it is the whole point of that one function.
+#include <winioctl.h>
+// Provides `memset`, which zeroes the duplication request structure.
+#include <cstring>
 // Provides `string`, which owns and stores a sequence of characters.
 #include <string>
 // Provides `vector`, the growable array used for the wide character path buffer.
@@ -158,6 +164,117 @@ DiskSpace PlatformMetadata::readDiskSpace(const string& pathOnVolume) {
     result.totalBytes=static_cast<long long>(totalBytesOnVolume.QuadPart);
     result.freeBytesTotal=static_cast<long long>(totalFreeBytesOnVolume.QuadPart);
     return result;
+}
+bool PlatformMetadata::tryCreateCopyOnWriteClone(const string& sourcePath, const string& destinationPath) {
+    // `FSCTL_DUPLICATE_EXTENTS_TO_FILE` asks the file system to point the
+    // destination at the source's blocks instead of copying them. It is supported
+    // on ReFS and, since Windows 11, on NTFS; every other file system refuses the
+    // request, and the caller reads the refusal as "copy the bytes instead".
+    const int sourceWideLength=MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        sourcePath.c_str(),
+        static_cast<int>(sourcePath.size()),
+        nullptr,
+        0
+    );
+    const int destinationWideLength=MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        destinationPath.c_str(),
+        static_cast<int>(destinationPath.size()),
+        nullptr,
+        0
+    );
+    if (sourceWideLength<=0 || destinationWideLength<=0) {
+        return false;
+    }
+    vector<wchar_t> wideSourcePath(static_cast<size_t>(sourceWideLength) + 1, L'\0');
+    vector<wchar_t> wideDestinationPath(static_cast<size_t>(destinationWideLength) + 1, L'\0');
+    MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        sourcePath.c_str(),
+        static_cast<int>(sourcePath.size()),
+        wideSourcePath.data(),
+        sourceWideLength
+    );
+    MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        destinationPath.c_str(),
+        static_cast<int>(destinationPath.size()),
+        wideDestinationPath.data(),
+        destinationWideLength
+    );
+    // The source is opened for reading only, with every share flag, because the
+    // coding agent may still hold it open and this probe must never be the thing
+    // that blocks the agent.
+    const HANDLE sourceHandle=CreateFileW(
+        wideSourcePath.data(),
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+    if (sourceHandle==INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    LARGE_INTEGER sourceSize;
+    if (!GetFileSizeEx(sourceHandle, &sourceSize)) {
+        CloseHandle(sourceHandle);
+        return false;
+    }
+    const HANDLE destinationHandle=CreateFileW(
+        wideDestinationPath.data(),
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ,
+        nullptr,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr
+    );
+    if (destinationHandle==INVALID_HANDLE_VALUE) {
+        CloseHandle(sourceHandle);
+        return false;
+    }
+    bool cloneSucceeded=false;
+    if (sourceSize.QuadPart==0) {
+        // An empty file has no extents to duplicate, and the create call above
+        // already produced an empty destination, which is a faithful clone.
+        cloneSucceeded=true;
+    } else if (SetFilePointerEx(destinationHandle, sourceSize, nullptr, FILE_BEGIN)
+        && SetEndOfFile(destinationHandle)) {
+        // The destination is sized first, because the duplication request replaces
+        // a range of the destination rather than extending it.
+        DUPLICATE_EXTENTS_DATA duplicationRequest;
+        memset(&duplicationRequest, 0, sizeof(duplicationRequest));
+        duplicationRequest.FileHandle=sourceHandle;
+        duplicationRequest.SourceFileOffset.QuadPart=0;
+        duplicationRequest.TargetFileOffset.QuadPart=0;
+        duplicationRequest.ByteCount.QuadPart=sourceSize.QuadPart;
+        DWORD bytesReturned=0;
+        cloneSucceeded=DeviceIoControl(
+            destinationHandle,
+            FSCTL_DUPLICATE_EXTENTS_TO_FILE,
+            &duplicationRequest,
+            sizeof(duplicationRequest),
+            nullptr,
+            0,
+            &bytesReturned,
+            nullptr
+        );
+    }
+    CloseHandle(destinationHandle);
+    CloseHandle(sourceHandle);
+    if (!cloneSucceeded) {
+        // A half made destination would be worse than none: the caller falls back
+        // to a plain copy, and a leftover file would make that copy fail.
+        DeleteFileW(wideDestinationPath.data());
+    }
+    return cloneSucceeded;
 }
 long long PlatformMetadata::metadataCallCount() {
     return MetadataCallCounter::callCount;
