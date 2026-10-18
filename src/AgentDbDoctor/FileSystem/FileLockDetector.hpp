@@ -50,11 +50,13 @@ public:
     FileLockDetector()=delete;
     // Checks whether `databaseFilePath` is currently open by another program.
     //
-    // On Windows this is one call that requests exclusive access. On Linux and
-    // macOS it is one open call followed by one `fcntl` request for a write lock
-    // over the whole file, which conflicts with the byte range locks SQLite
-    // itself takes. Either way the answer costs two system calls and reads no
-    // bytes from the database.
+    // The database and each of the side files SQLite may keep beside it are probed,
+    // because a write ahead log database is locked through its `-shm` file rather
+    // than through the database file itself. On Windows each probe asks for
+    // exclusive access, which conflicts with any open handle; on Linux and macOS
+    // each probe tries to take a write lock, which conflicts with the byte range
+    // locks SQLite takes. Either way the answer costs a few system calls and reads
+    // no bytes from the database.
     static FileLockStatus checkLockStatus(const string& databaseFilePath);
     // Checks the side files that belong with a database, and records what was
     // found in `status`. The write ahead log and the rollback journal are named
