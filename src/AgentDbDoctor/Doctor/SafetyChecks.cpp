@@ -337,10 +337,24 @@ vector<SessionSnapshot> SafetyChecks::captureOldestSessions(Database& database, 
     }
     return snapshots;
 }
+bool& SafetyChecks::failSurvivalCheckForTests() {
+    // A function local static rather than a class member, because the class holds
+    // no state by design and this one flag exists only for the tests.
+    static bool forcedFailure=false;
+    return forcedFailure;
+}
 SafetyCheckResult SafetyChecks::verifySnapshotsSurvivedUnchanged(
     Database& database,
     const vector<SessionSnapshot>& snapshotsTakenBefore
 ) {
+    if (failSurvivalCheckForTests() && !snapshotsTakenBefore.empty()) {
+        // The test hook. It reports a lost session so the caller's restore path can
+        // be exercised exactly as a real failure would exercise it.
+        return SafetyCheckResult::failed(
+            string("Session ") + snapshotsTakenBefore.front().sessionIdentifier
+            + " lost readable text parts. This failure was forced by the test suite."
+        );
+    }
     if (snapshotsTakenBefore.empty()) {
         return SafetyCheckResult(string(
             "There were no sessions to compare, so there was nothing that could have been lost."
@@ -360,8 +374,7 @@ SafetyCheckResult SafetyChecks::verifySnapshotsSurvivedUnchanged(
                 + to_string(snapshotBefore.readableTextPartCount)
                 + " readable text parts before the change and has "
                 + to_string(readableTextPartCountNow)
-                + " now. The change was rolled back and the database was restored from the safety "
-                + "copy. Nothing has been lost."
+                + " now."
             );
         }
     }
