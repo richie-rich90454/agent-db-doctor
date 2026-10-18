@@ -14,6 +14,49 @@ gave 76% of its file back to the drive).
 
 ### Added
 
+**The insight commands.** `why` ranks the causes of one database's size and ends
+with the one command worth running next. `explain-space` divides the file's bytes
+between tables and indexes from SQLite's own page accounting — which needed
+`SQLITE_ENABLE_DBSTAT_VTAB` — and, with `--sessions`, ranks the conversations by
+the payload they store. `history` reports the growth the watchdog has recorded and
+forecasts when the drive would fill at that rate; the record is one line per changed
+database per hour, pruned to ninety days.
+
+**The rescue commands.** `export` writes one session out as Markdown, JSON, or
+HTML, so a conversation can be kept before anything is deleted or rebuilt.
+`sessions` lists the largest conversations and `sessions delete` removes one with
+the same copy, typed `yes`, and sampled check every destructive command uses, and
+refuses on a database whose second generation tables are in use because their
+layout is not documented.
+
+**The reclaim target.** `reclaim --target 20GB` works out the cheapest safe
+sequence — compaction first, because it makes the vacuum smaller — prints the plan,
+asks once, and then runs the compact and the vacuum commands with their own copies,
+checks, and restores. It reports the bytes the drive actually got back and whether
+the target was met.
+
+**The live view.** `watch` renders a table of every database sorted by size, with
+the growth between refreshes, from file metadata alone: no database is opened.
+`--once` and `--machine-readable` render one snapshot for a script.
+
+**An in-place vacuum.** A database set up for incremental auto-vacuum hands its
+unused pages back with SQLite's own `PRAGMA incremental_vacuum`: no second file, no
+free space needed, and a quick check afterwards that puts the safety copy back if it
+fails. `vacuum --enable-auto-vacuum` converts a database during an ordinary rewrite,
+so one expensive pass buys cheap reclaims from then on.
+
+**An HTML report.** `diagnose --report report.html` writes one standalone page with
+every number, warning, and next step, escaped and ready to attach to an issue.
+
+### Fixed
+
+**The most recent step result is now recorded for rows as well as for finishes.**
+`Statement::step` reported the result of the last step that was not a row, so a
+caller asking for the code after a single row read a stale value; that is what made
+the new in-place vacuum report a perfectly sound database as failing its check.
+
+### Added (the machine readable work)
+
 **Machine readable output.** `--machine-readable` turns every report into one JSON
 object per line, flushed as it is written: the diagnostic report with every number
 typed, a progress object per percent, a typed result object per command, a plan
