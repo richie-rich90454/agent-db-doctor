@@ -40,6 +40,34 @@ struct ServiceStatusSnapshot final {
     // databases".
     string stateDescription;
 };
+// The MachineField value type is one named value inside a machine readable result.
+//
+// A field knows whether it is a number, a boolean, or text, so a script receives
+// `"rowsRemoved":1200` rather than `"rowsRemoved":"1200"` and never has to guess.
+struct MachineField final {
+    // Which kind of value this field holds.
+    enum class Kind {
+        Text,
+        Number,
+        Boolean
+    };
+    // The field name, for example `rowsRemoved`.
+    string name;
+    // The value when the kind is text.
+    string textValue;
+    // The value when the kind is number.
+    long long numberValue=0;
+    // The value when the kind is boolean.
+    bool booleanValue=false;
+    // Which of the three value slots above is in use.
+    Kind kind=Kind::Text;
+    // Builds a text field.
+    static MachineField text(const string& fieldName, const string& value);
+    // Builds a number field.
+    static MachineField number(const string& fieldName, long long value);
+    // Builds a boolean field.
+    static MachineField boolean(const string& fieldName, bool value);
+};
 // The ConsoleReport class prints every message the tool produces on a normal run.
 //
 // The class is `final` because the specification forbids inheritance. It holds the
@@ -51,6 +79,33 @@ public:
     // platform whether standard output is a terminal. When it is false, no escape
     // sequence is ever written, so the output is safe to pipe into a file.
     explicit ConsoleReport(bool isTerminalAttached);
+    // Turns on machine readable output: every report becomes one JSON object per
+    // line instead of prose. Used by the `--machine-readable` flag, and the same
+    // objects are what the graphical interface reads.
+    void enableMachineReadableOutput();
+    // Turns machine readable output on for every reporter this process creates from
+    // now on. The command line is one process with one output mode, and every
+    // command builds its own reporter, so the mode is process wide rather than per
+    // instance.
+    static void setMachineReadableForProcess(bool enabled);
+    // True when machine readable output is on.
+    bool isMachineReadable() const;
+    // Writes one result object for a command that has finished, carrying the typed
+    // numbers a script cares about.
+    void writeMachineResult(const string& commandName, const vector<MachineField>& fields) const;
+    // Writes one progress object. The command line installs a sink that calls this
+    // when machine readable output is on, so a script can follow a long run.
+    void writeProgressEvent(
+        const string& taskDescription,
+        long long completedUnits,
+        long long totalUnits,
+        bool isFinished
+    ) const;
+    // Writes the object every machine readable run ends with, so a script knows the
+    // run is over even when it read nothing else.
+    void writeExitEvent(int exitCode) const;
+    // Writes how many bytes and read calls the run made, for `diagnose --trace-reads`.
+    void writeReadTraceEvent(long long readBytes, long long readCalls) const;
     // Writes the two line banner that starts every command's output.
     void writeBanner(const string& commandName, const string& oneLinePurpose) const;
     // Writes a heading, underlined when the output is a terminal.
@@ -91,6 +146,15 @@ public:
     static string separatorLine();
 private:
     bool terminalIsAttached=false;
+    // True when every report is written as one JSON object per line.
+    bool machineReadable=false;
+    // Writes one complete JSON object followed by a newline, and flushes so a
+    // script reading the pipe sees each object as it happens.
+    void writeJsonLine(const string& jsonText) const;
+    // Escapes the characters JSON requires to be escaped. Written by hand because
+    // the project has no JSON library and this is the whole of what one is needed
+    // for.
+    static string escapeForJson(const string& text);
 };
 }
 #endif
