@@ -58,6 +58,10 @@ set(AGENT_DB_DOCTOR_SQLITE_URL
 # `FetchContent_Populate` call.
 FetchContent_Declare(sqlite3_amalgamation
     URL "${AGENT_DB_DOCTOR_SQLITE_URL}"
+    # The archive is pinned by hash as well as by URL. A download that does not match
+    # is treated as a failure rather than compiled, because a replaced archive is
+    # exactly the supply chain problem this line exists to stop.
+    URL_HASH "SHA256=1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032"
     SOURCE_SUBDIR "agent-db-doctor-does-not-build-sqlite-with-cmake"
 )
 FetchContent_MakeAvailable(sqlite3_amalgamation)
@@ -113,7 +117,9 @@ set(CLI11_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(CLI11_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(CLI11
     GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-    GIT_TAG v2.5.0
+    # Pinned to the commit behind v2.5.0 rather than the tag. A tag can be moved,
+    # and what gets compiled must not be able to change underneath a build.
+    GIT_TAG 4160d259d961cd393fd8d67590a8c7d210207348
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(CLI11)
@@ -125,7 +131,8 @@ set(FMT_TEST OFF CACHE BOOL "" FORCE)
 set(FMT_DOC OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(fmt
     GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 11.1.4
+    # Pinned to the commit behind 11.1.4; see the note above.
+    GIT_TAG 123913715afeb8a437e6388b4473fcc4753e1c9a
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(fmt)
@@ -143,7 +150,8 @@ set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(SPDLOG_USE_STD_FORMAT OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.15.3
+    # Pinned to the commit behind v1.15.3; see the note above.
+    GIT_TAG 6fa36017cfd5731d617e1a934f0e5ea9c4445b13
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(spdlog)
@@ -155,7 +163,8 @@ if(AGENT_DB_DOCTOR_BUILD_TESTS)
     set(CATCH_INSTALL_EXTRAS OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG v3.8.1
+        # Pinned to the commit behind v3.8.1; see the note above.
+        GIT_TAG 2b60af89e23d28eefc081bc930831ee9d45ea58b
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(Catch2)
@@ -432,6 +441,9 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
     set(SDL_TESTS OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(SDL3
         URL "https://github.com/libsdl-org/SDL/releases/download/release-3.4.16/SDL3-3.4.16.tar.gz"
+        # Pinned by hash as well as by URL, for the reason given at the SQLite
+        # declaration above.
+        URL_HASH "SHA256=7322236cd12090c3eb40b9728be4d49c76f66ad17d04369584d4ecad5cf77c68"
     )
     FetchContent_MakeAvailable(SDL3)
     # Dear ImGui ships no CMakeLists, so its sources are compiled directly. The
@@ -440,7 +452,8 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
     # everywhere.
     FetchContent_Declare(imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
-        GIT_TAG v1.92.2
+        # Pinned to the commit behind v1.92.2; see the note at the CLI11 declaration.
+        GIT_TAG 2b24f5fa71d124de108da54d9da49ea3049dc91e
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(imgui)
@@ -463,10 +476,14 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
         target_compile_options(imgui_lib PRIVATE -w)
     endif()
     # `stb_image` decodes the window icon PNG. It is one public domain header
-    # compiled once, GUI only, and never near the core library.
+    # compiled once, GUI only, and never near the core library. The header is
+    # fetched at a pinned commit rather than from the moving branch head, and the
+    # result is checked against a hash, so what is compiled cannot change silently.
     file(DOWNLOAD
-        "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h"
+        "https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h"
         "${CMAKE_CURRENT_BINARY_DIR}/stb_image.h"
+        EXPECTED_HASH "SHA256=594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3"
+        TLS_VERIFY ON
     )
     add_library(stb_image STATIC gui/StbImage.c)
     target_include_directories(stb_image SYSTEM PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
