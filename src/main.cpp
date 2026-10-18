@@ -140,6 +140,11 @@ int main(int argumentCount, char** argumentValues) {
         options.runIntegrityCheck,
         "Run the full page by page integrity check. Slower, and it reads the whole file."
     );
+    diagnoseSubcommand->add_flag(
+        "--trace-reads",
+        options.traceReadCounts,
+        "Also report how many bytes were read, counted through a wrapper around SQLite's own file layer."
+    );
     CLI::App* compactSubcommand=application.add_subcommand(
         "compact",
         "Compact the event log: keep the newest snapshot of every message and remove the older "
