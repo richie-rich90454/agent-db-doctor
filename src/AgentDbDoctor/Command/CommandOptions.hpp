@@ -58,6 +58,26 @@ struct CommandOptions final {
     // True when `agents` should also show the candidate paths that were looked at,
     // which is where each agent's data is expected and what was not found.
     bool verifyAgentPaths=false;
+    // How many of the largest sessions `explain-space` should rank. Zero means the
+    // ranking was not asked for, which is the default because measuring it reads the
+    // stored payload.
+    int sessionsToRank=0;
+    // How many days of growth history a report should cover. Zero means the default.
+    int historyDaysToShow=0;
+    // The output format for sessions being exported: markdown, json, or html.
+    string exportFormat="markdown";
+    // The session to export, or to delete. The empty string means all of them for an
+    // export and nothing at all for a deletion, which is refused.
+    string sessionIdentifier;
+    // Where an export or an HTML report is written. A single dash means standard
+    // output.
+    string outputFilePath;
+    // The target of a reclaim run, for example 20GB. The empty string means no
+    // target was given.
+    string reclaimTarget;
+    // True when a vacuum should convert the database to incremental auto-vacuum, so
+    // that later reclaims are cheap, at the cost of one full rewrite now.
+    bool enableIncrementalAutoVacuum=false;
     // True when progress lines should be suppressed, for use in a script.
     bool quiet=false;
     // True when extra detail should be written to the log.
