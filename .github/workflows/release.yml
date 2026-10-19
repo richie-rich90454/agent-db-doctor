@@ -1,0 +1,291 @@
+# The release workflow.
+#
+# Two ways in, and they differ in one thing only: whether the packages are
+# attached to a release.
+#
+# - A release being created for a tag starts this workflow. It builds the three
+#   platform packages, runs every test suite, attaches the packages to that
+#   release, and signs them with cosign.
+# - A manual run from the Actions page builds the same packages with the same
+#   tests and leaves them as run artifacts. It never touches a release, and it
+#   needs no release to exist, so it is the way to produce the packages before
+#   the release is written.
+#
+# The asset names are the ones the packaging templates promise:
+# `agent-db-doctor-<version>-windows-x86_64.zip` for the winget manifests, and
+# the macOS arm64 and Linux x86_64 tarballs for the Homebrew formula, so the
+# release this workflow produces is what those two generators expect to find.
+name: Release
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A release build is never cancelled by a later trigger: half a release is worse
+# than a slow one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The tag has to name the version the sources declare. Without this check a
+  # release could be created for a tag that does not match the tree it is built
+  # from, and the packages attached to it would carry a version the project does
+  # not have. A manual run skips the comparison and only reports the version.
+  version:
+    name: Check the tag against the project version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Compare the tag with the version in CMakeLists.txt
+        run: |
+          version=$(grep -m1 -oE '^    VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "The sources declare version ${version}." >> "$GITHUB_STEP_SUMMARY"
+          if [ "${GITHUB_EVENT_NAME}" = "release" ] && [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "The release tag ${GITHUB_REF_NAME} does not match the project version v${version}." >&2
+            exit 1
+          fi
+
+  linux:
+    name: Linux (x86_64)
+    needs: version
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    # The write permission is used by one step, the attach below, and only when a
+    # release started this run.
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Report the compiler version
+        run: |
+          echo "agent-db-doctor compiler: $(g++ --version | head -n 1)" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Install the build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build xauth xvfb \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+            libxi-dev libxss-dev libgl1-mesa-dev libdbus-1-dev libwayland-dev \
+            libxkbcommon-dev libegl1-mesa-dev libxtst-dev libxinerama-dev
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DAGENT_DB_DOCTOR_ENABLE_WERROR=ON
+      - name: Build
+        run: cmake --build build
+      - name: Run the test suites
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the command line program runs
+        run: ./build/bin/agent-db-doctor --version
+      - name: Check the window comes up
+        run: xvfb-run -a ./build/bin/agent-db-doctor-gui --smoke-test
+      - name: Build the package
+        run: |
+          version=$(grep -m1 -oE '^    VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          packageName="agent-db-doctor-${version}-linux-x86_64-gcc"
+          mkdir -p "dist/${packageName}"
+          cp build/bin/agent-db-doctor build/bin/agent-db-doctor-gui \
+            build/bin/favicon-64.png build/bin/logo-512.png \
+            README.md LICENSE "dist/${packageName}/"
+          cp -P build/bin/libSDL3.so* "dist/${packageName}/"
+          tar -C dist -czf "dist/${packageName}.tar.gz" "${packageName}"
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-db-doctor-linux-x86_64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+      # The release already exists: it is what started this run. Uploading with
+      # `--clobber` makes a re-run of a half finished release safe.
+      - name: Attach the package to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
+
+  windows:
+    name: Windows (x86_64)
+    needs: version
+    runs-on: windows-2025
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Set up the Microsoft C++ compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Report the compiler version
+        shell: pwsh
+        run: |
+          $banner = cmd /c "cl 2>&1 & exit /b 0" | Select-Object -First 1
+          if ($banner -notmatch 'Compiler Version') {
+              throw "The Microsoft compiler printed no version banner; 'cl' may not be on the path."
+          }
+          "agent-db-doctor compiler: $($banner.Trim())" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DAGENT_DB_DOCTOR_ENABLE_WERROR=ON
+      - name: Build
+        run: cmake --build build
+      - name: Run the test suites
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the command line program runs
+        run: .\build\bin\agent-db-doctor.exe --version
+      # The window is a windows subsystem program, so a plain call would return at
+      # once and a crash would look like a pass. It is started, waited for with a
+      # time limit, and its exit code is what decides this step.
+      - name: Check the window comes up
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ".\build\bin\agent-db-doctor-gui.exe" `
+              -ArgumentList "--smoke-test" -PassThru
+          if (-not $process.WaitForExit(300000)) {
+              $process.Kill()
+              throw "The window's smoke test did not finish within five minutes."
+          }
+          if ($process.ExitCode -ne 0) {
+              throw "The window's smoke test exited with $($process.ExitCode)."
+          }
+      - name: Build the package
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path CMakeLists.txt `
+              -Pattern '^    VERSION ([0-9]+\.[0-9]+\.[0-9]+)').Matches[0].Groups[1].Value
+          $packageName = "agent-db-doctor-$version-windows-x86_64"
+          New-Item -ItemType Directory -Path "dist/$packageName" -Force | Out-Null
+          Copy-Item build/bin/agent-db-doctor.exe, build/bin/agent-db-doctor-gui.exe, `
+            build/bin/SDL3.dll, build/bin/favicon-64.png, build/bin/logo-512.png, `
+            README.md, LICENSE "dist/$packageName"
+          Compress-Archive -Path "dist/$packageName" -DestinationPath "dist/$packageName.zip"
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-db-doctor-windows-x86_64
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 90
+      # bash expands the glob; PowerShell would hand `gh` the pattern untouched.
+      - name: Attach the package to the release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/*.zip --clobber
+
+  macos:
+    name: macOS (arm64)
+    needs: version
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Report the compiler version
+        run: |
+          echo "agent-db-doctor compiler: $(clang++ --version | head -n 1)" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Make sure Ninja is available
+        run: which ninja || brew install ninja
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DAGENT_DB_DOCTOR_ENABLE_WERROR=ON
+      - name: Build
+        run: cmake --build build
+      - name: Run the test suites
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the command line program runs
+        run: ./build/bin/agent-db-doctor --version
+      # The window is deliberately not opened here: the runner has no display to
+      # open it on, and the same code is exercised on the Linux and Windows
+      # runners, which do.
+      - name: Build the package
+        run: |
+          version=$(grep -m1 -oE '^    VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          packageName="agent-db-doctor-${version}-macos-arm64"
+          mkdir -p "dist/${packageName}"
+          cp build/bin/agent-db-doctor build/bin/agent-db-doctor-gui \
+            build/bin/favicon-64.png build/bin/logo-512.png \
+            README.md LICENSE "dist/${packageName}/"
+          cp -P build/bin/libSDL3*.dylib "dist/${packageName}/"
+          tar -C dist -czf "dist/${packageName}.tar.gz" "${packageName}"
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-db-doctor-macos-arm64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+      - name: Attach the package to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
+
+  # Signing is keyless on purpose: cosign asks GitHub for an OIDC token, Fulcio
+  # issues a certificate that names this workflow and this commit, and the
+  # signature plus certificate are published beside the package. No secret key
+  # exists anywhere, so there is none to store, rotate, or leak. A manual run has
+  # no release to sign against, so this job only runs for a release.
+  sign:
+    name: Sign the release packages
+    needs: [version, linux, windows, macos]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: Download every package
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+      # Pinned by release and by hash, like every other download in this project:
+      # a newer cosign is a deliberate change to this step, not a moving target.
+      - name: Install cosign
+        env:
+          COSIGN_VERSION: "v2.4.3"
+          COSIGN_SHA256: "caaad125acef1cb81d58dcdc454a1e429d09a750d1e9e2b3ed1aed8964454708"
+        run: |
+          curl --fail --silent --show-error --location \
+            --output cosign \
+            "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64"
+          echo "${COSIGN_SHA256}  cosign" | sha256sum --check --strict
+          chmod +x cosign
+      - name: Sign every package
+        run: |
+          shopt -s nullglob
+          packages=(dist/*/*.tar.gz dist/*/*.zip)
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "The run has no packages to sign." >&2
+            exit 1
+          fi
+          for package in "${packages[@]}"; do
+            ./cosign sign-blob --yes \
+              --output-signature "${package}.sig" \
+              --output-certificate "${package}.pem" \
+              "${package}"
+          done
+      - name: Attach the signatures to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/*/*.sig dist/*/*.pem --clobber
