@@ -35,6 +35,8 @@
 #include "AgentDbDoctor/Command/ReclaimCommand.hpp"
 // Provides the live terminal view.
 #include "AgentDbDoctor/Command/WatchCommand.hpp"
+// Provides the command that shows what the service changed by itself.
+#include "AgentDbDoctor/Command/AuditCommand.hpp"
 // Provides ConsoleReport, which prints every line the program writes.
 #include "AgentDbDoctor/Presentation/ConsoleReport.hpp"
 // Provides PlatformMetadata, for the terminal test.
@@ -165,6 +167,11 @@ int main(int argumentCount, char** argumentValues) {
         "-o,--report",
         options.outputFilePath,
         "Also write a standalone HTML report of the whole pass to this path."
+    );
+    diagnoseSubcommand->add_flag(
+        "--prometheus",
+        options.prometheusOutput,
+        "Also write the result in the Prometheus exposition format, for a monitoring agent that reads textfiles."
     );
     // The job names people think in. They are aliases rather than separate commands,
     // so the help text, the errors, and the documentation all speak one vocabulary:
@@ -367,6 +374,21 @@ int main(int argumentCount, char** argumentValues) {
         options.watchIntervalSeconds,
         "How many seconds between refreshes. The default is five."
     );
+    CLI::App* auditSubcommand=application.add_subcommand(
+        "audit",
+        "Show what the background service changed by itself: one line per compact or vacuum step it performed."
+    );
+    addOutputOptions(*auditSubcommand, options);
+    auditSubcommand->add_option(
+        "action",
+        options.auditAction,
+        "One of: list, tail. The default is tail, which shows the newest entries."
+    );
+    auditSubcommand->add_option(
+        "--limit",
+        options.auditLimit,
+        "How many entries to show. The default is 20."
+    );
     // The parse is the only part of start up that allocates, and it is finished
     // before any measurement of start up cost is taken.
     try {
@@ -470,6 +492,9 @@ int main(int argumentCount, char** argumentValues) {
             exitCode=command.execute(options);
         } else if (chosenSubcommand=="watch") {
             WatchCommand command(terminalIsAttached);
+            exitCode=command.execute(options);
+        } else if (chosenSubcommand=="audit") {
+            AuditCommand command(terminalIsAttached);
             exitCode=command.execute(options);
         } else {
             // A subcommand with no name means the user asked for help, which CLI11
