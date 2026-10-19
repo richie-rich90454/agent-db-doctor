@@ -589,14 +589,25 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
             # The same idea on Linux, where the marker is `$ORIGIN`.
             set_target_properties(agent-db-doctor-gui PROPERTIES BUILD_RPATH "$ORIGIN")
         endif()
-        # The copy above uses the file's real name, so a link under the name the
-        # binary actually asks for (the library's own soname, not a guess) is
-        # added beside it. Both the real file and the link travel in the package.
-        add_custom_command(TARGET agent-db-doctor-gui POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E create_symlink
-                "$<TARGET_FILE_NAME:SDL3::SDL3-shared>"
-                "$<TARGET_FILE_DIR:agent-db-doctor-gui>/$<TARGET_SONAME_FILE_NAME:SDL3::SDL3-shared>"
-        )
+        # The copy above uses the file's real name. Where that name carries a
+        # version and the loader asks for the shorter soname instead, a link under
+        # that name is added beside it, and both travel in the package.
+        #
+        # The link is only added when the two names differ, because on macOS they do
+        # not: SDL3 sets only SOVERSION there, so the file is already named after the
+        # soname, and `cmake -E create_symlink` pointed at its own name replaces the
+        # library with a link to itself rather than failing - which would leave the
+        # package with a library the loader cannot open.
+        get_target_property(AGENT_DB_DOCTOR_SDL3_LIBRARY_VERSION SDL3::SDL3-shared VERSION)
+        get_target_property(AGENT_DB_DOCTOR_SDL3_LIBRARY_SOVERSION SDL3::SDL3-shared SOVERSION)
+        if(AGENT_DB_DOCTOR_SDL3_LIBRARY_VERSION
+                AND NOT AGENT_DB_DOCTOR_SDL3_LIBRARY_VERSION STREQUAL AGENT_DB_DOCTOR_SDL3_LIBRARY_SOVERSION)
+            add_custom_command(TARGET agent-db-doctor-gui POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E create_symlink
+                    "$<TARGET_FILE_NAME:SDL3::SDL3-shared>"
+                    "$<TARGET_FILE_DIR:agent-db-doctor-gui>/$<TARGET_SONAME_FILE_NAME:SDL3::SDL3-shared>"
+            )
+        endif()
     endif()
     if(WIN32)
         string(REPLACE "." "," AGENT_DB_DOCTOR_VERSION_COMMA "${PROJECT_VERSION}")
