@@ -1,0 +1,39 @@
+# The Homebrew formula for the personal tap, filled in from this template by
+# packaging/generate-homebrew-formula.ps1 once a release exists; see
+# packaging/README.md for the tap and the release routine.
+#
+# A tap is allowed to ship a released binary; homebrew-core, which is a later
+# step if the project grows, builds from source instead.
+class AgentDbDoctor < Formula
+  desc "Diagnose, compact, and reclaim AI coding agent databases"
+  homepage "https://github.com/richie-rich90454/agent-db-doctor"
+  version "{{VERSION}}"
+  license "MIT"
+
+  # The release builds are macOS on Apple silicon and Linux on x86_64; the other
+  # architectures are not published yet and so are not covered by this tap.
+  on_macos do
+    url "https://github.com/richie-rich90454/agent-db-doctor/releases/download/v#{version}/agent-db-doctor-#{version}-macos-arm64.tar.gz"
+    sha256 "{{MACOS_SHA256}}"
+  end
+
+  on_linux do
+    url "https://github.com/richie-rich90454/agent-db-doctor/releases/download/v#{version}/agent-db-doctor-#{version}-linux-x86_64-gcc.tar.gz"
+    sha256 "{{LINUX_SHA256}}"
+  end
+
+  def install
+    # Everything the binaries need at run time -- the second executable, the
+    # artwork, and the shared SDL3 library the window loads from the folder it
+    # sits in -- stays together in libexec. The two commands in bin are one line
+    # wrappers that exec the real binaries, so that lookup always finds what it
+    # expects no matter how the command was invoked.
+    libexec.install Dir["*"]
+    bin.write_exec_script libexec/"agent-db-doctor"
+    bin.write_exec_script libexec/"agent-db-doctor-gui"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/agent-db-doctor --version")
+  end
+end
