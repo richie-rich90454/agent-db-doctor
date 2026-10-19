@@ -279,6 +279,111 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
   Linux defines.
 - The README points at the one license file the project ships.
 
+### Added (the window as an invoker)
+
+- **The window no longer links the diagnostics library.** It runs the
+  `agent-db-doctor` binary that sits beside it, streams its output, and reads the
+  machine readable JSON, so the two front ends cannot disagree about a number.
+- **Five tabs, one primary action each.** Overview: total size, total reclaimable,
+  one "Reclaim the biggest" button, and the five largest databases. Databases: a
+  filter box, a sortable table of agent, path, size, reclaimable, and health, and a
+  drawer for the selected database with its metrics, warnings, suggested next
+  steps, and its actions: Reclaim, Preview compaction, Preview vacuum, Recovery
+  plan, Backups, Sessions, Export session, and Diagnose, with an optional full
+  integrity check. History: the recorded growth and the forecast. Service: the
+  real status (installed, running, the state sentence, the locations, the most
+  recent log line) and the install, start, stop, and uninstall buttons with the
+  threshold and interval fields; installing needs administrator rights. Settings:
+  the default reclaim target, whether the safety copy is kept, a backup
+  destination, and the resolved path of the command line program.
+- **The console window is hidden.** The window is built as a windows-subsystem
+  application, and every child command runs with no console window. A running
+  command shows a progress bar with a Cancel button; its result appears in an
+  opaque, scrollable dialog; a destructive run always goes through a preview or a
+  plan first, then a typed `yes`; a successful change rescans by itself. The
+  window's size, theme, and settings persist.
+
+### Fixed (the window layout)
+
+- **Nothing in the window is clipped any more.** The table columns were fixed
+  pixel widths, so a scaled display cut "Reclaimable" down to "Reclaim..." and a
+  Reclaim button lost its last letter at the table's edge; every fixed column is
+  now sized from the text it holds. The totals card cut its own "Reclaim the
+  biggest" button in half; the card now sizes itself to what it holds and the
+  button takes its natural width.
+- **The newest log line is fully visible.** The log pane's height was a constant
+  while the rows around it grew with the font, so the pane's last line was cut by
+  the window's bottom edge; the room the bottom bar keeps for itself is now
+  computed from the current font, and the pane is sized from it.
+- **A tab that is asked for opens at its top.** The tab area kept the scroll
+  position of the tab that was showing, so the next tab opened part way down with
+  its first row cut off.
+- **The interface is opaque, and the window draws no border of its own.** Dear
+  ImGui clears each frame with the window background colour, which carries a small
+  alpha by default; where the display composites that, whatever sat behind the
+  window tinted the interface. The background is now fully opaque, and the border
+  line the full-viewport window drew inside the operating system's own frame is
+  gone.
+- **The log pane starts closed.** The tabs are what a person came for, the
+  activity bar still shows how the last command ended, and one press opens the
+  pane. The choice is remembered.
+
+### Added (the automation work)
+
+- **Automatic maintenance.** With `allowAutomaticCompaction` true, globally or for
+  one database, the watchdog compacts (when there is anything to compact) and then
+  vacuums a database that is above its critical threshold, idle for fifteen
+  minutes, and not locked by another process, each step with its own safety copy,
+  removed again when its check passes. The log line says what it did, and every
+  step is written to the audit log.
+- **Per-database policies.** The configuration gains `databasePolicies`, an array
+  of `{ "path", "criticalThresholdBytes", "allowAutomaticCompaction",
+  "notifyOnThreshold" }` entries that override the global thresholds and
+  permissions for one database.
+- **Desktop notifications.** A notification is attempted when a critical threshold
+  is crossed and after automatic maintenance: a balloon through PowerShell on
+  Windows, `notify-send` on Linux, `osascript` on macOS. It is best effort - a
+  service running in another session may not be able to show one - which is why
+  the log line is always written as well.
+- **The audit log and the `audit` command.** Every destructive run, and every step
+  automatic maintenance takes, is appended to a tab separated audit log beside the
+  service configuration: the time, the action, the path, the sizes before and
+  after, the safety copy's path, the outcome, and the exit code. It is kept for one
+  hundred and eighty days and capped in size, and it is written when its location
+  is writable and always by the service. `audit` prints it: `tail` by default,
+  `list` for the whole record, `--limit N` for a shorter view, and
+  `--machine-readable` for one JSON object per entry.
+- **The health score.** Every diagnosis carries a score from 0 to 100, shown as
+  `Health: 78 of 100` and called `healthScore` in the machine readable output (-1
+  when it cannot be computed). Damage, warnings, unused space, and growth each
+  reduce it, and a healthy idle database scores 100; the window shows it as the
+  headline number.
+- **`diagnose --prometheus`.** Writes node_exporter textfile metrics -
+  `agent_db_doctor_size_bytes`, `agent_db_doctor_reclaimable_bytes`,
+  `agent_db_doctor_healthy`, and `agent_db_doctor_health_score` - with the agent
+  and the path as labels, so a team can chart every database.
+
+### Added (the packaging and integration work)
+
+- **Package manager templates.** `packaging/` holds winget manifest templates and
+  a Homebrew tap formula template, with generators that fill in the release URL
+  and the SHA-256, and the submission steps. No registration or fee is involved:
+  winget takes a manifest pull request to `microsoft/winget-pkgs`, and the
+  Homebrew formula goes to a personal tap repository named `homebrew-tap`. Nothing
+  is published yet; both are submitted at the next tagged release, and until then
+  installation is from source.
+- **A pipeline guard.** A composite GitHub Action builds the command line program
+  and runs `diagnose`, or `reclaim --target`, failing the step when a database
+  needs attention.
+- **A generated verification page.** Continuous integration writes the run's own
+  job names, conclusions, times, and run link into `docs/verification.md` and
+  commits it on `main`.
+- **Keyless release signing.** On a tag, every release package is signed with
+  cosign using the workflow's own OpenID Connect identity, and the `.sig` and
+  `.pem` files are uploaded beside the artifacts.
+- **A fuzz target for the configuration parser**, behind
+  `-DAGENT_DB_DOCTOR_ENABLE_FUZZING=ON` (Clang only).
+
 ## [1.0.0] - 2026-09-30
 
 The first release. Everything below is implemented and verified against real agent
