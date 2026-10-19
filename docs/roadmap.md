@@ -1,6 +1,6 @@
 # Roadmap
 
-What is planned next, in the order it is being built. Everything under "planned"
+What is planned next, in the order it is being built. Everything under "Later"
 is a decision, not a promise of a date.
 
 ## Built in this cycle
@@ -22,33 +22,56 @@ is a decision, not a promise of a date.
   cheap.
 - **`diagnose --report report.html`.** One standalone page with every number and
   warning, ready to attach to an issue.
-
-## In progress
-
-**The graphical interface as a thin invoker.** The window currently links the core
-library. It is being changed to run the command line program and read its machine
-readable output, which is what keeps the two front ends from ever disagreeing, plus
-the fixes for the interface's own defects: a console window that should not appear,
-clipped action buttons, no sorting or filtering in a list of hundreds of databases,
-stale numbers after an action, and no way to cancel one.
-
-## Planned
-
-**Watchdog notifications and automatic maintenance.** A desktop notification when a
-threshold is crossed or maintenance runs; declarative per-database policies; and a
-maintenance window so nothing runs while the agent is active.
-
-**An audit log.** Every destructive action recorded with its path, sizes, safety
-copy, verification result, and time.
-
-**Package managers.** winget and a Homebrew tap, so installation is one line. The
-release artifacts they will use are already built by continuous integration.
-
-**A generated verification page.** Continuous integration writes the matrix — every
-platform, compiler, and result — into a page in the repository, so a reader can see
-what was actually run rather than what is claimed.
+- **The window as a thin invoker.** The window no longer links the diagnostics
+  library: it runs the `agent-db-doctor` binary that sits beside it, streams its
+  output, and reads the machine readable JSON, so the two front ends cannot
+  disagree about a number. Five tabs, one primary action each: Overview, Databases,
+  History, Service, and Settings. The console is hidden, a running command shows a
+  progress bar with a Cancel button, a destructive run goes through a preview or a
+  plan first and then a typed `yes`, and the window's size, theme, and settings
+  persist.
+- **Automatic maintenance and per-database policies.** With
+  `allowAutomaticCompaction` true, the watchdog compacts (when there is anything to
+  compact) and then vacuums a database that is above its critical threshold, idle
+  for fifteen minutes, and not locked by another process, each step with its own
+  safety copy, removed again when its check passes. `databasePolicies` overrides
+  the global thresholds and permissions for one database.
+- **Desktop notifications.** Best effort, when a critical threshold is crossed and
+  after automatic maintenance; the log line is always written as well.
+- **The audit log and `audit`.** Every destructive run and every automatic
+  maintenance step is appended to a tab separated audit log beside the service
+  configuration, kept for one hundred and eighty days and capped in size, and
+  `audit` prints it, with machine readable output.
+- **The health score.** Every diagnosis carries a score from 0 to 100, shown in the
+  window as its headline number; damage, warnings, unused space, and growth each
+  reduce it, and a healthy idle database scores 100.
+- **`diagnose --prometheus`.** node_exporter textfile metrics for every database,
+  with the agent and the path as labels.
+- **Packaging templates.** winget manifest templates and a Homebrew tap formula
+  template, with generators that fill in the release URL and the SHA-256 and the
+  submission steps, in `packaging/`. winget takes a manifest pull request to
+  `microsoft/winget-pkgs`, and the Homebrew formula goes to a personal tap
+  repository named `homebrew-tap`.
+- **A pipeline guard.** A composite GitHub Action that builds the command line
+  program and runs `diagnose`, or `reclaim --target`, and fails when a database
+  needs attention.
+- **Keyless release signing.** Every release package on a tag is signed with
+  cosign using the workflow's own OpenID Connect identity, and the `.sig` and
+  `.pem` files are uploaded beside the artifacts.
+- **The generated verification page.** Continuous integration writes its own run -
+  job names, conclusions, times, and the run link - into `docs/verification.md`
+  and commits it on `main`.
+- **A fuzz target for the configuration parser**, behind
+  `-DAGENT_DB_DOCTOR_ENABLE_FUZZING=ON` (Clang only).
 
 ## Later
+
+**Package availability.** Until a release has been submitted, installation is from
+source; the winget manifest and the Homebrew tap formula become available at the
+next tagged release.
+
+**Official homebrew-core.** The prepared formula goes to a personal tap first;
+homebrew-core is a later step.
 
 **Cross-agent session search.** One local read-only index over every agent's
 sessions, so "find that conversation from March" works across all of them.
