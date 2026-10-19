@@ -108,6 +108,11 @@ public:
     // as it stands, without being wrapped in a line event, which is what a command
     // that builds its own objects needs.
     void writeMachineObject(const string& jsonObject) const;
+    // Writes text exactly as it is given, in both output modes, without a newline
+    // unless the text ends with one. Used by output formats that carry their own
+    // framing and are read by another program rather than by this class, such as
+    // the Prometheus exposition format, which must not be wrapped in JSON.
+    void writeRawOutput(const string& text) const;
     // Writes the object every machine readable run ends with, so a script knows the
     // run is over even when it read nothing else.
     void writeExitEvent(int exitCode) const;
