@@ -149,6 +149,25 @@ cosign verify-blob \
   agent-db-doctor-1.0.0-windows-x86_64.zip
 ```
 
+A release that is missing a package, or whose packages came from the wrong build, is
+completed by running that workflow by hand for the release's own tag and naming the
+release:
+
+```bash
+gh workflow run release.yml --ref v1.0.0 -f attach-to-release=v1.0.0
+```
+
+It builds the three packages from that tag, runs every test suite, replaces the
+assets of the same name, adds the missing ones, and signs whatever it produced. No
+tag moves and no release is re-created. Signing runs even when one platform job
+failed, so the packages that did build still carry their signatures beside them.
+
+Continuous integration is re-run the same way, without a commit:
+
+```bash
+gh workflow run ci.yml --ref main
+```
+
 ## The fuzz target
 
 The service configuration reader is the project's own hand written parser for a
