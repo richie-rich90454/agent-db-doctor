@@ -433,6 +433,12 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
   them; it refuses a tag that does not name the version in `CMakeLists.txt`. Started
   by hand instead, it builds the same packages and leaves them as run artifacts, so
   the packages can be produced before the release is written, without touching one.
+- **Completing a release by hand.** The same workflow accepts the tag of an existing
+  release, builds the three packages from that tag, attaches them, and signs them:
+  that is how a release whose run failed gets its missing package, without moving a
+  tag or re-creating the release. Assets of the same name are replaced and missing
+  ones are added, and signing runs even when one platform job failed, so the
+  packages that did build still carry their signatures.
 - **Keyless release signing.** On a release, every package the release workflow
   built is signed with cosign using the workflow's own OpenID Connect identity, and
   the `.sig` and `.pem` files are uploaded beside the artifacts.
