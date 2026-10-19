@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+# The installer manifest, filled from this template by
+# packaging/generate-winget-manifests.ps1; the hash and the URL only exist once
+# the release does, which is why this ships as a template. See packaging/README.md.
+#
+# The release is a zip whose single top level folder is named for the platform,
+# so the relative paths include that folder as well as the executable.
+PackageIdentifier: richie-rich90454.agent-db-doctor
+PackageVersion: {{VERSION}}
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+- RelativeFilePath: agent-db-doctor-{{VERSION}}-windows-x86_64\agent-db-doctor.exe
+  PortableCommandAlias: agent-db-doctor
+- RelativeFilePath: agent-db-doctor-{{VERSION}}-windows-x86_64\agent-db-doctor-gui.exe
+  PortableCommandAlias: agent-db-doctor-gui
+InstallModes:
+- silent
+- silentWithProgress
+- interactive
+# An upgrade is the same install over the top of the previous one; without this
+# a zip package is treated as uninstall-then-install, which loses the history
+# `winget upgrade` needs to keep working.
+UpgradeBehavior: install
+Installers:
+- Architecture: x64
+  InstallerUrl: {{URL}}
+  InstallerSha256: {{SHA256}}
+ManifestType: installer
+ManifestVersion: 1.6.0
