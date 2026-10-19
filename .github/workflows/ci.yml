@@ -3,12 +3,17 @@
 # Four toolchains build the project on every change: the GNU compiler and the
 # Clang compiler on Linux, the Microsoft compiler on Windows, and Apple's
 # compiler on macOS. Each one runs the whole test suite, proves the command line
-# program and the window both start, and produces a runnable package whose
-# binaries carry the shared library, the artwork, the README, and the licence.
-# Pushing a tag additionally attaches every package to the GitHub release for
-# that tag. On the main branch the run also writes the verification page from its
-# own job results, and a tag's packages are signed and the signatures attached
-# beside them.
+# program starts, starts the window where the runner has a display, and produces a
+# runnable package whose files carry the shared library, the artwork, the README,
+# and the licence.
+#
+# These packages are what a change proves. The packages a user downloads are built
+# by the release workflow, which builds the same three packages when a release is
+# created and attaches them to it.
+#
+# On the main branch the run also writes the verification page from its own job
+# results, so the record of what ran is generated from the run rather than written
+# by hand.
 name: CI
 on:
   push:
@@ -16,10 +21,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
-# The token is read only except for the release step on a tag, which publishes
-# the packages; the step itself is guarded by the tag check.
+# Read only. The verification job is the one exception, and it asks for exactly
+# what it needs: the right to commit the page it generates and the right to read
+# the run's own job list back from the API.
 permissions:
-  contents: write
+  contents: read
 # A newer run for the same branch or tag replaces an older one, so a quick
 # follow up commit never waits for the previous run to finish.
 concurrency:
@@ -52,13 +58,17 @@ jobs:
         run: |
           echo "agent-db-doctor compiler: $(${{ matrix.cxxCompiler }} --version | head -n 1)" \
             | tee -a "$GITHUB_STEP_SUMMARY"
+      # `xauth` is what `xvfb-run` needs before it can start its virtual display,
+      # and the X11 and Wayland development packages are what SDL3 is built
+      # against. Both compilers are installed whichever one this job selected, so
+      # the two legs differ in nothing but the compiler they configure with.
       - name: Install the build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build clang \
+          sudo apt-get install -y ninja-build clang xauth xvfb \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
             libxi-dev libxss-dev libgl1-mesa-dev libdbus-1-dev libwayland-dev \
-            libxkbcommon-dev libegl1-mesa-dev libxtst-dev libxinerama-dev xvfb
+            libxkbcommon-dev libegl1-mesa-dev libxtst-dev libxinerama-dev
       - name: Configure
         run: >-
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -71,6 +81,9 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Check the command line program runs
         run: ./build/bin/agent-db-doctor --version
+      # The window opens on the virtual display and walks every tab. The smoke test
+      # ends by itself and its exit code is the step's exit code, so a window that
+      # fails to open or fails to draw a screen fails the job.
       - name: Check the window comes up
         run: xvfb-run -a ./build/bin/agent-db-doctor-gui --smoke-test
       - name: Build the package
@@ -91,18 +104,10 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 14
-      - name: Attach the package to the release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes \
-            --title "${GITHUB_REF_NAME}" || true
-          gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
 
   windows:
     name: Windows (MSVC)
-    runs-on: windows-2025-vs2026
+    runs-on: windows-2025
     timeout-minutes: 90
     steps:
       - name: Check out the repository
@@ -136,8 +141,21 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Check the command line program runs
         run: .\build\bin\agent-db-doctor.exe --version
+      # The window is a windows subsystem program, so a plain call would return at
+      # once and a crash would look like a pass. It is started, waited for with a
+      # time limit, and its exit code is what decides this step.
       - name: Check the window comes up
-        run: .\build\bin\agent-db-doctor-gui.exe --smoke-test
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ".\build\bin\agent-db-doctor-gui.exe" `
+              -ArgumentList "--smoke-test" -PassThru
+          if (-not $process.WaitForExit(300000)) {
+              $process.Kill()
+              throw "The window's smoke test did not finish within five minutes."
+          }
+          if ($process.ExitCode -ne 0) {
+              throw "The window's smoke test exited with $($process.ExitCode)."
+          }
       - name: Build the package
         shell: pwsh
         run: |
@@ -156,15 +174,6 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
           retention-days: 14
-      - name: Attach the package to the release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes \
-            --title "${GITHUB_REF_NAME}" || true
-          gh release upload "${GITHUB_REF_NAME}" dist/*.zip --clobber
 
   macos:
     name: macOS (AppleClang)
@@ -192,8 +201,9 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Check the command line program runs
         run: ./build/bin/agent-db-doctor --version
-      # The window is deliberately not opened here: the runner has no display,
-      # and the window code is already exercised by the Linux and Windows jobs.
+      # The window is deliberately not opened here: the runner has no display to
+      # open it on, and the same code is exercised on the Linux and Windows
+      # runners, which do.
       - name: Build the package
         run: |
           version=$(grep -m1 -oE '^    VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt \
@@ -212,14 +222,6 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 14
-      - name: Attach the package to the release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes \
-            --title "${GITHUB_REF_NAME}" || true
-          gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
 
   # The verification page is the record of what actually ran: after the platform
   # jobs finish on a push to the main branch, this job asks the API what ran,
@@ -236,6 +238,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -243,52 +246,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash ci/generate-verification-page.sh
-
-  # Signing is keyless on purpose: cosign asks GitHub for an OIDC token, Fulcio
-  # issues a certificate that names this workflow and this commit, and the
-  # signature plus certificate are published beside the package. No secret key
-  # exists anywhere, so there is none to store, rotate, or leak.
-  sign:
-    name: Sign the release packages
-    runs-on: ubuntu-latest
-    needs: [linux, windows, macos]
-    if: startsWith(github.ref, 'refs/tags/v')
-    timeout-minutes: 30
-    permissions:
-      id-token: write
-      contents: write
-    steps:
-      - name: Download every package
-        uses: actions/download-artifact@v7
-        with:
-          path: dist
-      # Pinned by release and by hash, like every other download in this project:
-      # a newer cosign is a deliberate change to this step, not a moving target.
-      - name: Install cosign
-        env:
-          COSIGN_VERSION: "v2.4.3"
-          COSIGN_SHA256: "caaad125acef1cb81d58dcdc454a1e429d09a750d1e9e2b3ed1aed8964454708"
-        run: |
-          curl --fail --silent --show-error --location \
-            --output cosign \
-            "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64"
-          echo "${COSIGN_SHA256}  cosign" | sha256sum --check --strict
-          chmod +x cosign
-      - name: Sign every package
-        run: |
-          shopt -s nullglob
-          packages=(dist/*/*.tar.gz dist/*/*.zip)
-          if [ ${#packages[@]} -eq 0 ]; then
-            echo "The run has no packages to sign." >&2
-            exit 1
-          fi
-          for package in "${packages[@]}"; do
-            ./cosign sign-blob --yes \
-              --output-signature "${package}.sig" \
-              --output-certificate "${package}.pem" \
-              "${package}"
-          done
-      - name: Attach the signatures to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" dist/*/*.sig dist/*/*.pem --clobber
