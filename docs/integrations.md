@@ -136,7 +136,7 @@ manifest pull request from the account that will maintain it, and a Homebrew tap
 is an ordinary repository named `homebrew-tap`.
 
 Every release package is signed by the release workflow, which builds the packages
-when a release is created and attaches them, and the signature and certificate
+when a release is published and attaches them, and the signature and certificate
 travel with it as `<package>.sig` and `<package>.pem`. Verification is keyless, so
 the identity checked is the workflow, not a key:
 
