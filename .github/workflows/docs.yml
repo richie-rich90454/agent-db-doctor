@@ -1,0 +1,135 @@
+
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-deployment
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install documentation generator
+        run: |
+          python -m pip install \
+            --disable-pip-version-check \
+            "mkdocs==1.6.1"
+
+      - name: Generate site configuration
+        shell: bash
+        run: |
+          cat > mkdocs.yml <<'EOF'
+          site_name: Agent DB Doctor
+          site_description: >-
+            Diagnose, compact, recover, and reclaim disk
+            space from AI coding agent databases.
+          site_author: Agent DB Doctor Contributors
+          site_url: https://richie-rich90454.github.io/agent-db-doctor/
+
+          repo_url: https://github.com/richie-rich90454/agent-db-doctor
+          repo_name: agent-db-doctor
+          edit_uri: edit/main/docs/
+
+          docs_dir: docs
+          site_dir: site
+          use_directory_urls: true
+
+          theme:
+            name: mkdocs
+            locale: en
+            color_mode: auto
+            user_color_mode_toggle: true
+            navigation_depth: 3
+            highlightjs: true
+
+          plugins:
+            - search:
+                lang: en
+
+          markdown_extensions:
+            - admonition
+            - attr_list
+            - def_list
+            - fenced_code
+            - footnotes
+            - tables
+            - toc:
+                permalink: true
+
+          validation:
+            links:
+              absolute_links: relative_to_docs
+              anchors: warn
+              unrecognized_links: warn
+          EOF
+
+      - name: Validate documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f docs/index.md
+
+          mkdocs build \
+            --clean \
+            --strict
+
+          test -s site/index.html
+          test -s site/search/search_index.json
+
+          touch site/.nojekyll
+
+          echo "Documentation built successfully."
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    name: Deploy documentation
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
