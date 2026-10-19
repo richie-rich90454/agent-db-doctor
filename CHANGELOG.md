@@ -412,10 +412,10 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
   job names, conclusions, times, and run link into `docs/verification.md` and
   commits it on `main`.
 - **A release workflow.** `.github/workflows/release.yml` builds the three platform
-  packages when a release is created, attaches them to that release, and signs them;
-  it refuses a tag that does not name the version in `CMakeLists.txt`. Started by
-  hand instead, it builds the same packages and leaves them as run artifacts, so the
-  packages can be produced before the release is written, without touching one.
+  packages when a release is published, attaches them to that release, and signs
+  them; it refuses a tag that does not name the version in `CMakeLists.txt`. Started
+  by hand instead, it builds the same packages and leaves them as run artifacts, so
+  the packages can be produced before the release is written, without touching one.
 - **Keyless release signing.** On a release, every package the release workflow
   built is signed with cosign using the workflow's own OpenID Connect identity, and
   the `.sig` and `.pem` files are uploaded beside the artifacts.
