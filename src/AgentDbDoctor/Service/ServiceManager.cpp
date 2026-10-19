@@ -31,6 +31,10 @@
 #include "AgentDbDoctor/Doctor/SchemaFingerprint.hpp"
 // Provides the growth record the watchdog appends to once an hour.
 #include "AgentDbDoctor/Service/HistoryStore.hpp"
+// Provides the automatic maintenance the watchdog may run on its own.
+#include "AgentDbDoctor/Service/AutomaticMaintenance.hpp"
+// Provides the desktop notification a threshold crossing may raise.
+#include "AgentDbDoctor/Service/Notifier.hpp"
 // Provides `time`, used for the timestamp of each recorded size.
 #include <ctime>
 using namespace std;
@@ -187,6 +191,89 @@ WatchdogRunSummary ServiceManager::runOneWatchdogPass() {
             }
         }
         lastFingerprintRefreshNanoseconds=endNanoseconds;
+    }
+    // Two pieces of work examine what the pass found. Both run here, after the
+    // measured window, and neither can change the numbers above: the pass's
+    // metadata total was computed already, so a notification that spawns an
+    // operating system process and a maintenance run that rewrites a database
+    // both leave the one-call-per-database contract exactly true.
+    //
+    // First, the threshold crossings. A crossing is the pass that first sees a
+    // database at or above a level, after a pass that saw it below; a database
+    // seen for the first time counts as a crossing, because there is no earlier
+    // number to compare with. The crossing itself always produces its log line,
+    // which the loop above already built. A desktop notification is raised only
+    // when this machine asked for one: a policy for that database with
+    // notifyOnThreshold set. Without such a policy nothing interrupts the person,
+    // because a background service that starts showing notifications nobody asked
+    // for is exactly the surprise this tool avoids elsewhere. The level is the
+    // policy's own critical threshold when it sets one, otherwise the
+    // configuration's critical threshold, which is the default the policy field
+    // refers to. The notification is best effort and may not be visible at all
+    // when the service runs in another session, which is why the log line is
+    // written whatever happens.
+    for (const WatchdogSample& sample : summary.samples) {
+        const DatabasePolicy* policy=serviceConfiguration.policyFor(sample.databaseFilePath);
+        if (policy==nullptr || !policy->notifyOnThreshold) {
+            continue;
+        }
+        const long long notificationThresholdBytes=policy->criticalThresholdBytes>0
+            ? policy->criticalThresholdBytes
+            : serviceConfiguration.criticalThresholdBytes;
+        const bool hasCrossedTheThreshold=sample.currentSizeBytes>=notificationThresholdBytes
+            && sample.previousSizeBytes<notificationThresholdBytes;
+        if (!hasCrossedTheThreshold) {
+            continue;
+        }
+        const string currentSizeText=HumanReadableFormatting::formatBytes(sample.currentSizeBytes);
+        Notifier::notify(
+            string(SERVICE_NAME),
+            sample.databaseFilePath + " is " + currentSizeText
+                + ", which has crossed the urgent threshold of "
+                + HumanReadableFormatting::formatBytes(notificationThresholdBytes) + "."
+        );
+        summary.messagesToLog.push_back(
+            string(SERVICE_NAME) + ": " + sample.databaseFilePath
+            + " has just crossed the urgent threshold of "
+            + HumanReadableFormatting::formatBytes(notificationThresholdBytes) + " at " + currentSizeText
+            + ". A desktop notification was sent. A service running in another session may not be able "
+              "to show it, so this line is the record either way."
+        );
+    }
+    // Second, the automatic maintenance. Every sample above its critical threshold
+    // that something permits the service to change is offered to the maintenance,
+    // which applies its own gates and says in its log line what it did or why it
+    // did not: a database that is in use, or one another program holds open, is
+    // skipped with the reason rather than silently. The permission itself is a
+    // quiet gate on purpose: a machine that never asked for automatic changes must
+    // not fill its log with refusals it did not cause, and this is the same
+    // permission the maintenance checks again before it runs anything, so nothing
+    // can slip past by the gate here being wrong. The reporter the two commands
+    // print through is built with the terminal flag off, because a service has no
+    // terminal and no escape sequence must ever reach a redirected stream.
+    const ConsoleReport maintenanceReporter(false);
+    AutomaticMaintenance maintenance(serviceConfiguration, maintenanceReporter);
+    for (const WatchdogSample& sample : summary.samples) {
+        const DatabasePolicy* policy=serviceConfiguration.policyFor(sample.databaseFilePath);
+        const long long criticalThresholdBytes=policy!=nullptr && policy->criticalThresholdBytes>0
+            ? policy->criticalThresholdBytes
+            : serviceConfiguration.criticalThresholdBytes;
+        // A database below its threshold is not worth the work of asking, and the
+        // maintenance checks the same number again rather than trusting this gate.
+        if (sample.currentSizeBytes<criticalThresholdBytes) {
+            continue;
+        }
+        const bool maintenanceIsAllowed=policy!=nullptr
+            ? policy->allowAutomaticCompaction
+            : serviceConfiguration.allowAutomaticCompaction;
+        if (!maintenanceIsAllowed) {
+            continue;
+        }
+        const AutomaticMaintenance::MaintenanceRunSummary maintenanceSummary=
+            maintenance.runForIfRequired(sample.databaseFilePath, sample.currentSizeBytes);
+        if (!maintenanceSummary.logLine.empty()) {
+            summary.messagesToLog.push_back(maintenanceSummary.logLine);
+        }
     }
     return summary;
 }
