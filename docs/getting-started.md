@@ -118,6 +118,23 @@ schema layout, so a later diagnose can warn when an agent has changed its schema
 the tool's knowledge of it may be out of date. See
 [system-service.md](system-service.md).
 
+## Keeping it healthy
+
+The watchdog can act, not only report. With `allowAutomaticCompaction` true -
+globally or for one database through `databasePolicies` - a database above its
+critical threshold, idle for fifteen minutes, and not locked by another process is
+compacted (when there is anything to compact) and then vacuumed by the service,
+each with its own safety copy. Every step lands in the audit log beside the
+service configuration:
+
+```bash
+agent-db-doctor audit --limit 20
+```
+
+A desktop notification is attempted when a threshold is crossed and after
+automatic maintenance, best effort; the log line is always written as well. See
+[system-service.md](system-service.md).
+
 ## Reading a conversation before deleting it
 
 ```bash
