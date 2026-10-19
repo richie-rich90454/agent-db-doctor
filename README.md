@@ -52,6 +52,7 @@ sound afterwards.
 |---|---|
 | **A diagnostic pass that reads nothing** | 13 ms on a 100 GB database, 2 file system queries, and fewer than 64 KB read. The byte count is not a promise: it is counted through SQLite's own file layer and asserted by the test suite, and you can see it yourself with `--trace-reads`. |
 | **Answers, not just numbers** | `why` ranks the causes of a database's size; `explain-space` divides the bytes between tables, indexes, and the largest conversations, from SQLite's own page accounting; `history` turns the watchdog's hourly record into a rate and a forecast. |
+| **A health score** | Every diagnosis carries a score from 0 to 100, printed as `Health: 78 of 100` and called `healthScore` in the machine readable output (-1 when it cannot be computed). Damage, warnings, unused space, and growth each reduce it, and a healthy idle database scores 100. It is the headline number in the window. |
 | **Event log compaction** | The operation Kafka calls log compaction, for the one agent whose event log layout is documented: keep the newest snapshot of every message, remove the older copies, keep every word of the conversation. |
 | **A reclaim target** | `reclaim --target 20GB` works out the cheapest safe sequence, shows the plan, asks once, and reports what the drive actually got back. |
 | **Vacuuming for every SQLite agent** | Seven agents keep SQLite databases now, and giving unused space back needs no knowledge of a schema, so it is offered for all seven. A database set up for incremental auto-vacuum hands its pages back in place, with no second file and no scratch space. |
@@ -60,7 +61,8 @@ sound afterwards.
 | **A restore drill** | `backups verify` copies a backup to a scratch file, opens it, runs the integrity check, counts its sessions, and removes the scratch file. A copy you cannot restore is not a safety net. |
 | **Machine readable output** | `--machine-readable` turns every report into one JSON object per line: every number the commands carry, typed, with a final exit object. The graphical interface reads the same objects. |
 | **A shareable report** | `diagnose --report report.html` writes one standalone page with every number and warning, ready to attach to an issue. |
-| **Watchdog monitoring** | A system service (systemd, launchd, or the Windows service manager) that measures every database once an hour with one metadata call each, records the sizes and the schema layouts, and logs when a threshold is crossed. |
+| **Watchdog monitoring** | A system service (systemd, launchd, or the Windows service manager) that measures every database once an hour with one metadata call each, records the sizes and the schema layouts, and logs when a threshold is crossed. With `allowAutomaticCompaction` set, globally or for one database through `databasePolicies`, it also compacts and then vacuums a database that is above its critical threshold, idle, and unlocked, and it attempts a desktop notification when a threshold is crossed and after automatic maintenance. |
+| **An audit log** | Every destructive run, and every step automatic maintenance takes, is appended to an audit log beside the service configuration: the time, the action, the path, the sizes before and after, the safety copy, the outcome, and the exit code. `audit` prints its tail, with `--limit` for a shorter view. |
 
 ## What makes it safe
 
@@ -92,7 +94,8 @@ The full story is in [docs/safety.md](docs/safety.md).
 ## Installation
 
 ```bash
-# Today, from source. Package managers are planned.
+# Today, from source. Package manager templates are prepared, and arrive
+# with the next tagged release.
 git clone https://github.com/richie-rich90454/agent-db-doctor
 cd agent-db-doctor
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -100,6 +103,9 @@ cmake --build build
 ```
 
 The binary lands at `build/bin/agent-db-doctor`. Put it somewhere on your path.
+The winget manifest templates and the Homebrew tap formula template are prepared
+in `packaging/`, with generators that fill in the release URL and the SHA-256;
+neither is published yet.
 
 <details>
 <summary>Requirements</summary>
@@ -132,6 +138,7 @@ Everything else is vendored, and every download is pinned by hash or by commit.
 | `recover`, `rescue` | Explains what is wrong and what can be fixed | Only with `--rebuild` |
 | `backups` | Lists, verifies, restores, or deletes safety copies | `restore` and `delete` only |
 | `service` | Installs and controls the background watchdog | No |
+| `audit` | Shows the record of destructive runs and automatic maintenance | No |
 | `agents` | Lists every supported agent and where its data was found | No |
 
 Every flag is documented in [docs/cli-reference.md](docs/cli-reference.md), and the
@@ -151,6 +158,46 @@ agent-db-doctor diagnose --database ~/.local/share/opencode/opencode.db --machin
 
 One object per line, flushed as it is written, so a script can follow a long
 operation. The full schema is in [docs/json-api.md](docs/json-api.md).
+
+---
+
+## The window
+
+The window is a thin invoker: it runs the `agent-db-doctor` binary that sits
+beside it, streams its output, and reads the same machine readable JSON, so the
+window and the command line cannot disagree about a number. It is built as a
+windows-subsystem application, and every command it runs starts with no console
+window.
+
+Five tabs, one primary action each:
+
+| Tab | What it holds |
+|---|---|
+| Overview | The total size and the total reclaimable across every database, one "Reclaim the biggest" button, and the five largest databases. |
+| Databases | A filter box and a sortable table of agent, path, size, reclaimable, and health. The drawer for the selected database shows its metrics, warnings, and suggested next steps, and holds its actions: Reclaim, Preview compaction, Preview vacuum, Recovery plan, Backups, Sessions, Export session, and Diagnose, with an optional full integrity check. |
+| History | The growth the watchdog recorded, and its forecast. |
+| Service | The real status (installed, running, the state sentence, the locations, and the most recent log line) and the install, start, stop, and uninstall buttons with the threshold and interval fields. Installing needs administrator rights. |
+| Settings | The default reclaim target, whether the safety copy is kept, a backup destination, and the resolved path of the command line program. |
+
+A running command shows a progress bar with a Cancel button, and its result
+appears in an opaque, scrollable dialog. A destructive run always goes through a
+preview or a plan first, and then a typed `yes`; a successful change rescans by
+itself. The window's size, theme, and settings persist between runs.
+
+<img src="assets/gui-overview.png" width="720" alt="The Overview tab of the window">
+
+The Overview tab. Total size and total reclaimable, the Reclaim the biggest
+button, and the five largest databases.
+
+<img src="assets/gui-databases.png" width="720" alt="The Databases tab of the window">
+
+The Databases tab. The filter box, the sortable table of agent, path, size,
+reclaimable, and health, and the drawer for the selected database.
+
+<img src="assets/gui-service.png" width="720" alt="The Service tab of the window">
+
+The Service tab. The real status, the locations, the most recent log line, and the
+install, start, stop, and uninstall controls.
 
 ---
 
@@ -215,8 +262,25 @@ method.
 | [docs/recovery-playbook.md](docs/recovery-playbook.md) | Every failure pattern the tool recognises |
 | [docs/agent-adapters.md](docs/agent-adapters.md) | How each agent stores data, for contributors |
 | [docs/system-service.md](docs/system-service.md) | The watchdog on each platform |
+| [docs/integrations.md](docs/integrations.md) | The pipeline guard action, the container image, and the Prometheus metrics |
+| [docs/verification.md](docs/verification.md) | What continuous integration actually ran, generated from the run itself |
 | [docs/roadmap.md](docs/roadmap.md) | What is planned next |
 | [benchmarks/results.md](benchmarks/results.md) | Measured numbers and the machine they came from |
+
+## Integrations
+
+A composite GitHub Action builds the command line program and runs `diagnose`, or
+`reclaim --target`, as a pipeline guard: the step fails when a database needs
+attention. `diagnose --prometheus` writes node_exporter textfile metrics, so a team
+can chart every database it knows about. Both are documented in
+[docs/integrations.md](docs/integrations.md).
+
+Packaging is prepared but not published. `packaging/` holds the winget manifest
+templates and the Homebrew tap formula template, with generators that fill in the
+release URL and the SHA-256, and the steps for submitting them. winget takes a
+manifest pull request to `microsoft/winget-pkgs`; the Homebrew formula goes to a
+personal tap repository named `homebrew-tap`. Both are submitted at the next
+tagged release; until one has been submitted, installation is from source.
 
 ## What this tool does not do
 
@@ -253,7 +317,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). The one rule that is not negotiable: not
 you add may destroy a user's session history without their explicit confirmation.
 
 Every change is built and tested by the workflow in `.github/workflows/ci.yml` with
-GCC and Clang on Linux, MSVC on Windows, and AppleClang on macOS.
+GCC and Clang on Linux, MSVC on Windows, and AppleClang on macOS. The workflow
+writes what it ran - job names, conclusions, times, and the run link - into
+[docs/verification.md](docs/verification.md) and commits it on `main`, so the
+record is generated from the runs rather than written by hand.
 
 ## License
 
