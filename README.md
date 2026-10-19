@@ -361,8 +361,10 @@ Releases are built by `.github/workflows/release.yml`. Publishing a release for 
 tag starts it: it checks that the tag names the version in `CMakeLists.txt`, builds
 the three platform packages with the same tests as continuous integration, attaches
 them to that release, and signs them with cosign. The same workflow can be started
-by hand, which builds the packages and leaves them as run artifacts, so the
-packages can be produced before the release is written.
+by hand: with no input it builds the packages and leaves them as run artifacts, and
+with the tag of an existing release it attaches the packages and their signatures to
+that release, which is how a release is completed after a run that failed. It moves
+no tag and re-creates no release.
 
 Accessibility reports are defects here, not feature requests:
 [ACCESSIBILITY.md](ACCESSIBILITY.md) says what the project commits to, what is known
