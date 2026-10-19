@@ -36,15 +36,30 @@ job_rows="$(jq -r '.[] | [.name, (.conclusion // "null"), (.started_at // "null"
 # as far as printing one (which the page then shows as a dash rather than a
 # guess). The per-job view is tried first; the job logs endpoint is the fallback
 # because a finished job's log can be readable through one and not the other.
+#
+# The read is retried, because this job runs while its own run is still open and a
+# job's log can take a moment to become readable. The marker is anchored to the end
+# of the log's timestamp so that the runner's own echo of the command cannot match
+# it: that echo contains the same words as the output line, and matching it would
+# put the workflow's source text on the page instead of the compiler's name.
 compiler_of() {
     local job_id="$1"
+    local attempt=0
     local log=""
-    log="$(gh run view "${run_id}" --job "${job_id}" --log 2>/dev/null || true)"
-    if [[ -z "${log}" ]]; then
-        log="$(gh api "repos/${repository}/actions/jobs/${job_id}/logs" 2>/dev/null || true)"
-    fi
+    while (( attempt < 6 )); do
+        log="$(gh run view "${run_id}" --job "${job_id}" --log 2>/dev/null || true)"
+        if [[ -z "${log}" ]]; then
+            log="$(gh api "repos/${repository}/actions/jobs/${job_id}/logs" 2>/dev/null || true)"
+        fi
+        if [[ -n "${log}" ]]; then
+            break
+        fi
+        attempt=$(( attempt + 1 ))
+        sleep 10
+    done
     printf '%s\n' "${log}" \
-        | grep -m1 -- "${compiler_marker}" \
+        | sed $'s/\033\\[[0-9;]*m//g' \
+        | grep -m1 -E "(^|Z )${compiler_marker} " \
         | sed "s/.*${compiler_marker} //" \
         | tr -d '\r' \
         || true
