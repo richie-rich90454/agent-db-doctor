@@ -3,9 +3,12 @@
 # Two ways in, and they differ in one thing only: whether the packages are
 # attached to a release.
 #
-# - A release being created for a tag starts this workflow. It builds the three
+# - Publishing a release for a tag starts this workflow. It builds the three
 #   platform packages, runs every test suite, attaches the packages to that
-#   release, and signs them with cosign.
+#   release, and signs them with cosign. The trigger is `published` rather than
+#   `created` because a draft release can be created before its tag exists, and a
+#   job that checks out a tag which is not there yet fails; by the time a release
+#   is published, the tag names a commit.
 # - A manual run from the Actions page builds the same packages with the same
 #   tests and leaves them as run artifacts. It never touches a release, and it
 #   needs no release to exist, so it is the way to produce the packages before
@@ -19,7 +22,7 @@ name: Release
 
 on:
   release:
-    types: [created]
+    types: [published]
   workflow_dispatch:
 
 permissions:
