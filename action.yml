@@ -1,0 +1,79 @@
+# A composite action that builds the command line program from the checked out
+# source and runs it, so a pipeline can guard the databases a machine keeps.
+#
+# The workspace must be the source: check the repository out first, then use this
+# action (see docs/integrations.md). cmake and a C++ compiler must be on the
+# runner; a GitHub hosted ubuntu runner carries both. The build skips the
+# graphical interface, so SDL3 is never downloaded.
+name: "agent-db-doctor"
+description: "Diagnose AI coding agent databases, and fail the run when one needs attention."
+author: "richie-rich90454"
+branding:
+  icon: "activity"
+  color: "purple"
+
+inputs:
+  database:
+    description: "Path to one database. Leave empty to check every database the runner can find."
+    required: false
+    default: ""
+  arguments:
+    description: "Extra arguments for the command. The default asks for machine readable output."
+    required: false
+    default: "--machine-readable"
+  target:
+    description: "When set, run 'reclaim --target <size>' instead of 'diagnose'."
+    required: false
+    default: ""
+  build-type:
+    description: "The CMake build type."
+    required: false
+    default: "Release"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure
+      shell: bash
+      run: >-
+        cmake -S . -B build
+        -DCMAKE_BUILD_TYPE=${{ inputs.build-type }}
+        -DAGENT_DB_DOCTOR_BUILD_GUI=OFF
+    - name: Build
+      shell: bash
+      run: cmake --build build --config ${{ inputs.build-type }}
+    # One step runs one command: diagnose when no target is set, reclaim toward
+    # the target when one is. The program's own exit code becomes the step's exit
+    # code, so the run fails exactly when a database needs attention (1) or the
+    # flags were wrong (2), which is the point of using this action as a guard.
+    - name: Run agent-db-doctor
+      shell: bash
+      env:
+        DATABASE: ${{ inputs.database }}
+        EXTRA_ARGUMENTS: ${{ inputs.arguments }}
+        TARGET: ${{ inputs.target }}
+      run: |
+        # A single configuration generator puts the binary in build/bin; the
+        # Visual Studio generator adds one configuration folder below it, so both
+        # shapes are checked and the first match wins.
+        shopt -s nullglob
+        candidates=(build/bin/agent-db-doctor build/bin/agent-db-doctor.exe build/bin/*/agent-db-doctor.exe)
+        binary="${candidates[0]:-}"
+        if [ -z "$binary" ]; then
+          echo "The build produced no agent-db-doctor binary." >&2
+          exit 1
+        fi
+        if [ -n "$TARGET" ]; then
+          args=(reclaim --target "$TARGET")
+        else
+          args=(diagnose)
+        fi
+        if [ -n "$DATABASE" ]; then
+          args+=(--database "$DATABASE")
+        fi
+        # The extra arguments are split on spaces on purpose: the input is the
+        # command line a user would have typed, flags and all.
+        if [ -n "$EXTRA_ARGUMENTS" ]; then
+          args+=($EXTRA_ARGUMENTS)
+        fi
+        "$binary" "${args[@]}"
