@@ -211,6 +211,12 @@ void DiagnosisReport::setDatabaseOpenSucceeded(bool succeeded) {
 bool DiagnosisReport::getDatabaseOpenSucceeded() const {
     return databaseOpenSucceeded;
 }
+void DiagnosisReport::setHealthScore(int score) {
+    healthScore=score;
+}
+int DiagnosisReport::getHealthScore() const {
+    return healthScore;
+}
 bool DiagnosisReport::isHealthy() const {
     if (!fileExists) {
         return false;
