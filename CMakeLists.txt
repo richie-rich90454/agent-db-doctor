@@ -302,6 +302,7 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Doctor/SpaceAttribution.cpp
     src/AgentDbDoctor/Doctor/SafetyChecks.cpp
     src/AgentDbDoctor/Doctor/StatisticsReader.cpp
+    src/AgentDbDoctor/Doctor/HealthScore.cpp
     src/AgentDbDoctor/Recovery/KnownFailurePatterns.cpp
     src/AgentDbDoctor/Recovery/RecoveryRecommendation.cpp
     src/AgentDbDoctor/Recovery/RecoveryPlaybook.cpp
@@ -325,9 +326,13 @@ set(AGENT_DB_DOCTOR_CORE_SOURCES
     src/AgentDbDoctor/Command/SessionsCommand.cpp
     src/AgentDbDoctor/Command/ReclaimCommand.cpp
     src/AgentDbDoctor/Command/WatchCommand.cpp
+    src/AgentDbDoctor/Command/AuditCommand.cpp
     src/AgentDbDoctor/Service/ServiceConfiguration.cpp
     src/AgentDbDoctor/Service/ServiceManager.cpp
     src/AgentDbDoctor/Service/HistoryStore.cpp
+    src/AgentDbDoctor/Service/AutomaticMaintenance.cpp
+    src/AgentDbDoctor/Service/AuditLog.cpp
+    src/AgentDbDoctor/Service/Notifier.cpp
 )
 # The platform specific translation units are chosen at configure time so that
 # exactly one implementation is compiled into the binary.
@@ -512,13 +517,21 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
     endif()
     set(AGENT_DB_DOCTOR_GUI_SOURCES
         gui/GuiMain.cpp
-        gui/BackgroundScan.cpp
-        gui/DashboardScreen.cpp
-        gui/ActionRunner.cpp
-        gui/ActionScreens.cpp
+        gui/AppScreens.cpp
+        gui/GuiState.cpp
+        gui/CliRunner.cpp
+        gui/Json.cpp
     )
     add_executable(agent-db-doctor-gui ${AGENT_DB_DOCTOR_GUI_SOURCES})
-    target_link_libraries(agent-db-doctor-gui PRIVATE agent_db_doctor_core imgui_lib stb_image SDL3::SDL3)
+    # The window is a thin invoker of the command line program: it does not link the
+    # core library, so every number it shows came out of the child process and the
+    # two front ends cannot disagree.
+    target_link_libraries(agent-db-doctor-gui PRIVATE imgui_lib stb_image SDL3::SDL3)
+    if(WIN32)
+        # A window subsystem program links against WinMain, which GuiMain.cpp
+        # provides, and it never opens a console window beside the interface.
+        set_target_properties(agent-db-doctor-gui PROPERTIES WIN32_EXECUTABLE TRUE)
+    endif()
     # SDL3's headers contain inline helpers whose style the tool's own strict
     # warning set rejects on some compilers (an old style cast in one of the bit
     # helpers, for example). The headers are third party code, so their folder is
@@ -589,6 +602,19 @@ if(AGENT_DB_DOCTOR_BUILD_GUI)
         )
         target_sources(agent-db-doctor-gui PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/agent_db_doctor_gui_app.rc")
     endif()
+endif()
+# The fuzz target for the configuration reader. It is off by default because it needs
+# Clang's libFuzzer, which GCC does not provide, and because it is a tool for
+# finding parser bugs rather than something a normal build needs.
+option(AGENT_DB_DOCTOR_ENABLE_FUZZING "Build the libFuzzer target for the configuration reader." OFF)
+if(AGENT_DB_DOCTOR_ENABLE_FUZZING)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "-DAGENT_DB_DOCTOR_ENABLE_FUZZING=ON needs Clang; GCC has no -fsanitize=fuzzer.")
+    endif()
+    add_executable(fuzz_configuration tests/fuzz/ConfigurationFuzz.cpp)
+    target_link_libraries(fuzz_configuration PRIVATE agent_db_doctor_core)
+    target_compile_options(fuzz_configuration PRIVATE ${AGENT_DB_DOCTOR_WARNINGS} -fsanitize=fuzzer,address)
+    target_link_options(fuzz_configuration PRIVATE -fsanitize=fuzzer,address)
 endif()
 message(STATUS "agent-db-doctor ${PROJECT_VERSION} configured for ${AGENT_DB_DOCTOR_PLATFORM_TAG} "
     "with build type '${CMAKE_BUILD_TYPE}'.")
