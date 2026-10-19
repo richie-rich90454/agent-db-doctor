@@ -27,6 +27,31 @@ using namespace AgentDbDoctor::Common;
 using namespace AgentDbDoctor::Agents;
 using namespace AgentDbDoctor::Doctor;
 namespace AgentDbDoctor::Command {
+namespace {
+// Escapes one label value for the Prometheus exposition format, which requires a
+// backslash, a double quote, and a newline to be written as escapes. A Windows
+// path contains backslashes, so this is not a theoretical concern.
+string escapeForPrometheusLabel(const string& text) {
+    string escapedText;
+    escapedText.reserve(text.size() + 8);
+    for (const char currentCharacter : text) {
+        switch (currentCharacter) {
+            case '\\': escapedText+="\\\\"; break;
+            case '"': escapedText+="\\\""; break;
+            case '\n': escapedText+="\\n"; break;
+            default: escapedText.push_back(currentCharacter); break;
+        }
+    }
+    return escapedText;
+}
+// The labels every metric carries: which agent owns the database, and which file
+// it is. The path is quoted and escaped, so a path is always one label value and
+// never a way to inject another metric.
+string prometheusLabelsFor(const DiagnosisReport& report) {
+    return string("{agent=\"") + escapeForPrometheusLabel(report.getAgentName())
+        + "\",path=\"" + escapeForPrometheusLabel(report.getDatabaseFilePath()) + "\"}";
+}
+}
 DiagnoseCommand::DiagnoseCommand(bool isTerminalAttached)
     : reporter(isTerminalAttached) {
 }
@@ -229,6 +254,39 @@ int DiagnoseCommand::execute(const CommandOptions& options) {
                 string()
             );
         }
+    }
+    // The Prometheus exposition is written after every report, as one textfile a
+    // monitoring agent can collect whole. It is written only when the flag asks
+    // for it, so the plain report is unchanged, and it is written through the raw
+    // output path because JSON wrapping would make the text unreadable to the
+    // thing that asked for it.
+    if (options.prometheusOutput) {
+        string expositionText;
+        expositionText+="# HELP agent_db_doctor_size_bytes The size of each database file in bytes.\n";
+        expositionText+="# TYPE agent_db_doctor_size_bytes gauge\n";
+        for (const DiagnosisReport& report : collectedReports) {
+            expositionText+="agent_db_doctor_size_bytes" + prometheusLabelsFor(report) + " "
+                + to_string(report.getLogicalSizeBytes()) + "\n";
+        }
+        expositionText+="# HELP agent_db_doctor_reclaimable_bytes The bytes a vacuum would hand back.\n";
+        expositionText+="# TYPE agent_db_doctor_reclaimable_bytes gauge\n";
+        for (const DiagnosisReport& report : collectedReports) {
+            expositionText+="agent_db_doctor_reclaimable_bytes" + prometheusLabelsFor(report) + " "
+                + to_string(report.getReclaimableBytes()) + "\n";
+        }
+        expositionText+="# HELP agent_db_doctor_healthy 1 when the database is sound, 0 otherwise.\n";
+        expositionText+="# TYPE agent_db_doctor_healthy gauge\n";
+        for (const DiagnosisReport& report : collectedReports) {
+            expositionText+="agent_db_doctor_healthy" + prometheusLabelsFor(report) + " "
+                + (report.isHealthy() ? "1" : "0") + "\n";
+        }
+        expositionText+="# HELP agent_db_doctor_health_score The health score from 0 to 100, or -1 when unknown.\n";
+        expositionText+="# TYPE agent_db_doctor_health_score gauge\n";
+        for (const DiagnosisReport& report : collectedReports) {
+            expositionText+="agent_db_doctor_health_score" + prometheusLabelsFor(report) + " "
+                + to_string(report.getHealthScore()) + "\n";
+        }
+        reporter.writeRawOutput(expositionText);
     }
     if (options.traceReadCounts) {
         if (reporter.isMachineReadable()) {
