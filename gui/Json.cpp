@@ -165,7 +165,7 @@ bool JsonValue::parse(const string& text, JsonValue& valueOut) {
                         return false;
                     }
                     valueOut.valueKind=JsonValue::Kind::Text;
-                    valueOut.valueText=move(parsedText);
+                    valueOut.valueText=std::move(parsedText);
                     return true;
                 }
                 case 't': return readLiteral("true", valueOut);
@@ -200,7 +200,7 @@ bool JsonValue::parse(const string& text, JsonValue& valueOut) {
             object.valueKind=JsonValue::Kind::Object;
             skipWhitespace();
             if (consume('}')) {
-                valueOut=move(object);
+                valueOut=std::move(object);
                 return true;
             }
             while (true) {
@@ -219,13 +219,13 @@ bool JsonValue::parse(const string& text, JsonValue& valueOut) {
                     return false;
                 }
                 object.valueMembers.push_back(
-                    pair<string, JsonValue>(move(memberName), move(memberValue)));
+                    pair<string, JsonValue>(std::move(memberName), std::move(memberValue)));
                 skipWhitespace();
                 if (consume(',')) {
                     continue;
                 }
                 if (consume('}')) {
-                    valueOut=move(object);
+                    valueOut=std::move(object);
                     return true;
                 }
                 return false;
@@ -239,7 +239,7 @@ bool JsonValue::parse(const string& text, JsonValue& valueOut) {
             array.valueKind=JsonValue::Kind::Array;
             skipWhitespace();
             if (consume(']')) {
-                valueOut=move(array);
+                valueOut=std::move(array);
                 return true;
             }
             while (true) {
@@ -248,13 +248,13 @@ bool JsonValue::parse(const string& text, JsonValue& valueOut) {
                 if (!readValue(elementValue, depth + 1)) {
                     return false;
                 }
-                array.valueElements.push_back(move(elementValue));
+                array.valueElements.push_back(std::move(elementValue));
                 skipWhitespace();
                 if (consume(',')) {
                     continue;
                 }
                 if (consume(']')) {
-                    valueOut=move(array);
+                    valueOut=std::move(array);
                     return true;
                 }
                 return false;
@@ -268,7 +268,7 @@ bool JsonValue::parse(const string& text, JsonValue& valueOut) {
             while (!atEnd()) {
                 const char currentCharacter=text[position++];
                 if (currentCharacter=='"') {
-                    textOut=move(result);
+                    textOut=std::move(result);
                     return true;
                 }
                 if (currentCharacter!='\\') {
