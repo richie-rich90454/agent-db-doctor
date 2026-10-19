@@ -3,9 +3,10 @@
 //
 // The JSON handling below is a small recursive descent parser and writer. It
 // accepts exactly what the configuration format uses: an object whose values are
-// numbers, strings, booleans, or arrays of strings. A dependency that can parse any
-// JSON would be several thousand lines to read six fields, and the specification
-// permits no JSON library.
+// numbers, strings, booleans, arrays of strings, and the array of policy objects
+// that carries the per database settings. A dependency that can parse any JSON
+// would be several thousand lines to read a handful of fields, and the
+// specification permits no JSON library.
 // Provides `ifstream` and `ofstream`, which read and write text files.
 #include <fstream>
 // Provides `map`, the ordered dictionary the parsed object members go in.
@@ -383,7 +384,32 @@ bool ServiceConfiguration::isValid(string& explanationOut) const {
             "almost certainly a typo, and the service refuses to guess what was meant.");
         return false;
     }
+    // A policy that names no file would silently apply to nothing, and one with a
+    // negative threshold would fire the maintenance on every tick. Both are
+    // mistakes rather than preferences, so they are refused with a sentence.
+    for (const DatabasePolicy& policy : databasePolicies) {
+        if (policy.databaseFilePath.empty()) {
+            explanationOut=string("Every database policy must name the database it applies to. ")
+                + "A policy without a path would silently apply to nothing, which is exactly the "
+                  "kind of quiet mistake the file is checked for.";
+            return false;
+        }
+        if (policy.criticalThresholdBytes<0) {
+            explanationOut=string("A database policy's critical threshold must be a positive ")
+                + "number of bytes, and zero means the policy does not change the threshold. A "
+                  "negative value would make the service treat the database as urgent always.";
+            return false;
+        }
+    }
     return true;
+}
+const DatabasePolicy* ServiceConfiguration::policyFor(const string& databaseFilePath) const {
+    for (const DatabasePolicy& policy : databasePolicies) {
+        if (policy.databaseFilePath==databaseFilePath) {
+            return &policy;
+        }
+    }
+    return nullptr;
 }
 string ConfigurationFile::defaultDirectoryPath() {
     return PlatformMetadata::programDataDirectory() + "/" + TOOL_FOLDER_NAME;
@@ -395,6 +421,20 @@ string ConfigurationFile::defaultLogFilePath() {
     return defaultDirectoryPath() + "/" + LOG_FOLDER_NAME + "/" + LOG_FILE_NAME;
 }
 string ConfigurationFile::renderAsJson(const ServiceConfiguration& configuration) {
+    // Renders text as a quoted JSON string, escaping the two characters that
+    // matter: the quote that would end the string early and the backslash before
+    // it. A Windows path contains both, so this is not a theoretical concern.
+    const auto renderQuotedText=[](const string& text) {
+        string quotedText="\"";
+        for (const char currentCharacter : text) {
+            if (currentCharacter=='"' || currentCharacter=='\\') {
+                quotedText.push_back('\\');
+            }
+            quotedText.push_back(currentCharacter);
+        }
+        quotedText.push_back('"');
+        return quotedText;
+    };
     // The file is written by hand rather than by a library so that its layout stays
     // predictable and readable to the person who has to edit it.
     string text=string("{\n");
@@ -403,16 +443,7 @@ string ConfigurationFile::renderAsJson(const ServiceConfiguration& configuration
         if (pathIndex>0) {
             text+=", ";
         }
-        // The quotes and backslashes inside a path are escaped, because a Windows
-        // path contains both and an unescaped quote would end the string early.
-        string escapedPath;
-        for (const char currentCharacter : configuration.watchedDatabasePaths[pathIndex]) {
-            if (currentCharacter=='"' || currentCharacter=='\\') {
-                escapedPath.push_back('\\');
-            }
-            escapedPath.push_back(currentCharacter);
-        }
-        text+="\"" + escapedPath + "\"";
+        text+=renderQuotedText(configuration.watchedDatabasePaths[pathIndex]);
     }
     text+="],\n";
     text+="  \"warningThresholdBytes\": " + to_string(configuration.warningThresholdBytes) + ",\n";
@@ -420,7 +451,21 @@ string ConfigurationFile::renderAsJson(const ServiceConfiguration& configuration
     text+="  \"checkIntervalSeconds\": " + to_string(configuration.checkIntervalSeconds) + ",\n";
     text+="  \"allowAutomaticCompaction\": ";
     text+=configuration.allowAutomaticCompaction ? "true" : "false";
-    text+="\n}\n";
+    text+=",\n";
+    // Each policy is one object on one line, so a file with a handful of policies
+    // stays readable and a diff between two versions of it stays small.
+    text+="  \"databasePolicies\": [";
+    for (size_t policyIndex=0; policyIndex<configuration.databasePolicies.size(); ++policyIndex) {
+        if (policyIndex>0) {
+            text+=", ";
+        }
+        const DatabasePolicy& policy=configuration.databasePolicies[policyIndex];
+        text+="{\"path\": " + renderQuotedText(policy.databaseFilePath)
+            + ", \"criticalThresholdBytes\": " + to_string(policy.criticalThresholdBytes)
+            + ", \"allowAutomaticCompaction\": " + (policy.allowAutomaticCompaction ? "true" : "false")
+            + ", \"notifyOnThreshold\": " + (policy.notifyOnThreshold ? "true" : "false") + "}";
+    }
+    text+="]\n}\n";
     return text;
 }
 void ConfigurationFile::write(const ServiceConfiguration& configuration, const string& filePath) {
@@ -454,13 +499,23 @@ optional<ServiceConfiguration> ConfigurationFile::read(const string& filePath) {
         // parser reports it with a line number.
         return nullopt;
     }
-    // Reading the whole file into one string is right here: the file holds six
-    // fields, and the parser needs random access to it.
+    // Reading the whole file into one string is right here: the file holds a
+    // handful of fields, and the parser needs random access to it.
     string fileText(
         (istreambuf_iterator<char>(inputFile)),
         istreambuf_iterator<char>()
     );
-    const JsonValue rootValue=JsonParser::parse(fileText);
+    return fromText(fileText, filePath);
+}
+optional<ServiceConfiguration> ConfigurationFile::fromText(
+    const string& text,
+    const string& configurationFilePath
+) {
+    // This is a thin wrapper over the parser and the builder that `read` also
+    // uses, so there is one definition of what a configuration means: a file that
+    // is accepted here is accepted from disk, and a malformed one is refused with
+    // the same sentence either way.
+    const JsonValue rootValue=JsonParser::parse(text);
     if (rootValue.kind!="object") {
         throw ConfigurationException(
             string("The configuration file must contain an object in braces, and this one begins "
@@ -468,7 +523,7 @@ optional<ServiceConfiguration> ConfigurationFile::read(const string& filePath) {
         );
     }
     ServiceConfiguration configuration;
-    configuration.configurationFilePath=filePath;
+    configuration.configurationFilePath=configurationFilePath;
     configuration.logFilePath=defaultLogFilePath();
     // Each field is read only if it is present. A file with one field in it is
     // valid, and the missing ones keep their defaults, so a user can set just the
@@ -535,6 +590,56 @@ optional<ServiceConfiguration> ConfigurationFile::read(const string& filePath) {
     const JsonValue* allowCompaction=findMember("allowAutomaticCompaction");
     if (allowCompaction!=nullptr && allowCompaction->kind=="boolean") {
         configuration.allowAutomaticCompaction=allowCompaction->booleanValue;
+    }
+    const JsonValue* policyList=findMember("databasePolicies");
+    if (policyList!=nullptr) {
+        if (policyList->kind!="array") {
+            throw ConfigurationException(
+                string("The setting databasePolicies must be a list of policies in square brackets.")
+            );
+        }
+        for (const JsonValue& element : policyList->elements) {
+            // An element that is not an object cannot be a policy, and guessing
+            // what the user meant would be worse than leaving it out. Skipping it
+            // fails safe: without the policy the configuration wide settings
+            // apply, and the missing permission is a refusal.
+            if (element.kind!="object") {
+                continue;
+            }
+            const auto findPolicyMember=[&element](const string& memberName) -> const JsonValue* {
+                const auto foundMember=element.members.find(memberName);
+                if (foundMember==element.members.end()) {
+                    return nullptr;
+                }
+                return &foundMember->second;
+            };
+            DatabasePolicy policy;
+            const JsonValue* policyPath=findPolicyMember("path");
+            if (policyPath!=nullptr && policyPath->kind=="string") {
+                policy.databaseFilePath=policyPath->text;
+            }
+            const JsonValue* policyCriticalThreshold=findPolicyMember("criticalThresholdBytes");
+            if (policyCriticalThreshold!=nullptr && policyCriticalThreshold->kind=="number") {
+                long long parsedValue=0;
+                const auto parseResult=from_chars(
+                    policyCriticalThreshold->text.data(),
+                    policyCriticalThreshold->text.data() + policyCriticalThreshold->text.size(),
+                    parsedValue
+                );
+                if (parseResult.ec==errc{}) {
+                    policy.criticalThresholdBytes=parsedValue;
+                }
+            }
+            const JsonValue* policyCompaction=findPolicyMember("allowAutomaticCompaction");
+            if (policyCompaction!=nullptr && policyCompaction->kind=="boolean") {
+                policy.allowAutomaticCompaction=policyCompaction->booleanValue;
+            }
+            const JsonValue* policyNotification=findPolicyMember("notifyOnThreshold");
+            if (policyNotification!=nullptr && policyNotification->kind=="boolean") {
+                policy.notifyOnThreshold=policyNotification->booleanValue;
+            }
+            configuration.databasePolicies.push_back(std::move(policy));
+        }
     }
     string validationExplanation;
     if (!configuration.isValid(validationExplanation)) {
