@@ -18,4 +18,4 @@ Start here:
 | See what is planned | [roadmap.md](roadmap.md) |
 
 The measured numbers behind every performance claim are in
-[../benchmarks/results.md](../benchmarks/results.md).
+[benchmarks/results.md](https://github.com/richie-rich90454/agent-db-doctor/blob/main/benchmarks/results.md).
