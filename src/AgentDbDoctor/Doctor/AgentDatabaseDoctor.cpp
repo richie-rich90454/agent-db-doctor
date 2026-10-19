@@ -20,6 +20,10 @@
 #include "AgentDbDoctor/Doctor/SchemaVersionDetector.hpp"
 // Provides the schema fingerprint, which notices when an agent changes its layout.
 #include "AgentDbDoctor/Doctor/SchemaFingerprint.hpp"
+// Provides the health score that summarizes the finished report in one number.
+#include "AgentDbDoctor/Doctor/HealthScore.hpp"
+// Provides the recorded sizes the growth rate is measured from.
+#include "AgentDbDoctor/Service/HistoryStore.hpp"
 // Provides the Database wrapper and the Statement class.
 #include "AgentDbDoctor/Persistence/Database.hpp"
 // Provides PlatformMetadata, the only place the file system is asked anything.
@@ -34,6 +38,7 @@ using namespace AgentDbDoctor::Common;
 using namespace AgentDbDoctor::Presentation;
 using namespace AgentDbDoctor::Persistence;
 using namespace AgentDbDoctor::FileSystem;
+using namespace AgentDbDoctor::Service;
 namespace AgentDbDoctor::Doctor {
 // The tables whose row counts the report shows. The names are constants so that
 // no query anywhere in the tool is built from a string typed by a user.
@@ -449,6 +454,25 @@ DiagnosisReport AgentDatabaseDoctor::diagnoseDatabase(
     const long long endNanoseconds=PlatformMetadata::monotonicNanoseconds();
     report.setDurationNanoseconds(endNanoseconds-startNanoseconds);
     report.setMetadataCallCount(PlatformMetadata::metadataCallCount());
+    // The health score is computed last, from the finished report, so every rule
+    // sees every number. The growth rate comes from the last two sizes the
+    // watchdog recorded, scaled from bytes per second to bytes per day; fewer
+    // than two points, or a gap of no time, means there is no trend to measure
+    // and the rate is zero. The store is one small text file, which is the same
+    // cost the history command already pays, and it is read here rather than
+    // measured, so the metadata call count above is unaffected.
+    const vector<HistoryPoint> recordedPoints=HistoryStore::pointsFor(databaseFilePath, 0);
+    double growthBytesPerDay=0.0;
+    if (recordedPoints.size()>=2) {
+        const HistoryPoint& lastPoint=recordedPoints[recordedPoints.size() - 1];
+        const HistoryPoint& previousPoint=recordedPoints[recordedPoints.size() - 2];
+        const long long elapsedSeconds=lastPoint.epochSeconds-previousPoint.epochSeconds;
+        if (elapsedSeconds>0) {
+            growthBytesPerDay=static_cast<double>(lastPoint.sizeBytes-previousPoint.sizeBytes)
+                / static_cast<double>(elapsedSeconds) * 86400.0;
+        }
+    }
+    report.setHealthScore(HealthScore::scoreFor(report, growthBytesPerDay));
     return report;
 }
 optional<DiagnosisReport> AgentDatabaseDoctor::diagnoseIfAboveThreshold(
