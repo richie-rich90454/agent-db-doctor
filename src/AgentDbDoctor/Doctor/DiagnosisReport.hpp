@@ -158,6 +158,12 @@ public:
     // a file that does not exist is not a healthy report, and the report layer
     // words the difference.
     bool isHealthy() const;
+    // Records the health score, from 0 to 100. The value -1 means unknown, which
+    // is what a fresh report carries: a score is set only once the whole pass has
+    // finished, and a folder or a missing file never gets one, because there is
+    // no database there to score.
+    void setHealthScore(int score);
+    int getHealthScore() const;
 private:
     string databaseFilePath;
     string agentName;
@@ -180,6 +186,10 @@ private:
     IntegrityStatus integrityStatus=IntegrityStatus::NOT_CHECKED;
     string integrityMessage;
     int openFailureCode=0;
+    // The health score, or -1 when none was computed. The default is -1 rather
+    // than 100 so that a report that was never scored cannot read as a healthy
+    // database.
+    int healthScore=-1;
     long long durationNanoseconds=0;
     long long metadataCallCount=0;
     // The row counts, keyed by table name. A `map` keeps them sorted, so a report
