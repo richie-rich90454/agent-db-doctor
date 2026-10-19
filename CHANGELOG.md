@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+No changes recorded yet.
+
+## [1.0.0] - 2026-10-19
+
 Sixty two agents instead of six, OpenCode v1 and v2 schemas, and a graphical
 interface. The application version is unchanged: this is all new coverage in
 the same v1 tool, verified the same way (full suite green on Windows and
@@ -284,8 +288,8 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
 ### Added (the window as an invoker)
 
 - **The window no longer links the diagnostics library.** It runs the
-  `agent-db-doctor` binary that sits beside it, streams its output, and reads the
-  machine readable JSON, so the two front ends cannot disagree about a number.
+  `agent-db-doctor` binary that sits beside it, streams its output, and reads
+  the machine readable JSON, so the two front ends cannot disagree about a number.
 - **Five tabs, one primary action each.** Overview: total size, total reclaimable,
   one "Reclaim the biggest" button, and the five largest databases. Databases: a
   filter box, a sortable table of agent, path, size, reclaimable, and health, and a
@@ -422,7 +426,7 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
 - **A fuzz target for the configuration parser**, behind
   `-DAGENT_DB_DOCTOR_ENABLE_FUZZING=ON` (Clang only).
 
-## [1.0.0] - 2026-09-30
+### Initial implementation (September 30, 2026)
 
 The first release. Everything below is implemented and verified against real agent
 databases. The full test suite is run and passes on Windows and on Linux; the macOS
