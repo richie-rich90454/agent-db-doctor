@@ -50,14 +50,23 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
-      # The line the verification page reads back from this job's log, so the page
-      # can name the compiler that actually ran rather than only the one the
-      # matrix selected; the job summary gets the same line for anyone reading the
-      # run in the browser.
+      # The banner the verification page shows for this job. It is printed into the
+      # log and the job summary, and written to a file that is uploaded as an
+      # artifact. The page cannot read this job's log: it is generated while its own
+      # run is still open, and GitHub serves a job's log only once the run that owns
+      # it has finished.
       - name: Report the compiler version
         run: |
-          echo "agent-db-doctor compiler: $(${{ matrix.cxxCompiler }} --version | head -n 1)" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+          banner="$(${{ matrix.cxxCompiler }} --version | head -n 1)"
+          echo "agent-db-doctor compiler: ${banner}" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "${banner}" > compiler-banner.txt
+      - name: Upload the compiler banner
+        uses: actions/upload-artifact@v7
+        with:
+          name: compiler-banner-linux-${{ matrix.name }}
+          path: compiler-banner.txt
+          if-no-files-found: error
+          retention-days: 14
       # `xauth` is what `xvfb-run` needs before it can start its virtual display,
       # and the X11 and Wayland development packages are what SDL3 is built
       # against. Both compilers are installed whichever one this job selected, so
@@ -118,11 +127,10 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-      # The line the verification page reads back from this job's log. `cl` with
-      # no input files prints its banner and its usage and exits with code 2, so
-      # cmd runs it, keeps the output, and still reports success; the banner text
-      # is checked for, because a missing compiler should fail here rather than
-      # land on the page as junk.
+      # The banner the verification page shows for this job, written the same way as
+      # the Linux one and for the same reason. `Set-Content -Encoding utf8` would add
+      # a byte order mark on Windows PowerShell, which would become part of the first
+      # word on the page, so the file is written by the .NET API instead.
       - name: Report the compiler version
         shell: pwsh
         run: |
@@ -131,6 +139,16 @@ jobs:
               throw "The Microsoft compiler printed no version banner; 'cl' may not be on the path."
           }
           "agent-db-doctor compiler: $($banner.Trim())" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          [System.IO.File]::WriteAllText(
+              (Join-Path $PWD "compiler-banner.txt"),
+              $banner.Trim() + [Environment]::NewLine)
+      - name: Upload the compiler banner
+        uses: actions/upload-artifact@v7
+        with:
+          name: compiler-banner-windows-msvc
+          path: compiler-banner.txt
+          if-no-files-found: error
+          retention-days: 14
       - name: Configure
         run: >-
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -182,13 +200,20 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
-      # The line the verification page reads back from this job's log, so the page
-      # can name the compiler that actually ran; the job summary gets the same line
-      # for anyone reading the run in the browser.
+      # The banner the verification page shows for this job, written the same way as
+      # the Linux one and for the same reason.
       - name: Report the compiler version
         run: |
-          echo "agent-db-doctor compiler: $(clang++ --version | head -n 1)" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+          banner="$(clang++ --version | head -n 1)"
+          echo "agent-db-doctor compiler: ${banner}" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "${banner}" > compiler-banner.txt
+      - name: Upload the compiler banner
+        uses: actions/upload-artifact@v7
+        with:
+          name: compiler-banner-macos-appleclang
+          path: compiler-banner.txt
+          if-no-files-found: error
+          retention-days: 14
       - name: Make sure Ninja is available
         run: which ninja || brew install ninja
       - name: Configure
@@ -224,12 +249,13 @@ jobs:
           retention-days: 14
 
   # The verification page is the record of what actually ran: after the platform
-  # jobs finish on a push to the main branch, this job asks the API what ran,
-  # writes the table into docs/verification.md, and commits the page. A run whose
-  # platform jobs failed still writes the page, because that is when the record
-  # matters most; a cancelled run writes nothing. The push uses the workflow's own
-  # token, and a push made with that token cannot start another run, so the page
-  # can never trigger itself.
+  # jobs finish on a push to the main branch, this job asks the API what ran, reads
+  # the compiler banner each platform job uploaded as an artifact, writes the table
+  # into docs/verification.md, and commits the page. A run whose platform jobs
+  # failed still writes the page, because that is when the record matters most; a
+  # cancelled run writes nothing. The push uses the workflow's own token, and a push
+  # made with that token cannot start another run, so the page can never trigger
+  # itself.
   verification:
     name: Verification page
     runs-on: ubuntu-latest
@@ -242,6 +268,14 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
+      # The banners are read from artifacts rather than from the jobs' logs, because
+      # a job's log is not served while its own run is still open, and this job is
+      # part of that run.
+      - name: Download the compiler banners
+        uses: actions/download-artifact@v8
+        with:
+          pattern: compiler-banner-*
+          path: banners
       - name: Refresh the verification page
         env:
           GH_TOKEN: ${{ github.token }}
