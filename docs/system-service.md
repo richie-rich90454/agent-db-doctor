@@ -68,7 +68,8 @@ keep their defaults.
   "warningThresholdBytes": 53687091200,
   "criticalThresholdBytes": 107374182400,
   "checkIntervalSeconds": 3600,
-  "allowAutomaticCompaction": false
+  "allowAutomaticCompaction": false,
+  "databasePolicies": []
 }
 ```
 
@@ -76,9 +77,10 @@ keep their defaults.
 |---|---|---|
 | `watchedDatabases` | `[]` | Full paths to watch. Empty means every supported agent. |
 | `warningThresholdBytes` | `53687091200` (50 GB) | A line is logged above this size. |
-| `criticalThresholdBytes` | `107374182400` (100 GB) | The line says it is urgent above this. |
+| `criticalThresholdBytes` | `107374182400` (100 GB) | The line says it is urgent above this, and the automatic maintenance only ever looks at databases above it. |
 | `checkIntervalSeconds` | `3600` | How long to wait between ticks. |
-| `allowAutomaticCompaction` | `false` | Whether the service may delete rows on its own. |
+| `allowAutomaticCompaction` | `false` | Whether the service may compact and vacuum on its own. |
+| `databasePolicies` | `[]` | Per database overrides; see below. |
 
 **`allowAutomaticCompaction` is off by default and should stay off.** A tool that
 changes a database while nobody is watching is a tool nobody trusts, and the
@@ -87,9 +89,10 @@ service tells you and you decide.
 
 The tool refuses a configuration that is internally inconsistent rather than
 quietly accepting it: a critical threshold below the warning one would mean the
-warning never fires, and a check interval under ten seconds would spin rather than
-watch. Both are refused with a sentence explaining which, and the same applies to
-`--interval` on the command line:
+warning never fires, a check interval under ten seconds would spin rather than
+watch, and a policy without a path would apply to nothing. All are refused with a
+sentence explaining which, and the same applies to `--interval` on the command
+line:
 
 ```bash
 $ agent-db-doctor service run --interval 1
@@ -121,6 +124,146 @@ process quiet enough to forget.
 
 The line names the file and gives the exact command to run, because a person
 reading a log at a glance needs to know what to type, not what went wrong.
+
+## Per database policies
+
+The configuration wide settings are the right answer for a machine nobody has
+thought about. They are the wrong answer for a machine where the work lives in
+three databases with very different value: one is a scratch file that may be
+rewritten whenever the service likes, one holds a year of history that must not be
+touched without being asked. A policy is how the file says which is which.
+
+```json
+"databasePolicies": [
+  {
+    "path": "C:\\Users\\ann\\.local\\share\\opencode\\scratch.db",
+    "criticalThresholdBytes": 2147483648,
+    "allowAutomaticCompaction": true,
+    "notifyOnThreshold": true
+  }
+]
+```
+
+| Field | Default | What it does |
+|---|---|---|
+| `path` | none, required | The exact full path, spelled the way the service received it: a path from `watchedDatabases`, or one an agent adapter reports when that list is empty. |
+| `criticalThresholdBytes` | `0` | The urgent threshold for this database, overriding the configuration's. Zero means the policy does not change it. |
+| `allowAutomaticCompaction` | `false` | Whether the service may compact and vacuum this database on its own. It overrides the configuration both ways, so a policy can pull one database out of a machine wide decision. |
+| `notifyOnThreshold` | `false` | Whether a threshold crossing on this database raises a desktop notification as well as a log line. |
+
+A path is compared exactly. A policy that names a path spelled differently is a
+promise the service silently ignores, which is why the file's paths are worth
+copying rather than typing.
+
+## Automatic maintenance
+
+When a database is above its urgent threshold and something in the configuration
+says the service may act, the watchdog cleans up on its own: the compaction first
+(which removes the redundant event rows), then the vacuum (which is what hands the
+freed space back to the drive). Four rules gate every attempt:
+
+1. **Above the urgent threshold.** The threshold of a policy that names the
+   database, or the configuration's `criticalThresholdBytes`.
+2. **Allowed.** The policy's `allowAutomaticCompaction` when a policy names the
+   database, otherwise the configuration's. The vacuum falls under the same
+   permission as the compaction, because both rewrite hundreds of gigabytes when
+   they are wrong. A database that nothing permits is not offered to the
+   maintenance at all, which is why a machine that leaves the feature off sees no
+   maintenance lines: a service must not fill its log with refusals nobody asked
+   for. The permission is checked a second time inside the maintenance before
+   anything runs.
+3. **Idle.** The database must not have been written to for fifteen minutes. An
+   agent that wrote a second ago is in use, and the file that is being written is
+   the one file the tool must not touch. The next tick tries again.
+4. **Not locked.** No other program may hold the file open.
+
+A database that passes the first two rules and then fails the third or the fourth
+appears in the log with its reason, so "nothing happened" can always be told from
+"the tool decided to wait".
+
+Both steps then run exactly as a manual run would: each keeps its own safety copy,
+verifies what it did, and removes the copy again once its checks pass. A refused
+step does not stop the next one, because a file can hold unused pages without
+holding anything to compact. Nothing here asks a question, because a service has
+nobody to ask: `--yes` is implied, and rule 2 is the answer the user gave when
+they wrote the file.
+
+A database that stays above its urgent threshold and cannot be made smaller is
+attempted again on every tick, because the service has no memory of "already
+tried". The audit log makes that visible: a run that gives back nothing says so.
+
+## Notifications
+
+A threshold crossing can also raise a desktop notification, so that a person who
+is not looking at the log still hears about it. The rule has two halves:
+
+- A crossing is the tick that first sees a database at or above a level, after a
+  tick that saw it below it. A database seen for the first time counts as a
+  crossing, because there is no earlier number to compare with.
+- A notification is raised only when this machine asked for one: a policy for that
+  database with `notifyOnThreshold` set. The level is the policy's own
+  `criticalThresholdBytes` when it sets one, otherwise the configuration's
+  `criticalThresholdBytes`.
+
+Without such a policy nothing interrupts you, because a background service that
+starts showing notifications nobody asked for is exactly the surprise this tool
+avoids elsewhere. The notification itself is best effort: Windows uses a
+PowerShell tray balloon, Linux uses `notify-send`, and macOS uses `osascript`.
+
+## The audit log
+
+Every step of automatic maintenance, whether it succeeded, was refused, or failed,
+is appended to `audit.tsv` beside the configuration:
+
+```bash
+agent-db-doctor audit          # the newest entries, which is the default
+agent-db-doctor audit list     # the newest entries, and how many the log holds
+agent-db-doctor audit --limit 200
+```
+
+```
+2026-06-01 03:12  automatic-compaction  /home/ann/.local/share/opencode/opencode.db
+  61.2 GB to 52.4 GB  Removed 412,000 older snapshots...
+2026-06-01 03:19  automatic-vacuum      /home/ann/.local/share/opencode/opencode.db
+  52.4 GB to 7.8 GB  44.6 GB was given back to the drive.
+```
+
+Entries are kept for 180 days, and the file is capped at twenty thousand lines, so
+it cannot grow without bound. The log is plain tab separated text, and a field
+never contains a tab or a newline: the writer turns both into a space before the
+line is written, so a line that cannot be parsed cannot be written either. A line
+that is damaged anyway is skipped when the log is read, so everything else in it
+stays visible.
+
+## What a service cannot do
+
+The service runs without a person, and that shapes what it can offer. Everything
+below is a deliberate limit rather than a missing feature.
+
+- **A notification may never be seen.** It is sent by a process that does not own
+  your session: on Windows the service has its own session, on Linux the daemon
+  may have no display to talk to, on macOS a launch daemon is outside the user's
+  session. This is why every notification is paired with a log line, which is
+  written whatever happens, and why `service status` shows the most recent line.
+- **Nothing is ever deleted by the service.** The compact command removes rows,
+  never sessions, and the service only runs it after all four gates above. The
+  session deletion exists only in the interactive `sessions delete` command,
+  because "which conversations do I want to keep" is a question only a person can
+  answer.
+- **No command that asks is ever run.** `recover`, `restore`, and `sessions
+  delete` need a decision, so the service never starts them.
+- **The thresholds it logs are the configuration's.** A policy can lower the level
+  at which the service *acts* and *notifies*, but the log lines are written
+  against the configuration's own thresholds: one number produces one kind of
+  sentence, whoever it is about.
+- **It cannot see everything on the machine either.** On Windows it runs as the
+  local system account, because every supported agent keeps its database in a
+  per-user folder and no single user account can read all of them; on Linux
+  systemd sets the home directory it looks in; on macOS the launch daemon records
+  it at install time. A database the service account cannot read is reported the
+  same way any unreadable file is, and the interactive commands remain the way to
+  look at it as a user.
+
 
 ## Running it without installing
 
