@@ -1,8 +1,7 @@
 name: A bug
-about: Something the tool did or said incorrectly
+description: Something the tool did or said incorrectly
 title: ''
-labels: ''
-assignees: ''
+labels: bug
 body:
   - type: markdown
     attributes:
@@ -11,6 +10,11 @@ body:
         said is worth filing. Please include the output in full rather than trimming
         it to the part that looks wrong, because the surrounding lines are often what
         explains the part that looks wrong.
+
+        **Do not paste the contents of a conversation, and do not attach a database.**
+        Session text can be private and a database can be large. The output of
+        `diagnose` and the plan that `recover` prints contain no conversation text, and
+        those are almost always enough.
   - type: textarea
     id: what-happened
     attributes:
@@ -30,7 +34,16 @@ body:
     id: command
     attributes:
       label: Which command
+      description: The whole command line, exactly as you typed it, including the flags.
       placeholder: agent-db-doctor diagnose --database ~/.local/share/opencode/opencode.db
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: The version of the tool
+      description: The output of `agent-db-doctor --version`. Without it, a fixed bug and an unfixed one look the same.
+      placeholder: 1.0.0
     validations:
       required: true
   - type: input
@@ -61,6 +74,33 @@ body:
         page count, journal mode, and integrity in one screen, which is usually the
         whole answer on its own.
       render: text
+    validations:
+      required: false
+  - type: dropdown
+    id: changes-data
+    attributes:
+      label: Did the command change a database
+      description: |
+        `compact`, `vacuum`, `reclaim`, `sessions delete`, and `backups restore` and
+        `delete` change files. `diagnose`, `look`, `why`, `explain-space`, `history`,
+        `watch`, `export`, `sessions` without `delete`, and `audit` do not.
+      options:
+        - 'No, the command only reads'
+        - 'Yes, and the safety copy was kept'
+        - 'Yes, and the safety copy was removed after the check passed'
+        - 'Yes, and I am not sure where the safety copy is'
+        - 'The command refused to run, so nothing changed'
+    validations:
+      required: true
+  - type: textarea
+    id: state-now
+    attributes:
+      label: What state the database is in now
+      description: |
+        If a change was involved: does the database still open, does `backups` list a
+        copy, and what does `diagnose` say about its integrity? If the database is
+        damaged, run `agent-db-doctor recover` and paste the **plan** it prints — it
+        names what is wrong without revealing any conversation.
     validations:
       required: false
   - type: textarea
