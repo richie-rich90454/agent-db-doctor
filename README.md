@@ -15,7 +15,9 @@ database saw it grow from **40 GB to 124 GB in three weeks**, unnoticed, until
 their disk was 96% full. When they tried to reclaim the space they made it worse,
 and by the end **every session from three weeks was unrecoverable**.
 
-This tool exists so that the next person does not lose theirs.
+This tool exists so that the next person does not lose theirs. It runs entirely on
+your machine: no account, no telemetry, and no network access from the built
+program.
 
 ---
 
@@ -89,13 +91,43 @@ it.
 
 The full story is in [docs/safety.md](docs/safety.md).
 
+## Your data, your responsibility
+
+The tool is careful, and it is still your data.
+
+It copies before it changes, checks afterwards, and puts the copy back when a check
+fails. That is a safety net for the length of one operation, not a backup system: the
+copy sits on the same disk as the database it protects, and it is removed once the
+check passes unless you ask for `--keep-backup`.
+
+So keep your own backups of anything you cannot lose, and try the tool on a copy
+first if a database holds the only record of something. `export` and `backups` exist
+to make that easy.
+
+Nothing here comes with a warranty. The tool is provided under the MIT license, as
+is, without warranty of any kind, and you run it on your own data at your own risk;
+the license is the whole of the agreement between us. If a database matters, copy it
+before you let anything touch it.
+
+What the tool will not do is touch anything else. It reads the databases it finds
+and the files it needs, and it writes in exactly three places: beside a database it
+changes, which is the safety copy; the watchdog's own folder, once you install the
+service; and wherever you point an output flag. It makes no network requests, so
+there is no account, no telemetry, no update check, and no crash reporting. The one
+outbound action is a desktop notification, handed to your own notification program,
+and only when a policy asks for one.
+
 ---
 
 ## Installation
 
+Each release carries a prebuilt package for Windows (x86_64), macOS (Apple
+silicon), and Linux (x86_64): unpack it and run the binary beside the libraries it
+carries. Both the command line program and the window are in it.
+
+From source:
+
 ```bash
-# Today, from source. Package manager templates are prepared, and arrive
-# with the next tagged release.
 git clone https://github.com/richie-rich90454/agent-db-doctor
 cd agent-db-doctor
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -105,7 +137,8 @@ cmake --build build
 The binary lands at `build/bin/agent-db-doctor`. Put it somewhere on your path.
 The winget manifest templates and the Homebrew tap formula template are prepared
 in `packaging/`, with generators that fill in the release URL and the SHA-256;
-neither is published yet.
+neither has been submitted yet, so `winget install` and `brew install` do not work
+until they are.
 
 <details>
 <summary>Requirements</summary>
@@ -262,9 +295,11 @@ method.
 | [docs/recovery-playbook.md](docs/recovery-playbook.md) | Every failure pattern the tool recognises |
 | [docs/agent-adapters.md](docs/agent-adapters.md) | How each agent stores data, for contributors |
 | [docs/system-service.md](docs/system-service.md) | The watchdog on each platform |
-| [docs/integrations.md](docs/integrations.md) | The pipeline guard action, the container image, and the Prometheus metrics |
+| [docs/integrations.md](docs/integrations.md) | The pipeline guard action and the Prometheus metrics |
 | [docs/verification.md](docs/verification.md) | What continuous integration actually ran, generated from the run itself |
 | [docs/roadmap.md](docs/roadmap.md) | What is planned next |
+| [ACCESSIBILITY.md](ACCESSIBILITY.md) | What the project commits to, what is known not to work, and how to report a barrier |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | The one rule that is not negotiable, the style, and what will be declined |
 | [benchmarks/results.md](benchmarks/results.md) | Measured numbers and the machine they came from |
 
 ## Integrations
@@ -328,6 +363,13 @@ the three platform packages with the same tests as continuous integration, attac
 them to that release, and signs them with cosign. The same workflow can be started
 by hand, which builds the packages and leaves them as run artifacts, so the
 packages can be produced before the release is written.
+
+Accessibility reports are defects here, not feature requests:
+[ACCESSIBILITY.md](ACCESSIBILITY.md) says what the project commits to, what is known
+not to work, and how to report a barrier.
+
+If this tool saved you a disk, a star helps the next person find it before their disk
+is full.
 
 ## License
 
