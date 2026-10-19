@@ -350,6 +350,16 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
 - **The jobs name stable runner images.** `windows-2025` replaces the preview label
   `windows-2025-vs2026`; both carry Visual Studio 2026, and the stable label is the
   one that will keep meaning what it means.
+- **The idle memory check reads the unit each platform reports.** `getrusage`
+  reports the peak resident set in bytes on macOS and in kilobytes on Linux, and the
+  benchmark multiplied both by 1024, so a macOS process of 4.1 MB was read as 4.4 GB
+  and the macOS job failed on it. The conversion now follows the platform.
+- **The shared library's loader name is only linked when it differs from the file's
+  own name.** On macOS SDL3 sets a soname but no version, so the library file is
+  already named after the soname; the post-build link from that name to itself
+  replaced the library with a link to itself instead of failing, which would have
+  left every macOS package with a library the loader cannot open. Linux, where the
+  two names differ, keeps the link and the package is unchanged.
 
 ### Added (the automation work)
 
