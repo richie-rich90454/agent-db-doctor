@@ -15,3 +15,7 @@ contact_links:
     url: https://github.com/richie-rich90454/agent-db-doctor/blob/main/docs/recovery-playbook.md
     about: A step by step playbook for the nine failure patterns the tool recognises.
       Start here if a database will not open.
+  - name: What is known to be inaccessible, and how to report a barrier
+    url: https://github.com/richie-rich90454/agent-db-doctor/blob/main/ACCESSIBILITY.md
+    about: What the project commits to, where it is known not to work (including the
+      window and screen readers), and the form for reporting a barrier.
