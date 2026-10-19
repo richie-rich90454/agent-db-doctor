@@ -9,7 +9,7 @@
 #
 # These packages are what a change proves. The packages a user downloads are built
 # by the release workflow, which builds the same three packages when a release is
-# created and attaches them to it.
+# published and attaches them to it.
 #
 # On the main branch the run also writes the verification page from its own job
 # results, so the record of what ran is generated from the run rather than written
