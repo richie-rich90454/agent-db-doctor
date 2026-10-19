@@ -28,6 +28,7 @@ them. `--help` on any subcommand prints the same list.
 | `recover` | `rescue` | Explains what is wrong and what can be fixed | Only with `--rebuild` |
 | `backups` | | Lists, verifies, restores, or deletes safety copies | `restore` and `delete` only |
 | `service` | | Installs and controls the background watchdog | No |
+| `audit` | | Shows the record of destructive runs and automatic maintenance | No |
 | `agents` | | Lists every supported agent and where its data was found | No |
 
 Every flag is registered only on the commands that read it, so an option that
@@ -35,8 +36,7 @@ appears in a help text is an option that works.
 
 ## Shared flags
 
-These are available on `diagnose`, `compact`, `vacuum`, `recover`, and `agents`,
-except where noted.
+These are the options most commands have in common.
 
 | Flag | Meaning |
 |---|---|
@@ -57,10 +57,15 @@ agent-db-doctor diagnose [flags]
 | `--check` | Run the full page by page integrity check. It reads the whole file, so it is skipped by default above 2 GB, and the report says so when it is. |
 | `--trace-reads` | Also report how many bytes and read calls the run made, counted through a wrapper around SQLite's own file layer. |
 | `-o, --report PATH` | Also write a standalone HTML report of the whole pass to this path. |
+| `--prometheus` | Also write node_exporter textfile metrics - `agent_db_doctor_size_bytes`, `agent_db_doctor_reclaimable_bytes`, `agent_db_doctor_healthy`, and `agent_db_doctor_health_score` - each labelled with the agent and the path. |
 
 Reports the size, the page counts, the free pages, the journal mode, the row counts
-it can answer cheaply, the schema generation, and the integrity status. The exit
-code is one when anything needs attention.
+it can answer cheaply, the schema generation, the health score, and the integrity
+status. The health score runs from 0 to 100; diagnose prints it as
+`Health: 78 of 100`, the machine readable output calls it `healthScore`, damage,
+warnings, unused space, and growth each reduce it, a healthy idle database scores
+100, and a score of -1 means it could not be computed. The exit code is one when
+anything needs attention.
 
 ## compact
 
@@ -273,6 +278,29 @@ agent-db-doctor service [install|uninstall|start|stop|status|run] [flags]
 
 `run` is the loop the operating system runs on the service's behalf. It never
 returns and is not meant to be run by hand.
+
+The configuration file it reads carries the thresholds, the per-database
+`databasePolicies`, and the notification permissions;
+[system-service.md](system-service.md) documents every field.
+
+## audit
+
+```
+agent-db-doctor audit [list|tail] [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--limit N` | How many entries to show. |
+
+`tail` is the default and prints the most recent entries of the audit log; `list`
+prints the whole log. The log is an append-only, tab separated file beside the
+service configuration, with one line per destructive run and per step automatic
+maintenance takes: the time, the action, the path, the sizes before and after, the
+safety copy's path, the outcome, and the exit code. It is kept for one hundred and
+eighty days and capped in size, and it is written when its location is writable
+and always by the service. `--machine-readable` turns each entry into one JSON
+object.
 
 ## agents
 
