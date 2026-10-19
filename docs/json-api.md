@@ -46,6 +46,7 @@ missing keys.
   "exists": true,
   "isDirectory": false,
   "healthy": true,
+  "healthScore": 87,
   "sizeBytes": 3045969920,
   "allocatedBytes": 3045969920,
   "hasWriteAheadLog": true,
@@ -77,6 +78,15 @@ missing keys.
 `damaged`, `unreadable`, or `problem_reported`. `rows` carries only the tables
 whose count could be answered cheaply; a missing table means the count is unknown,
 and `approximate` says whether the number came from SQLite's statistics table.
+`healthScore` is the whole diagnosis as one number from 0 to 100, so two databases,
+or the same database a month apart, can be compared. It starts at 100 and
+subtracts: 60 for a damaged, unreadable, unrecognisable, or problem-reporting
+database; 5 for each warning, at most 20 together; up to 10 in proportion to the
+share of free pages above a quarter of the file; and up to 15 in proportion to the
+recorded growth against a reference of one gigabyte per day. It is `-1` when there
+is nothing to score, which is a path that does not exist or a folder of text files.
+`healthy` remains the plain yes or no answer for a script that only needs to know
+whether anything needs attention.
 
 ## The `result` object
 
