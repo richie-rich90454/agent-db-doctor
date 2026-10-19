@@ -364,6 +364,19 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
   replaced the library with a link to itself instead of failing, which would have
   left every macOS package with a library the loader cannot open. Linux, where the
   two names differ, keeps the link and the package is unchanged.
+- **The verification page names the compilers again.** The page is generated while
+  its own run is still open, and GitHub serves a job's log only after the run that
+  owns it has finished, so reading the banners back from the logs put a dash in
+  every row. Each platform job now writes its banner to a file and uploads it as an
+  artifact, and the page reads those.
+- **The compact benchmark no longer fails on a busy runner.** Its ceiling was 60
+  microseconds per row, and a Windows runner in continuous integration measured 62.6
+  and then 77.9 for code the reference machine measures at 8: every repetition was
+  that slow, so no number of repetitions would have helped. The assertion that
+  compares the two runs with each other is the one that decides whether a change is
+  a regression, and it passed in both runs; the ceiling is now a backstop for a
+  design broken by an order of magnitude, which is what its comment always said it
+  was for.
 
 ### Added (the automation work)
 
