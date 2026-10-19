@@ -156,6 +156,13 @@ void ConsoleReport::writeProgressEvent(
 void ConsoleReport::writeMachineObject(const string& jsonObject) const {
     writeJsonLine(jsonObject);
 }
+void ConsoleReport::writeRawOutput(const string& text) const {
+    // The text is written as it stands. The only liberty taken is a trailing
+    // newline, so that the next thing printed starts on its own line.
+    const bool needsTrailingNewline=text.empty() || text.back()!='\n';
+    fputs((needsTrailingNewline ? text + "\n" : text).c_str(), stdout);
+    fflush(stdout);
+}
 void ConsoleReport::writeExitEvent(int exitCode) const {
     writeJsonLine(string("{\"event\":\"exit\",\"exitCode\":") + to_string(exitCode) + "}");
 }
@@ -223,6 +230,7 @@ void ConsoleReport::writeDiagnosisReport(const DiagnosisReport& report) const {
         jsonText+=",\"exists\":" + string(report.getFileExists() ? "true" : "false");
         jsonText+=",\"isDirectory\":" + string(report.getIsDirectory() ? "true" : "false");
         jsonText+=",\"healthy\":" + string(report.isHealthy() ? "true" : "false");
+        jsonText+=",\"healthScore\":" + to_string(report.getHealthScore());
         jsonText+=",\"sizeBytes\":" + to_string(report.getLogicalSizeBytes());
         jsonText+=",\"allocatedBytes\":" + to_string(report.getAllocatedSizeBytes());
         jsonText+=",\"hasWriteAheadLog\":" + string(report.getHasWriteAheadLog() ? "true" : "false");
@@ -319,6 +327,19 @@ void ConsoleReport::writeDiagnosisReport(const DiagnosisReport& report) const {
     }
     writeLine("Space the file uses:   " + HumanReadableFormatting::formatBytes(report.getAllocatedSizeBytes())
         + occupiedShareText);
+    // The score is printed after the two sizes, because it is the other number a
+    // worried user looks at first, and the trailing phrase at the extremes saves
+    // them from having to know what a score of 100 or of 20 means.
+    const int healthScore=report.getHealthScore();
+    if (healthScore>=0) {
+        string healthTrailer;
+        if (healthScore==100) {
+            healthTrailer=", nothing needs doing";
+        } else if (healthScore<40) {
+            healthTrailer=", needs attention";
+        }
+        writeLine("Health:                " + to_string(healthScore) + " of 100" + healthTrailer);
+    }
     writeLine("Last written:          " + HumanReadableFormatting::formatTimestamp(report.getModificationEpochMilliseconds()));
     if (report.getHasWriteAheadLog()) {
         writeLine("Write ahead log:       " + HumanReadableFormatting::formatBytes(report.getWriteAheadLogSizeBytes())
