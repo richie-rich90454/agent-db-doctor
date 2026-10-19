@@ -322,9 +322,9 @@ writes what it ran - job names, conclusions, times, and the run link - into
 [docs/verification.md](docs/verification.md) and commits it on `main`, so the
 record is generated from the runs rather than written by hand.
 
-Releases are built by `.github/workflows/release.yml`. Creating a release for a tag
-starts it: it checks that the tag names the version in `CMakeLists.txt`, builds the
-three platform packages with the same tests as continuous integration, attaches
+Releases are built by `.github/workflows/release.yml`. Publishing a release for a
+tag starts it: it checks that the tag names the version in `CMakeLists.txt`, builds
+the three platform packages with the same tests as continuous integration, attaches
 them to that release, and signs them with cosign. The same workflow can be started
 by hand, which builds the packages and leaves them as run artifacts, so the
 packages can be produced before the release is written.
