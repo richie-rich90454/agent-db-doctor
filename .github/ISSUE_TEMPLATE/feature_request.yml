@@ -1,0 +1,73 @@
+name: A feature request
+description: Something the tool should do, or should do differently
+title: ''
+labels: enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The tool has one rule that shapes what it can accept: nothing may destroy
+        session history without an explicit confirmation, and a change to a database
+        is always copied, checked, and put back if the check fails. A request that
+        needs a different arrangement is not necessarily impossible, but it does need
+        to say what the safety copy, the confirmation, and the check would be.
+
+        [What this tool does not do](https://github.com/richie-rich90454/agent-db-doctor/blob/main/README.md#what-this-tool-does-not-do)
+        and [docs/roadmap.md](https://github.com/richie-rich90454/agent-db-doctor/blob/main/docs/roadmap.md)
+        are worth a look first: some things are deliberately absent, and some are
+        already planned.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what stops you today? Describe the situation, not the solution.
+      placeholder: My Cursor databases are each small, but there are forty of them, and I want to know the total before I decide anything.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+      description: The behaviour you have in mind, and what you would type or press to get it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do instead today
+      description: An existing command, a script around the machine readable output, or something you do by hand.
+    validations:
+      required: false
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface
+      description: The window runs the command line program, so anything the command line can do, the window can show. Say if this needs to be in the window specifically.
+      options:
+        - The command line program
+        - The window
+        - Both
+        - The documentation
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: cost
+    attributes:
+      label: What it would cost, if you know
+      description: |
+        The performance contract is a contract: the diagnostic pass must stay under
+        one system call per database and under 64 KB read, and the benchmark suite
+        fails a change that breaks it. If your idea needs to read a database, say so,
+        because that is usually the whole difficulty.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Would you like to work on it
+      options:
+        - label: I would like to open the pull request myself, with guidance.
+          required: false
+        - label: I can test a build on my platform if someone else writes it.
+          required: false
