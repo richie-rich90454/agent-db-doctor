@@ -1,18 +1,22 @@
 # The release workflow.
 #
-# Two ways in, and they differ in one thing only: whether the packages are
-# attached to a release.
+# Three ways in, and what they have in common is that all of them build the three
+# platform packages and run every test suite.
 #
-# - Publishing a release for a tag starts this workflow. It builds the three
-#   platform packages, runs every test suite, attaches the packages to that
-#   release, and signs them with cosign. The trigger is `published` rather than
+# - Publishing a release for a tag starts this workflow. It attaches the packages to
+#   that release and signs them with cosign. The trigger is `published` rather than
 #   `created` because a draft release can be created before its tag exists, and a
 #   job that checks out a tag which is not there yet fails; by the time a release
 #   is published, the tag names a commit.
-# - A manual run from the Actions page builds the same packages with the same
-#   tests and leaves them as run artifacts. It never touches a release, and it
-#   needs no release to exist, so it is the way to produce the packages before
-#   the release is written.
+# - A manual run with no input builds the packages and leaves them as run artifacts.
+#   It never touches a release, and it needs no release to exist, so it is the way to
+#   produce the packages before the release is written.
+# - A manual run that names a release attaches the packages and their signatures to
+#   that release, which is how a release is completed after a run that failed, or
+#   after a package was attached to the wrong build. It moves no tag and re-creates
+#   no release: `--clobber` replaces an asset of the same name and adds the missing
+#   ones. Run it for the release's own tag, so the packages come from the commit the
+#   release names.
 #
 # The asset names are the ones the packaging templates promise:
 # `agent-db-doctor-<version>-windows-x86_64.zip` for the winget manifests, and
@@ -24,6 +28,14 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      attach-to-release:
+        description: >-
+          Tag of an existing release to attach the packages and their signatures
+          to. Leave it empty to build the packages and leave them as run artifacts.
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -38,7 +50,8 @@ jobs:
   # The tag has to name the version the sources declare. Without this check a
   # release could be created for a tag that does not match the tree it is built
   # from, and the packages attached to it would carry a version the project does
-  # not have. A manual run skips the comparison and only reports the version.
+  # not have. A manual run that names a release is checked the same way; a manual
+  # run that names nothing only reports the version.
   version:
     name: Check the tag against the project version
     runs-on: ubuntu-latest
@@ -47,6 +60,8 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v7
       - name: Compare the tag with the version in CMakeLists.txt
+        env:
+          ATTACH_TAG: ${{ inputs.attach-to-release }}
         run: |
           version=$(grep -m1 -oE '^    VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt \
             | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
@@ -55,6 +70,16 @@ jobs:
             echo "The release tag ${GITHUB_REF_NAME} does not match the project version v${version}." >&2
             exit 1
           fi
+          # A run that is asked to attach to a release has to be attaching to the
+          # release this tree belongs to, or it would upload a package whose version
+          # is not the version the release is named after.
+          if [ -n "${ATTACH_TAG}" ] && [ "v${version}" != "${ATTACH_TAG}" ]; then
+            echo "This tree is version v${version}, so it cannot attach to ${ATTACH_TAG}." >&2
+            exit 1
+          fi
+          if [ -n "${ATTACH_TAG}" ]; then
+            echo "This run will attach its packages to the release ${ATTACH_TAG}." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   linux:
     name: Linux (x86_64)
@@ -62,7 +87,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     # The write permission is used by one step, the attach below, and only when a
-    # release started this run.
+    # release started this run or a manual run named one.
     permissions:
       contents: write
     steps:
@@ -109,13 +134,18 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 90
-      # The release already exists: it is what started this run. Uploading with
-      # `--clobber` makes a re-run of a half finished release safe.
+      # The release already exists: either it started this run, or a manual run was
+      # told which release to complete. Uploading with `--clobber` makes a re-run of
+      # a half finished release safe, and it is what fills in a package that an
+      # earlier run never attached.
       - name: Attach the package to the release
-        if: github.event_name == 'release'
+        if: >-
+          github.event_name == 'release'
+          || (github.event_name == 'workflow_dispatch' && inputs.attach-to-release != '')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
+        run: gh release upload "${RELEASE_TAG}" dist/*.tar.gz --clobber
 
   windows:
     name: Windows (x86_64)
@@ -184,11 +214,14 @@ jobs:
           retention-days: 90
       # bash expands the glob; PowerShell would hand `gh` the pattern untouched.
       - name: Attach the package to the release
-        if: github.event_name == 'release'
+        if: >-
+          github.event_name == 'release'
+          || (github.event_name == 'workflow_dispatch' && inputs.attach-to-release != '')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" dist/*.zip --clobber
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
+        run: gh release upload "${RELEASE_TAG}" dist/*.zip --clobber
 
   macos:
     name: macOS (arm64)
@@ -238,20 +271,30 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Attach the package to the release
-        if: github.event_name == 'release'
+        if: >-
+          github.event_name == 'release'
+          || (github.event_name == 'workflow_dispatch' && inputs.attach-to-release != '')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz --clobber
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
+        run: gh release upload "${RELEASE_TAG}" dist/*.tar.gz --clobber
 
   # Signing is keyless on purpose: cosign asks GitHub for an OIDC token, Fulcio
   # issues a certificate that names this workflow and this commit, and the
   # signature plus certificate are published beside the package. No secret key
-  # exists anywhere, so there is none to store, rotate, or leak. A manual run has
-  # no release to sign against, so this job only runs for a release.
+  # exists anywhere, so there is none to store, rotate, or leak.
+  #
+  # It signs whatever packages the run produced rather than requiring all three, and
+  # `always()` is what stops a failed platform job from skipping it: a release whose
+  # Windows package failed still gets signatures beside the two packages that did
+  # attach.
   sign:
     name: Sign the release packages
     needs: [version, linux, windows, macos]
-    if: github.event_name == 'release'
+    if: >-
+      always() && needs.version.result == 'success'
+      && (github.event_name == 'release'
+      || (github.event_name == 'workflow_dispatch' && inputs.attach-to-release != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -291,4 +334,5 @@ jobs:
       - name: Attach the signatures to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" dist/*/*.sig dist/*/*.pem --clobber
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
+        run: gh release upload "${RELEASE_TAG}" dist/*/*.sig dist/*/*.pem --clobber
