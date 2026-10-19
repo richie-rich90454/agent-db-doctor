@@ -65,12 +65,19 @@ long long readPeakResidentMemoryBytes() {
     }
     return static_cast<long long>(memoryCounters.PeakWorkingSetSize);
 #else
-    // `getrusage` reports the peak in kilobytes on both Unix platforms.
+    // `getrusage` reports the peak in bytes on macOS and in kilobytes on Linux, and
+    // multiplying the wrong one by 1024 is how this check first failed: a macOS
+    // process of four megabytes was read as four gigabytes. The platform decides the
+    // unit, so the platform decides the conversion.
     struct rusage usage;
     if (getrusage(RUSAGE_SELF, &usage)!=0) {
         return 0;
     }
+#if defined(__APPLE__)
+    return static_cast<long long>(usage.ru_maxrss);
+#else
     return static_cast<long long>(usage.ru_maxrss) * 1024LL;
+#endif
 #endif
 }
 }
