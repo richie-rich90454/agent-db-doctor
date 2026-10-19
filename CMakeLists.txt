@@ -215,8 +215,18 @@ else()
     # list and the specification's own example uses it, so plain `-Wshadow` would be
     # noise. GCC has no separate switch for it, so it gets nothing rather than a flag
     # it does not recognise.
+    #
+    # `-Wunqualified-std-cast-call` is on by default in Clang, and it is named here
+    # because it is the one warning that has already failed a build: a call to
+    # `move` written without its namespace, under this project's `using namespace
+    # std`, compiles quietly everywhere else and is rejected here. Naming it keeps
+    # that requirement visible in the build configuration instead of depending on a
+    # compiler default.
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        list(APPEND AGENT_DB_DOCTOR_WARNINGS -Wshadow-field-in-constructor)
+        list(APPEND AGENT_DB_DOCTOR_WARNINGS
+            -Wshadow-field-in-constructor
+            -Wunqualified-std-cast-call
+        )
     endif()
     if(AGENT_DB_DOCTOR_ENABLE_WERROR)
         list(APPEND AGENT_DB_DOCTOR_WARNINGS -Werror)
