@@ -106,6 +106,13 @@ public:
     // Runs one pass over every watched database and returns what it found. It is
     // public so the benchmark suite can drive it directly instead of waiting for
     // the real loop.
+    //
+    // Everything that changes anything happens after the measured window: the
+    // hourly history and fingerprint work, the desktop notifications, and the
+    // automatic maintenance. The one metadata call per database the performance
+    // contract allows describes the measurement above, and the work below it can
+    // never change that number, because the counters are read before any of it
+    // runs.
     WatchdogRunSummary runOneWatchdogPass();
     // The configuration this manager was built with.
     const ServiceConfiguration& configuration() const;
