@@ -7,8 +7,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        This tool currently understands OpenCode, Cursor, Codex CLI, Claude Code,
-        Continue, and Aider. This form is for the ones it does not.
+        Sixty two coding agents are known today, and
+        [docs/agents.md](https://github.com/richie-rich90454/agent-db-doctor/blob/main/docs/agents.md)
+        lists every one of them with the paths it uses. This form is for an agent
+        that is missing from that list, or one whose paths have moved since.
 
         Nothing here is required except the name of the agent and where it keeps its
         database. An honest "I do not know what accumulates, it just gets big" is more
