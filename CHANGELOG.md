@@ -208,8 +208,10 @@ with version information.
 **Continuous integration.** A workflow builds and tests every change with GCC
 and Clang on Linux, MSVC on Windows, and AppleClang on macOS, starts both the
 command line program and the window on each platform, and packages a runnable
-copy of the tool for every system. Pushing a tag attaches the packages to the
-release.
+copy of the tool for every system. Creating a release for a tag builds the same
+three packages, attaches them to the release, and signs them; the release
+workflow can also be run by hand, which builds the packages and leaves them as
+run artifacts without touching a release.
 
 **Vacuuming for every SQLite based database.** The vacuum command needs no
 knowledge of any schema, only of the SQLite file format, so it is now offered
@@ -328,6 +330,27 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
   activity bar still shows how the last command ended, and one press opens the
   pane. The choice is remembered.
 
+### Fixed (the continuous integration)
+
+- **The window's JSON reader names `std::move`.** Clang rejects an unqualified call
+  to a standard cast under this project's `using namespace std`, so the Clang and
+  AppleClang jobs refused to compile `gui/Json.cpp` while the GCC and MSVC jobs
+  accepted it. Every call is qualified now, and the warning is named in the build
+  configuration rather than left to a compiler default, so the requirement is
+  visible where the flags are.
+- **The Windows job reads the window's exit code.** A windows subsystem program
+  returns to PowerShell immediately, so the smoke test's result was never looked at
+  and a crash would have passed; it is started, waited for with a time limit, and
+  its exit code decides the step.
+- **The verification job may read the run it reports on.** Listing a run's jobs and
+  reading their logs needs the `actions: read` permission, which the narrowed token
+  did not grant, so the page could not have been generated.
+- **`xvfb-run` has what it needs on the Linux jobs.** `xauth` is installed with
+  `xvfb`, because the virtual display cannot start without it.
+- **The jobs name stable runner images.** `windows-2025` replaces the preview label
+  `windows-2025-vs2026`; both carry Visual Studio 2026, and the stable label is the
+  one that will keep meaning what it means.
+
 ### Added (the automation work)
 
 - **Automatic maintenance.** With `allowAutomaticCompaction` true, globally or for
@@ -378,9 +401,14 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
 - **A generated verification page.** Continuous integration writes the run's own
   job names, conclusions, times, and run link into `docs/verification.md` and
   commits it on `main`.
-- **Keyless release signing.** On a tag, every release package is signed with
-  cosign using the workflow's own OpenID Connect identity, and the `.sig` and
-  `.pem` files are uploaded beside the artifacts.
+- **A release workflow.** `.github/workflows/release.yml` builds the three platform
+  packages when a release is created, attaches them to that release, and signs them;
+  it refuses a tag that does not name the version in `CMakeLists.txt`. Started by
+  hand instead, it builds the same packages and leaves them as run artifacts, so the
+  packages can be produced before the release is written, without touching one.
+- **Keyless release signing.** On a release, every package the release workflow
+  built is signed with cosign using the workflow's own OpenID Connect identity, and
+  the `.sig` and `.pem` files are uploaded beside the artifacts.
 - **A fuzz target for the configuration parser**, behind
   `-DAGENT_DB_DOCTOR_ENABLE_FUZZING=ON` (Clang only).
 
