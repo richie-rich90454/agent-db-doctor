@@ -7,6 +7,10 @@ out/
 cmake-build-*/
 _deps/
 
+# The documentation site, written by `mkdocs build` and by the Documentation
+# workflow. It is generated, never committed.
+site/
+
 # Compiled objects, libraries, and executables that appear outside a build
 # directory, for example when a single file is compiled by hand.
 *.o
