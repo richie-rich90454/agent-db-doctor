@@ -11,14 +11,13 @@ compiler banner.
 
 | Job | Toolchain | Result | Started (UTC) | Finished (UTC) | Duration |
 |---|---|---|---|---|---|
-| Windows (MSVC) | - | success | 2026-10-19 07:52:12 | 2026-10-19 07:59:21 | 7m 09s |
-| Linux (gcc) | - | success | 2026-10-19 07:52:13 | 2026-10-19 07:57:12 | 4m 59s |
-| Linux (clang) | - | failure | 2026-10-19 07:52:13 | 2026-10-19 07:54:52 | 2m 39s |
-| macOS (AppleClang) | - | failure | 2026-10-19 07:52:18 | 2026-10-19 07:55:37 | 3m 19s |
-| Sign the release packages | - | skipped | 2026-10-19 07:59:22 | 2026-10-19 07:59:22 | 0s |
+| Windows (MSVC) | - | success | 2026-10-19 11:02:07 | 2026-10-19 11:07:11 | 5m 04s |
+| Linux (clang) | - | success | 2026-10-19 11:02:07 | 2026-10-19 11:07:28 | 5m 21s |
+| Linux (gcc) | - | success | 2026-10-19 11:02:07 | 2026-10-19 11:06:07 | 4m 00s |
+| macOS (AppleClang) | - | failure | 2026-10-19 11:02:13 | 2026-10-19 11:05:24 | 3m 11s |
 
-Run: [https://github.com/richie-rich90454/agent-db-doctor/actions/runs/39218777752](https://github.com/richie-rich90454/agent-db-doctor/actions/runs/39218777752), attempt 1.
+Run: [https://github.com/richie-rich90454/agent-db-doctor/actions/runs/39241687574](https://github.com/richie-rich90454/agent-db-doctor/actions/runs/39241687574), attempt 1.
 
-Commit: `381e2a7644de048351067557e9352beca6b8862f` on `main`.
+Commit: `6532579146047f8418e617a7d175552228678fa6` on `main`.
 
-Generated at 2026-10-19 07:59:31 UTC.
+Generated at 2026-10-19 11:07:41 UTC.
