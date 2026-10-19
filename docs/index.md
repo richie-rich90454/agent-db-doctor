@@ -12,6 +12,8 @@ Start here:
 | Understand why it refuses to do something, or answer a doubt | [faq.md](faq.md) |
 | Repair a database that will not open | [recovery-playbook.md](recovery-playbook.md) |
 | Run the background watchdog | [system-service.md](system-service.md) |
+| Run it in a pipeline, or beside your monitoring | [integrations.md](integrations.md) |
+| See what continuous integration actually ran | [verification.md](verification.md) |
 | Work on the code | [architecture.md](architecture.md), [agent-adapters.md](agent-adapters.md), [performance.md](performance.md) |
 | See what is planned | [roadmap.md](roadmap.md) |
 
