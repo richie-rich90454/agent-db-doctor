@@ -129,6 +129,16 @@ struct CommandOptions final {
     // A specific backup file for `backups restore` or `backups verify`. The empty
     // string means the newest copy beside the database.
     string backupsFilePath;
+    // The audit subcommand: list or tail. The empty string means tail, which shows
+    // the newest entries and is what a person checking on the service wants.
+    string auditAction;
+    // How many audit entries to show. Twenty keeps a terminal screen full without
+    // scrolling away the newest entry, which is the one that matters.
+    int auditLimit=20;
+    // True when `diagnose` should also write its result in the Prometheus
+    // exposition format to standard output, for a monitoring agent that reads
+    // textfiles. It is off by default because the plain report is for a person.
+    bool prometheusOutput=false;
     // Receives progress reports from long operations. Empty on the command
     // line, where the console bar draws them instead; a graphical front end
     // sets one and feeds its own widgets from it.
