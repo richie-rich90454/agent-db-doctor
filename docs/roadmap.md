@@ -55,9 +55,9 @@ is a decision, not a promise of a date.
 - **A pipeline guard.** A composite GitHub Action that builds the command line
   program and runs `diagnose`, or `reclaim --target`, and fails when a database
   needs attention.
-- **Keyless release signing.** Every release package on a tag is signed with
-  cosign using the workflow's own OpenID Connect identity, and the `.sig` and
-  `.pem` files are uploaded beside the artifacts.
+- **Keyless release signing.** Every release package is signed when the release is
+  built, with cosign using the workflow's own OpenID Connect identity, and the
+  `.sig` and `.pem` files are uploaded beside the artifacts.
 - **The generated verification page.** Continuous integration writes its own run -
   job names, conclusions, times, and the run link - into `docs/verification.md`
   and commits it on `main`.
