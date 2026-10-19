@@ -135,15 +135,16 @@ Both cost nothing but a GitHub account: the Community Repository accepts the
 manifest pull request from the account that will maintain it, and a Homebrew tap
 is an ordinary repository named `homebrew-tap`.
 
-Every release package is signed in continuous integration, and the signature and
-certificate travel with it as `<package>.sig` and `<package>.pem`. Verification
-is keyless, so the identity checked is the workflow, not a key:
+Every release package is signed by the release workflow, which builds the packages
+when a release is created and attaches them, and the signature and certificate
+travel with it as `<package>.sig` and `<package>.pem`. Verification is keyless, so
+the identity checked is the workflow, not a key:
 
 ```bash
 cosign verify-blob \
   --certificate agent-db-doctor-1.0.0-windows-x86_64.zip.pem \
   --signature agent-db-doctor-1.0.0-windows-x86_64.zip.sig \
-  --certificate-identity-regexp '^https://github\.com/richie-rich90454/agent-db-doctor/\.github/workflows/ci\.yml@refs/tags/v' \
+  --certificate-identity-regexp '^https://github\.com/richie-rich90454/agent-db-doctor/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   agent-db-doctor-1.0.0-windows-x86_64.zip
 ```
