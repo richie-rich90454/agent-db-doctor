@@ -120,20 +120,23 @@ A cron entry keeps the file fresh, and an alert rule watches it:
 
 ## winget and Homebrew
 
-The manifests for both package managers are prepared under `packaging/`, and both
-wait for a release: the download URLs and the installer hashes only exist once
-the release artifacts exist, so the manifests ship as templates and are filled in
-by the scripts in that folder. The full routine, including the pull request to
-`microsoft/winget-pkgs`, is in `packaging/README.md`.
+Both package managers install the release. The Homebrew formula is published in the
+tap at `richie-rich90454/homebrew-tap`, and the winget manifests are in review at
+[microsoft/winget-pkgs#456765](https://github.com/microsoft/winget-pkgs/pull/456765).
 
-| Manager | What is prepared | What the user runs after publishing |
+The manifests under `packaging/` are templates, because the download URLs and the
+installer hashes only exist once a release exists; the scripts in that folder fill
+them in. The full routine, including the pull request to `microsoft/winget-pkgs`, is
+in `packaging/README.md`.
+
+| Manager | Where it is | What the user runs |
 |---|---|---|
-| winget | The three Community Repository manifests, generated from the release zip | `winget install richie-rich90454.agent-db-doctor` |
-| Homebrew | A formula for a personal tap, generated from the two release tarballs | `brew tap richie-rich90454/tap` then `brew install agent-db-doctor` |
+| winget | In review at `microsoft/winget-pkgs` | `winget install richie-rich90454.agent-db-doctor` once the pull request merges |
+| Homebrew | Published at `richie-rich90454/homebrew-tap` | `brew tap richie-rich90454/tap` then `brew install agent-db-doctor` |
 
 Both cost nothing but a GitHub account: the Community Repository accepts the
-manifest pull request from the account that will maintain it, and a Homebrew tap
-is an ordinary repository named `homebrew-tap`.
+manifest pull request from the account that will maintain it, and a Homebrew tap is
+an ordinary repository named `homebrew-tap`.
 
 Every release package is signed by the release workflow, which builds the packages
 when a release is published and attaches them, and the signature and certificate
