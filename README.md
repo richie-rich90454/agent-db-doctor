@@ -135,10 +135,18 @@ cmake --build build
 ```
 
 The binary lands at `build/bin/agent-db-doctor`. Put it somewhere on your path.
-The winget manifest templates and the Homebrew tap formula template are prepared
-in `packaging/`, with generators that fill in the release URL and the SHA-256;
-neither has been submitted yet, so `winget install` and `brew install` do not work
-until they are.
+
+Homebrew installs the release on macOS on Apple silicon and Linux on x86_64:
+
+```bash
+brew tap richie-rich90454/tap
+brew install agent-db-doctor
+```
+
+The winget manifest is in review at
+[microsoft/winget-pkgs#456765](https://github.com/microsoft/winget-pkgs/pull/456765);
+once it merges, `winget install richie-rich90454.agent-db-doctor` installs the same
+release on Windows.
 
 <details>
 <summary>Requirements</summary>
@@ -310,12 +318,12 @@ attention. `diagnose --prometheus` writes node_exporter textfile metrics, so a t
 can chart every database it knows about. Both are documented in
 [docs/integrations.md](docs/integrations.md).
 
-Packaging is prepared but not published. `packaging/` holds the winget manifest
-templates and the Homebrew tap formula template, with generators that fill in the
-release URL and the SHA-256, and the steps for submitting them. winget takes a
-manifest pull request to `microsoft/winget-pkgs`; the Homebrew formula goes to a
-personal tap repository named `homebrew-tap`. Both are submitted at the next
-tagged release; until one has been submitted, installation is from source.
+Packaging is published for 1.0.0. `packaging/` holds the manifest templates and the
+generators that fill in the release URL and the SHA-256. The Homebrew formula is in
+the tap at `richie-rich90454/homebrew-tap`, so `brew tap richie-rich90454/tap` and
+`brew install agent-db-doctor` install the release; the winget manifests are in
+review at `microsoft/winget-pkgs`. `packaging/README.md` holds the steps that submit
+both for a new version.
 
 ## What this tool does not do
 
