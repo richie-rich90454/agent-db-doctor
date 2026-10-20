@@ -145,7 +145,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
-        run: gh release upload "${RELEASE_TAG}" dist/*.tar.gz --clobber
+        run: >-
+          gh release upload
+          --repo "${GITHUB_REPOSITORY}"
+          "${RELEASE_TAG}" dist/*.tar.gz --clobber
 
   windows:
     name: Windows (x86_64)
@@ -221,7 +224,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
-        run: gh release upload "${RELEASE_TAG}" dist/*.zip --clobber
+        run: >-
+          gh release upload
+          --repo "${GITHUB_REPOSITORY}"
+          "${RELEASE_TAG}" dist/*.zip --clobber
 
   macos:
     name: macOS (arm64)
@@ -277,7 +283,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
-        run: gh release upload "${RELEASE_TAG}" dist/*.tar.gz --clobber
+        run: >-
+          gh release upload
+          --repo "${GITHUB_REPOSITORY}"
+          "${RELEASE_TAG}" dist/*.tar.gz --clobber
 
   # Signing is keyless on purpose: cosign asks GitHub for an OIDC token, Fulcio
   # issues a certificate that names this workflow and this commit, and the
@@ -335,4 +344,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.attach-to-release }}
-        run: gh release upload "${RELEASE_TAG}" dist/*/*.sig dist/*/*.pem --clobber
+        # This job downloads artifacts and never checks out the repository, so `gh`
+        # has no checkout to infer the repository from. Without `--repo` it fails
+        # with "not a git repository" after the signing has already succeeded.
+        run: >-
+          gh release upload
+          --repo "${GITHUB_REPOSITORY}"
+          "${RELEASE_TAG}" dist/*/*.sig dist/*/*.pem --clobber
