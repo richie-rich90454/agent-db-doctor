@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.9.0.schema.json
 # The version manifest. The {{VERSION}} placeholder is filled in by
 # packaging/generate-winget-manifests.ps1 once a release exists; see
 # packaging/README.md for the whole submission.
@@ -6,4 +6,4 @@ PackageIdentifier: richie-rich90454.agent-db-doctor
 PackageVersion: {{VERSION}}
 DefaultLocale: en-US
 ManifestType: version
-ManifestVersion: 1.6.0
+ManifestVersion: 1.9.0
