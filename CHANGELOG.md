@@ -419,9 +419,15 @@ configuration key `allowAutomaticPruning` is `allowAutomaticCompaction`.
   a Homebrew tap formula template, with generators that fill in the release URL
   and the SHA-256, and the submission steps. No registration or fee is involved:
   winget takes a manifest pull request to `microsoft/winget-pkgs`, and the
-  Homebrew formula goes to a personal tap repository named `homebrew-tap`. Nothing
-  is published yet; both are submitted at the next tagged release, and until then
-  installation is from source.
+  Homebrew formula goes to a personal tap repository named `homebrew-tap`.
+- **1.0.0 is published to the package managers.** `brew tap richie-rich90454/tap`
+  then `brew install agent-db-doctor` installs the release on macOS on Apple silicon
+  and Linux on x86_64. The winget manifests are in review at
+  [microsoft/winget-pkgs#456765](https://github.com/microsoft/winget-pkgs/pull/456765),
+  and once they merge, `winget install richie-rich90454.agent-db-doctor` installs the
+  same release. The winget installer manifest sets `ArchiveBinariesDependOnPath`,
+  because the window loads SDL3 and the artwork from beside its own binary, and it
+  uses manifest schema 1.9.0, the first that carries that field.
 - **A pipeline guard.** A composite GitHub Action builds the command line program
   and runs `diagnose`, or `reclaim --target`, failing the step when a database
   needs attention.
