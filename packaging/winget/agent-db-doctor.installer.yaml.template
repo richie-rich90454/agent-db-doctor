@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.9.0.schema.json
 # The installer manifest, filled from this template by
 # packaging/generate-winget-manifests.ps1; the hash and the URL only exist once
 # the release does, which is why this ships as a template. See packaging/README.md.
@@ -26,5 +26,11 @@ Installers:
 - Architecture: x64
   InstallerUrl: {{URL}}
   InstallerSha256: {{SHA256}}
+  # The executables load things from their own folder: the window needs SDL3.dll,
+  # and both read the artwork beside them. Without this flag winget extracts only
+  # the files named above and leaves the rest of the archive behind, so the
+  # installed commands would fail to start. With it the whole archive is extracted
+  # and the paths above stay relative to the archive root.
+  ArchiveBinariesDependOnPath: true
 ManifestType: installer
-ManifestVersion: 1.6.0
+ManifestVersion: 1.9.0
