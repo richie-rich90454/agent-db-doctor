@@ -66,11 +66,11 @@ is a decision, not a promise of a date.
 
 ## Later
 
-**Package availability.** Until a release has been submitted, installation is from
-source; the winget manifest and the Homebrew tap formula become available at the
-next tagged release.
+**The winget submission merges.** `winget install richie-rich90454.agent-db-doctor`
+becomes available when the pull request to `microsoft/winget-pkgs` is reviewed and
+merged; the Homebrew formula is already published in the tap.
 
-**Official homebrew-core.** The prepared formula goes to a personal tap first;
+**Official homebrew-core.** The published formula goes to a personal tap first;
 homebrew-core is a later step.
 
 **Cross-agent session search.** One local read-only index over every agent's
