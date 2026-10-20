@@ -6,6 +6,10 @@ a release exists, so everything here ships as a template with `{{VERSION}}`,
 `{{URL}}`, and `{{SHA256}}` placeholders, and the scripts write the finished file
 beside the template. Nothing here runs during a build; it is all release day work.
 
+Release 1.0.0 is published: the Homebrew formula is in
+`richie-rich90454/homebrew-tap`, and the winget manifests are in review at
+[microsoft/winget-pkgs#456765](https://github.com/microsoft/winget-pkgs/pull/456765).
+
 | What | Template | Script | Finished file |
 |---|---|---|---|
 | winget version manifest | `winget/agent-db-doctor.yaml.template` | `generate-winget-manifests.ps1` | `winget/richie-rich90454.agent-db-doctor.yaml` |
@@ -31,10 +35,12 @@ the release:
     -ZipPath .\agent-db-doctor-1.0.0-windows-x86_64.zip
 
 # 2. Check the three finished files against the schema.
-wingetcreate validate .\packaging\winget
+winget validate --manifest .\packaging\winget
 
-# 3. Let wingetcreate fork the repository and open the pull request.
-wingetcreate submit --token <GitHub token with the public_repo scope> .\packaging\winget
+# 3. Let wingetcreate fork the repository and open the pull request. The title
+#    follows the Community Repository's convention for a new package.
+wingetcreate submit --prtitle "New package: richie-rich90454.agent-db-doctor version 1.0.0" `
+    --token <GitHub token with the public_repo scope> .\packaging\winget
 ```
 
 `wingetcreate submit` copies the three files into
@@ -61,8 +67,9 @@ account, whose `Formula` folder holds ruby files. Tap formulae may install a
 released binary; homebrew-core, the shared catalogue, builds from source, so it
 is a later step if the project ever grows into it.
 
-One time setup: create a public repository named `homebrew-tap` under
-`richie-rich90454` on GitHub (an empty repository with a README is enough).
+One time setup: a tap is an ordinary public repository named `homebrew-tap` under the
+account, with the formula in `Formula/`. This one exists at
+`richie-rich90454/homebrew-tap`, and the 1.0.0 formula is published in it.
 
 Release day, once the macOS arm64 tarball and the Linux x86_64 tarball are
 attached to the release:
